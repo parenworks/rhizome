@@ -1,0 +1,320 @@
+* Stumpway
+
+StumpWM-style window manager for the [[https://github.com/riverwm/river][River]] Wayland compositor, written in Common Lisp.
+
+The goal: a Wayland desktop/window manager like [[https://github.com/YaLTeR/niri][niri]] but written in Common Lisp and as programmatically syntactic as [[https://github.com/stumpwm/stumpwm][StumpWM]]. Live REPL-driven window management, programmable hooks, a native CL app launcher rivaling [[https://codeberg.org/dnkl/fuzzel][fuzzel]], and the legacy and spirit of systems like Harmony from the Lisp Machines.
+
+* Architecture
+
+#+begin_example
+WSLg (Weston) → River (nested) → Stumpway (window manager)
+#+end_example
+
+On a real Linux machine (e.g. Arch Linux):
+
+#+begin_example
+DRM/KMS → River (compositor) → Stumpway (window manager)
+#+end_example
+
+River is a non-monolithic Wayland compositor — it handles rendering and input hardware, but delegates all window management policy to a separate process via the =river-window-management-v1= protocol. Stumpway is that process. This is exactly the StumpWM model: StumpWM doesn't composite, it manages windows on top of X11. Stumpway does the same on top of Wayland/river.
+
+The protocol uses a **manage/render sequence loop**:
+
+1. River sends state changes (new window, output, seat) then =manage_start=
+2. Stumpway sends window management decisions (propose dimensions, focus, fullscreen) then =manage_finish=
+3. River sends actual window dimensions then =render_start=
+4. Stumpway sends rendering decisions (position, borders, z-order) then =render_finish=
+
+This gives StumpWM-style live REPL control — you can redefine layouts, switch focus, and add commands without restarting the compositor.
+
+** Protocol interfaces
+
+- =river_window_manager_v1= — global factory, manages the sequence loop
+- =river_window_v1= — individual windows (propose dimensions, fullscreen, close, borders, tiled state, hide/show)
+- =river_output_v1= — outputs/monitors (position, dimensions, presentation mode)
+- =river_seat_v1= — input seats (focus windows, pointer bindings, interactive move/resize)
+- =river_node_v1= — render list nodes (set position, place above/below for z-ordering)
+- =river_shell_surface_v1= — surfaces for WM UI (status bars, launchers, backgrounds)
+- =river_decoration_v1= — window decorations above/below content
+- =river_pointer_binding_v1= — pointer button bindings with modifiers
+- =river_xkb_bindings_v1= — keyboard bindings with xkb keysyms and modifier lists
+- =zwlr_layer_shell_v1= — wlr layer shell protocol for overlay surfaces (launcher)
+- =wl_compositor= — Wayland compositor for creating surfaces
+- =wl_shm= — shared memory buffers for rendering
+- =wl_seat= — raw keyboard input for the launcher
+
+** Key Wayflan quirks discovered
+
+- Bitfield enums expect keyword lists, not integers (e.g. =(:mod1)= for Alt, =(:keyboard)= for seat capabilities)
+- Regular enums expect keywords (e.g. =:top= for layer, =:exclusive= for keyboard interactivity)
+- =wl-registry.bind= requires the interface class from =wl:find-interface-named=
+- The registry proxy must be kept globally; creating new registries causes GC'd proxy errors
+- CFFI string decoding errors from Wayflan can crash the WM — wrap =wl-display-dispatch-event= in =handler-case=
+
+* Prerequisites
+
+** Common Lisp dependencies
+
+| Dependency          | Purpose                                      |
+|---------------------+----------------------------------------------|
+| =wayflan-client=    | Wayland client protocol library for CL       |
+| =cl-ppcre=          | Regular expressions (used for string parsing)|
+| =bordeaux-threads=  | Threading (app launcher polling, concurrency)|
+| =cffi=              | Foreign function interface (shm/mmap for launcher rendering) |
+
+All are available via Quicklisp. Wayflan should be cloned to =~/quicklisp/local-projects/wayflan=.
+
+** System packages (WSL2 / Ubuntu 24.04)
+
+#+begin_src bash
+# River build dependencies
+sudo apt install -y wayland-protocols libwlroots-dev libxkbcommon-dev \
+  libpixman-1-dev libevdev-dev pkg-config scdoc
+
+# SBCL and Quicklisp
+sudo apt install -y sbcl
+# Install Quicklisp: https://www.quicklisp.org/beta/
+#+end_src
+
+** System packages (Arch Linux — for real hardware use)
+
+#+begin_src bash
+sudo pacman -S river wayland-protocols wlroots xkbcommon pixman libevdev \
+  pkgconf scdoc sbcl
+# Quicklisp: https://www.quicklisp.org/beta/
+#+end_src
+
+** Install Zig (for building river on WSL2)
+
+River requires [[https://ziglang.org/][Zig]] 0.16 to build. It is not available in Ubuntu's package repos.
+
+#+begin_src bash
+cd /tmp
+curl -L https://ziglang.org/download/0.16.0/zig-linux-x86_64-0.16.0.tar.xz -o zig.tar.xz
+tar xf zig.tar.xz
+sudo mv zig-linux-x86_64-0.16.0 /opt/zig
+sudo ln -sf /opt/zig/zig /usr/local/bin/zig
+zig version  # should print 0.16.0
+#+end_src
+
+On Arch Linux, river is available from the official repos or AUR (=paru -S river=).
+
+** Build and install river (WSL2 only)
+
+#+begin_src bash
+cd ~/SourceCode/river
+zig build -Doptimize=ReleaseSafe --prefix ~/.local install
+#+end_src
+
+This installs the =river= binary to =~/.local/bin/river=. Make sure =~/.local/bin= is on your =PATH=.
+
+** Protocol XML files
+
+Already in the =protocol/= directory:
+
+- =river-window-management-v1.xml= — from river source
+- =river-xkb-bindings-v1.xml= — from river source
+- =river-layer-shell-v1.xml= — from river source (required for native launcher)
+- =wlr-layer-shell-unstable-v1.xml= — from [[https://gitlab.freedesktop.org/wlroots/wlr-protocols][wlr-protocols]]
+
+Wayflan's scanner generates Lisp bindings from these at compile time via =wl-include=.
+
+* Running
+
+** On WSL2 (development environment)
+
+#+begin_src bash
+# 1. Start river (nested in WSLg)
+river &
+
+# 2. Start stumpway
+~/SourceCode/stumpway/start-stumpway.sh
+
+# Or manually:
+sbcl --eval '(ql:quickload :stumpway)' --eval '(stumpway:run)'
+#+end_src
+
+River opens as a window inside your WSLg desktop. It uses the Wayland backend automatically when it detects an existing compositor (WSLg's Weston).
+
+** On Arch Linux (real hardware)
+
+#+begin_src bash
+# From a TTY after login (not from within a desktop session):
+river &
+# In another TTY or via a script:
+sbcl --eval '(ql:quickload :stumpway)' --eval '(stumpway:run)'
+#+end_src
+
+On bare metal, river is the primary compositor — no nesting. The WSLg limitations (Super key hijack, nested Wayland GPU quirks) disappear.
+
+** WSLg-specific notes
+
+- Windows hijacks the Super key, so Alt (= :mod1) is used as the modifier
+- =WAYLAND_DISPLAY= must be set to =wayland-1= for launched applications
+- Some CFFI string decoding errors from Wayflan can occur with certain window titles (e.g. Emacs dashboard) — handled with =handler-case= around the event dispatch loop
+
+* Keybindings
+
+| Key            | Action                              |
+|----------------+-------------------------------------|
+| Alt+Return     | Launch terminal (alacritty)         |
+| Alt+Q          | Close focused window                |
+| Alt+J          | Focus next window                   |
+| Alt+K          | Focus previous window               |
+| Alt+Space      | Cycle layout (master-stack/even/monocle) |
+| Alt+1          | Master-stack layout                 |
+| Alt+2          | Even layout                         |
+| Alt+3          | Monocle layout                      |
+| Alt+E          | Launch Emacs                        |
+| Alt+D          | Application launcher                |
+
+** Native application launcher (Alt+D)
+
+The launcher is a native Wayland layer-shell overlay — no external process like fzf or rofi needed. It uses =zwlr_layer_shell_v1= + =river_layer_shell_v1= to create a top-layer popup with exclusive keyboard interactivity.
+
+Features:
+- Scans XDG =.desktop= files from standard directories (=XDG_DATA_HOME=, =XDG_DATA_DIRS=, =~/.local/share/applications=, =/usr/share/applications=)
+- Filters out =NoDisplay=, =Hidden=, and non-Application entries
+- Strips Exec field codes (=%f=, =%u=, =%F=, etc.) and wraps Terminal=true apps in Alacritty
+- 8x16 bitmap font with full ASCII printable glyph set, rendered directly to shared memory
+- Purple color theme (dark purple background, lavender text, purple selection highlight)
+- Substring search filtering with live redraw
+- Scrollable list with client-side key repeat (hold down arrow to scroll)
+- Keyboard: type to filter, Up/Down to navigate, Enter to launch, Escape to close, Backspace to delete
+- Reuses shm buffer across redraws for fast rendering (no per-frame mmap/munmap)
+
+* Layouts
+
+- =master-stack= — One master window on the left, rest stacked on the right (default)
+- =even= — Grid layout with equal-sized cells
+- =monocle= — Fullscreen, one window at a time
+
+** Defining custom layouts
+
+#+begin_src lisp
+(stumpway:define-layout :my-layout (windows width height)
+  ;; Your tiling logic here
+  ;; Must return a list of (window x y w h) tuples
+  (loop for win in windows
+        for i below (length windows)
+        collect (list win 0 (* i (floor height (length windows)))
+                      width (floor height (length windows)))))
+#+end_src
+
+* Project structure
+
+#+begin_example
+stumpway/
+  stumpway.asd                        — ASDF system definition
+  river-protocol.lisp                 — Wayflan scanner for all protocol XMLs
+  package.lisp                        — Package definition and exports
+  wm-protocol.lisp                    — Manage/render sequence loop, Wayland connection, registry
+  window.lisp                         — Window management (dimensions, focus, borders, auto-focus)
+  output.lisp                         — Output/monitor tracking
+  seat.lisp                           — Input seat, wl_seat binding, wl_keyboard for launcher
+  tiling.lisp                         — Tiling engine, layout functions, focus cycling
+  keybindings.lisp                    — xkb keybindings, default bindings, fzf launcher
+  launcher.lisp                       — Native layer-shell app launcher (working)
+  commands.lisp                       — User command dispatch
+  main.lisp                           — Entry point for standalone execution
+  protocol/
+    river-window-management-v1.xml    — River window management protocol
+    river-xkb-bindings-v1.xml         — River keyboard bindings protocol
+    river-layer-shell-v1.xml          — River layer shell protocol (for launcher)
+    wlr-layer-shell-unstable-v1.xml   — wlr layer shell protocol (for launcher)
+#+end_example
+
+* Current status
+
+** Working
+
+- [X] Manage/render sequence loop
+- [X] Window, output, and seat tracking
+- [X] Master-stack, even, and monocle layouts
+- [X] Window focus management with auto-focus on new windows
+- [X] Window borders (focused vs unfocused)
+- [X] Keyboard bindings via river-xkb-bindings-v1 (Alt modifier)
+- [X] Focus cycling (Alt+J/K) sorted by window position with wrap-around
+- [X] Layout cycling and switching (Alt+Space, Alt+1/2/3)
+- [X] Launch terminal (Alt+Return) and Emacs (Alt+E)
+- [X] Robust event handling (handler-case around dispatch loop)
+- [X] wl_compositor, wl_shm, zwlr_layer_shell_v1 binding
+- [X] wl_seat binding with wl_keyboard for raw key events
+- [X] river_layer_shell_v1 protocol binding and output/seat registration
+- [X] Native layer-shell launcher (Alt+D) with:
+  - [X] .desktop file scanning from XDG directories
+  - [X] 8x16 bitmap font with full ASCII printable glyphs
+  - [X] Direct-to-shm rendering (reuses buffer, no per-frame mmap/munmap)
+  - [X] Purple color theme
+  - [X] Substring search filtering with live redraw
+  - [X] Scrollable list with client-side key repeat
+  - [X] Keyboard input: type to filter, Up/Down navigate, Enter launches, Escape closes
+  - [X] evdev-to-xkb keycode conversion
+  - [X] Exec field code stripping and Terminal=true wrapping
+
+** Not started
+
+- [ ] Frame tree with dynamic splitting (StumpWM-style)
+- [ ] Mode-line / status bar via =river_shell_surface_v1=
+- [ ] Live eval keybinding (Alt+: for eval expression)
+- [ ] Window rules (programmatically place specific apps on specific outputs)
+- [ ] Hooks for window creation, focus changes, layout switches
+- [ ] Niri-style scrollable tiling
+- [ ] Pointer bindings for interactive move/resize
+- [ ] Inspectable everything (describe window, inspect output, eval expressions)
+- [ ] Fuzzy search in launcher (currently substring match)
+- [ ] Switch modifier from Alt to Super on real hardware
+
+* Continuing on a Linux machine (Arch Linux)
+
+This project was developed on WSL2/Ubuntu 24.04 as a development environment. To make it useful on real hardware:
+
+1. *Install Arch Linux* with river as your compositor (no desktop environment needed)
+
+2. *Install dependencies*:
+   #+begin_src bash
+   sudo pacman -S river wayland-protocols wlroots xkbcommon pixman \
+     libevdev pkgconf scdoc sbcl git
+   # Install Quicklisp
+   curl -O https://beta.quicklisp.org/quicklisp.lisp
+   sbcl --load quicklisp.lisp
+   # (follow prompts, then (ql:add-to-init-file))
+   #+end_src
+
+3. *Clone wayflan*:
+   #+begin_src bash
+   cd ~/quicklisp/local-projects/
+   git clone https://github.com/wayflan/wayflan.git
+   #+end_src
+
+4. *Clone stumpway*:
+   #+begin_src bash
+   cd ~/SourceCode
+   git clone <your-stumpway-repo> stumpway
+   #+end_src
+
+5. *Start river from a TTY*:
+   #+begin_src bash
+   # From TTY1 after login:
+   river &
+   # From TTY2:
+   sbcl --eval '(ql:quickload :stumpway)' --eval '(stumpway:run)'
+   #+end_src
+
+6. *Key differences on real hardware*:
+   - Super key (=:mod4=) is available — consider switching from Alt to Super
+   - =WAYLAND_DISPLAY= is typically =wayland-0= (not =wayland-1= as in WSLg nesting)
+   - No CFFI string decoding errors from nested compositor quirks
+   - GPU acceleration works properly for shm buffer rendering
+   - =river_layer_shell_v1= is already bound — the native launcher works out of the box
+
+* Design vision
+
+The long-term goal is a Wayland window manager that captures the spirit of the Lisp Machines:
+
+- *Live programmability*: eval expressions from keybindings, redefine layouts at runtime, inspect and manipulate live window objects from the REPL
+- *Native CL app launcher*: a fuzzel-like overlay rendered in CL, with fuzzy search, keyboard navigation, and programmable app list — no external process needed
+- *Programmatic window placement*: window rules to place specific apps on specific outputs with specific sizes, like StumpWM's =define-window-preference=
+- *Hooks*: user-defined functions triggered on window creation, focus change, layout switch, output hotplug
+- *Inspectable everything*: =(describe some-window)=, =(inspect some-output)=, eval expressions that manipulate live state
+- *Mode line*: a status bar showing window state, layout, clock — rendered in CL via layer-shell

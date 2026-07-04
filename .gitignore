@@ -1,0 +1,23 @@
+# Lisp build artifacts
+*.fasl
+*.fas
+*.lib
+*.tmp
+__pycache__/
+
+# FASL cache
+.cache/
+
+# Editor files
+*~
+\#*\#
+.\#*
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
