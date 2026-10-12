@@ -157,16 +157,60 @@ On bare metal, river is the primary compositor — no nesting. The WSLg limitati
 
 | Key            | Action                              |
 |----------------+-------------------------------------|
-| Alt+Return     | Launch terminal (alacritty)         |
+| Alt+Return     | Launch terminal (foot)              |
 | Alt+Q          | Close focused window                |
 | Alt+J          | Focus next window                   |
 | Alt+K          | Focus previous window               |
 | Alt+Space      | Cycle layout (master-stack/even/monocle) |
-| Alt+1          | Master-stack layout                 |
-| Alt+2          | Even layout                         |
-| Alt+3          | Monocle layout                      |
+| Alt+1..9       | Switch to workspace 1..9               |
+| Alt+Shift+1..9 | Move focused window to workspace N    |
 | Alt+E          | Launch Emacs                        |
 | Alt+D          | Application launcher                |
+| Alt+B          | Toggle the status bar               |
+
+** Workspaces
+
+Nine StumpWM-style workspaces per output. Windows open on the current
+workspace; =Alt+1..9= switches workspaces, =Alt+Shift+1..9= moves the focused
+window (and follows it). Windows on other workspaces are hidden and reappear
+on return. The current workspace is shown in the bar's =:workspaces= module
+with the active number highlighted in the accent color. The WM exports its
+state (layout, window count, workspace, focused title) to the bar via an
+atomic snapshot file, ~~/.cache/stumpway/snapshot.sexp~.
+
+** Status bar
+
+A configurable status bar / mode-line, rendered in CL via layer-shell. Runs as
+its own process (the compositor / WM / bar as cooperating processes — river's
+philosophy applied to the bar too), driven entirely from the configuration.
+Since river reports full output dimensions to the WM even when the bar has an
+exclusive zone, the WM reserves the bar's space itself in its layout math.
+
+#+begin_src lisp
+;; Live from the REPL or in ~/.config/stumpway/config.lisp:
+(stumpway:configure '(:bar (:enabled nil)))          ; disable the bar
+(stumpway:configure '(:bar (:modules (:left (:layout :windows)
+                                        :center (:clock)
+                                        :right (:network :volume :battery)))))
+(stumpway:configure '(:modules (:clock (:format "%a %d %b %H:%M"))))
+(stumpway:reload-config)                             ; reset + reload user file
+#+end_src
+
+Bar modules: =:workspaces= (numbers, current highlighted), =:layout= (current
+layout), =:windows= (window count), =:focused= (focused window title),
+=:clock= (strftime-like format), =:battery= (/sys), =:volume= (wpctl),
+=:network= (nmcli). Each rate-limited module takes an =:interval= (seconds).
+The bar's own =:bar :interval= (default 0.15s) is the poll rate for change
+detection: the bar re-renders only when a module's output actually changed,
+so workspace switches and volume changes appear within one poll.
+
+Modules are clickable: the bar process binds a =wl_pointer= and records each
+module's rendered area as a click target. Modules can define shell-command
+actions in the config — =:on-click=, =:on-scroll-up=, =:on-scroll-down=.
+Defaults: clicking the volume module toggles mute and scrolling adjusts it by
+5%; clicking the network module opens nmtui in a terminal. The user config
+file lives at ~~/.config/stumpway/config.lisp~; the bar process logs to
+~~/.cache/stumpway/bar.log~. Alt+B toggles the bar.
 
 ** Native application launcher (Alt+D)
 
@@ -208,10 +252,14 @@ stumpway/
   stumpway.asd                        — ASDF system definition
   river-protocol.lisp                 — Wayflan scanner for all protocol XMLs
   package.lisp                        — Package definition and exports
+  config.lisp                         — Configuration system (defaults, user file, live overrides)
+  bar.lisp                            — Configurable status bar / mode-line (own process)
   wm-protocol.lisp                    — Manage/render sequence loop, Wayland connection, registry
   window.lisp                         — Window management (dimensions, focus, borders, auto-focus)
   output.lisp                         — Output/monitor tracking
   seat.lisp                           — Input seat, wl_seat binding, wl_keyboard for launcher
+  input.lisp                          — Input config via river-libinput-config-v1 (tap-to-click, tap-and-drag)
+  workspaces.lisp                     — StumpWM-style workspaces (switch, move windows)
   tiling.lisp                         — Tiling engine, layout functions, focus cycling
   keybindings.lisp                    — xkb keybindings, default bindings, fzf launcher
   launcher.lisp                       — Native layer-shell app launcher (working)
@@ -221,6 +269,8 @@ stumpway/
     river-window-management-v1.xml    — River window management protocol
     river-xkb-bindings-v1.xml         — River keyboard bindings protocol
     river-layer-shell-v1.xml          — River layer shell protocol (for launcher)
+    river-input-management-v1.xml     — River seat/device management protocol
+    river-libinput-config-v1.xml      — River libinput config protocol (tap, drag, scroll)
     wlr-layer-shell-unstable-v1.xml   — wlr layer shell protocol (for launcher)
 #+end_example
 
@@ -235,9 +285,14 @@ stumpway/
 - [X] Window borders (focused vs unfocused)
 - [X] Keyboard bindings via river-xkb-bindings-v1 (Alt modifier)
 - [X] Focus cycling (Alt+J/K) sorted by window position with wrap-around
-- [X] Layout cycling and switching (Alt+Space, Alt+1/2/3)
+- [X] Layout cycling and switching (Alt+Space)
 - [X] Launch terminal (Alt+Return) and Emacs (Alt+E)
 - [X] Robust event handling (handler-case around dispatch loop)
+- [X] Tap-to-click + tap-and-drag via river-libinput-config-v1 (1/2/3 finger tap = left/right/middle)
+- [X] Input device discovery via river-input-management-v1 (names, types)
+- [X] Configurable status bar (modules, colors, intervals; ships enabled, can be disabled)
+- [X] Clickable bar modules (:on-click / :on-scroll-up / :on-scroll-down shell commands)
+- [X] Workspaces (Alt+1..9, Alt+Shift+1..9 moves window; shown in the bar)
 - [X] wl_compositor, wl_shm, zwlr_layer_shell_v1 binding
 - [X] wl_seat binding with wl_keyboard for raw key events
 - [X] river_layer_shell_v1 protocol binding and output/seat registration
@@ -255,7 +310,6 @@ stumpway/
 ** Not started
 
 - [ ] Frame tree with dynamic splitting (StumpWM-style)
-- [ ] Mode-line / status bar via =river_shell_surface_v1=
 - [ ] Live eval keybinding (Alt+: for eval expression)
 - [ ] Window rules (programmatically place specific apps on specific outputs)
 - [ ] Hooks for window creation, focus changes, layout switches

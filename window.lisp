@@ -61,7 +61,9 @@
 
         (:closed
          (format t "~&; Stumpway: window closed~%")
-         (remhash (window-proxy win) *windows*))
+         (remhash (window-proxy win) *windows*)
+         (remhash win *window-workspace*)
+         (remhash win *minimized-windows*))
 
         (:fullscreen-requested
          (destructuring-bind (output) args
@@ -81,6 +83,7 @@
 
         (:minimize-requested
          (setf (window-hidden-p win) t)
+         (setf (window-minimized-p win) t)
          (request-manage-dirty))
 
         (:pointer-move-requested

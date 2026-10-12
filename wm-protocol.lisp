@@ -40,6 +40,45 @@
 (defvar *seats* (make-hash-table)
   "Maps river_seat_v1 proxy objects to stumpway-seat instances.")
 
+(defvar *wm-snapshot* '(:layout nil :windows 0 :focused nil)
+  "Cached WM state for the bar thread, refreshed by update-wm-snapshot.")
+
+(defun snapshot-pathname ()
+  "Pathname of the WM snapshot file read by the bar process."
+  (merge-pathnames #P".cache/stumpway/snapshot.sexp"
+                   (user-homedir-pathname)))
+
+(defun bar-write-snapshot (snapshot)
+  "Persist the WM snapshot for the bar process (atomic write)."
+  (handler-case
+      (let ((tmp (merge-pathnames #P".cache/stumpway/snapshot.sexp.tmp"
+                                  (user-homedir-pathname))))
+        (ensure-directories-exist tmp)
+        (with-open-file (s tmp :direction :output
+                           :if-exists :supersede)
+          (write snapshot :stream s))
+        (let ((target (snapshot-pathname)))
+          (when (probe-file target)
+            (delete-file target))
+          (rename-file tmp target)))
+    (error (e)
+      (declare (ignore e))
+      nil)))
+
+(defun update-wm-snapshot ()
+  "Refresh the snapshot read by the bar thread. Called from the WM
+thread during manage and render sequences."
+  (setf *wm-snapshot*
+        (list :layout (let ((outs (all-outputs)))
+                        (when outs (output-current-layout (first outs))))
+              :windows (hash-table-count *windows*)
+              :workspace (let ((outs (all-outputs)))
+                          (when outs (current-workspace (first outs))))
+              :workspace-count *workspace-count*
+              :focused (let ((focused (find-if #'window-focused-p (all-windows))))
+                         (when focused (window-title focused)))))
+  (bar-write-snapshot *wm-snapshot*))
+
 ;;; --- Sequence state machine --
 ;;;
 ;;; The protocol requires strict ordering of manage and render sequences.
@@ -71,6 +110,10 @@ One of :idle, :managing, :waiting-render, :rendering.")
        (setup-wm-hooks *wm-proxy*)))
     ((string= interface "river_xkb_bindings_v1")
      (setup-xkb-bindings registry name interface version))
+    ((string= interface "river_input_manager_v1")
+     (setup-input-management registry name interface version))
+    ((string= interface "river_libinput_config_v1")
+     (setup-libinput-config registry name interface version))
     ((string= interface "wl_compositor")
      (let ((iface-class (wl:find-interface-named interface)))
        (when iface-class
@@ -155,6 +198,9 @@ window management decisions to the compositor."
   ;; (propose dimensions, set focus, set tiled state, etc.)
   (on-manage-sequence)
 
+  ;; Refresh the WM snapshot for the bar
+  (update-wm-snapshot)
+
   ;; Finish the manage sequence
   (rwm:river-window-manager-v1.manage-finish *wm-proxy*)
 
@@ -184,9 +230,14 @@ handlers should make window management requests here."
                      output (output-width output) (output-height output))
              (apply-layout-for-output output))
            *outputs*)
-  ;; Auto-focus: focus the most recently registered window on each seat
+  ;; Auto-focus: focus the most recently registered window on each seat,
+  ;; but only if it lives on the current workspace of its output
   (let ((win *last-registered-window*))
-    (when (and win (gethash (window-proxy win) *windows*))
+    (when (and win
+               (gethash (window-proxy win) *windows*)
+               (let ((out (window-output win)))
+                 (or (null out)
+                     (eql (window-workspace win) (current-workspace out)))))
       (dolist (seat (all-seats))
         (format t "~&; Stumpway [debug]: auto-focusing window ~A on seat ~A~%" win seat)
         (focus-window win seat)))))
@@ -200,6 +251,9 @@ z-ordering) to the compositor."
 
   ;; Let the tiling engine apply rendering decisions
   (on-render-sequence)
+
+  ;; Refresh the WM snapshot for the bar
+  (update-wm-snapshot)
 
   ;; Finish the render sequence
   (rwm:river-window-manager-v1.render-finish *wm-proxy*)
@@ -238,6 +292,13 @@ window management updates."
         *windows* (make-hash-table)
         *outputs* (make-hash-table)
         *seats* (make-hash-table)
+        *output-workspace* (make-hash-table)
+        *window-workspace* (make-hash-table)
+        *minimized-windows* (make-hash-table)
+        *input-manager* nil
+        *libinput-config* nil
+        *river-input-devices* (make-hash-table)
+        *libinput-devices* (make-hash-table)
         *sequence-state* :idle
         *launcher-active* nil
         *launcher-surface* nil
@@ -246,6 +307,9 @@ window management updates."
 
   (format t "~&; Stumpway: starting window manager~%")
   (format t "~&; Stumpway: connecting to river compositor...~%")
+
+  ;; Load user configuration (~/.config/stumpway/config.lisp)
+  (load-user-config)
 
   (wl:with-open-display (display)
     (setf *display* display)
@@ -294,6 +358,9 @@ window management updates."
               (hash-table-count *outputs*)
               (hash-table-count *seats*))
 
+      ;; Start the status bar if configured
+      (bar-apply-config)
+
       ;; Main event loop
       (unwind-protect
            (loop while *running* do
@@ -301,7 +368,8 @@ window management updates."
                  (wl:wl-display-dispatch-event display)
                (error (e)
                  (format t "~&; Stumpway: error in event dispatch: ~A~%" e))))
-        (format t "~&; Stumpway: shutting down~%"))))
+        (format t "~&; Stumpway: shutting down~%")
+        (stop-bar))))
 
   (setf *display* nil
         *wm-proxy* nil))

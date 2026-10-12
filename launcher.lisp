@@ -931,7 +931,6 @@ Returns T if the key was consumed, NIL if not."
      (let ((entry (nth *launcher-selection* *launcher-entries*)))
        (when entry
          (format t "~&; Stumpway: launching ~A~%" (cdr entry))
-         (setf (uiop:getenv "WAYLAND_DISPLAY") "wayland-1")
          (uiop:launch-program (list "bash" "-c" (cdr entry))))
        (hide-launcher))
      (launcher-redraw)

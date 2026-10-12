@@ -33,4 +33,16 @@
     (merge-pathnames
       #P"protocol/river-layer-shell-v1.xml"
       (asdf:system-source-directory :stumpway))
+    :export t)
+
+  (xyz.shunter.wayflan.client.scanner:wl-include
+    (merge-pathnames
+      #P"protocol/river-input-management-v1.xml"
+      (asdf:system-source-directory :stumpway))
+    :export t)
+
+  (xyz.shunter.wayflan.client.scanner:wl-include
+    (merge-pathnames
+      #P"protocol/river-libinput-config-v1.xml"
+      (asdf:system-source-directory :stumpway))
     :export t))

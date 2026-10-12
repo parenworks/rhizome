@@ -34,6 +34,12 @@
    #:remove-split
    #:focus-next
    #:focus-previous
+   ;; Workspaces
+   #:current-workspace
+   #:switch-workspace
+   #:move-window-to-workspace
+   #:move-focused-window-to-workspace
+   #:window-workspace
    ;; Sequence control
    #:request-manage-dirty
    ;; Window access
@@ -48,4 +54,14 @@
    #:window-focused-p
    ;; Keybindings
    #:define-key
-   #:setup-default-keybindings))
+   #:setup-default-keybindings
+   ;; Configuration
+   #:*config*
+   #:configure
+   #:reload-config
+   #:config-pathname
+   ;; Bar
+   #:run-bar
+   #:start-bar
+   #:stop-bar
+   #:toggle-bar))

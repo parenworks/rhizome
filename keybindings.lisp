@@ -5,16 +5,16 @@
 ;;; keysyms and modifiers, and trigger callbacks when pressed.
 ;;;
 ;;; Default bindings (StumpWM-style, with Alt as prefix):
-;;;   Alt+Return   - launch terminal (alacritty)
+;;;   Alt+Return   - launch terminal (foot)
 ;;;   Alt+Q        - close focused window
 ;;;   Alt+J        - focus next window
 ;;;   Alt+K        - focus previous window
 ;;;   Alt+Space    - cycle layout
-;;;   Alt+1        - master-stack layout
-;;;   Alt+2        - even layout
-;;;   Alt+3        - monocle layout
+;;;   Alt+1..9     - switch to workspace 1..9
+;;;   Alt+Shift+1..9 - move focused window to workspace 1..9
 ;;;   Alt+E        - launch emacs
-;;;   Alt+D        - application launcher (fzf)
+;;;   Alt+D        - application launcher (native layer-shell popup)
+;;;   Alt+B        - toggle the status bar
 
 (in-package #:stumpway)
 
@@ -36,11 +36,18 @@
   (defconstant +xkb-key-Q+       113)      ; #x0071
   (defconstant +xkb-key-J+       106)      ; #x006a
   (defconstant +xkb-key-K+       107)      ; #x006b
+  (defconstant +xkb-key-B+        98)       ; #x0062
   (defconstant +xkb-key-D+       100)      ; #x0064
   (defconstant +xkb-key-F+       102)      ; #x0066
   (defconstant +xkb-key-1+       49)       ; #x0031
   (defconstant +xkb-key-2+       50)       ; #x0032
   (defconstant +xkb-key-3+       51)       ; #x0033
+  (defconstant +xkb-key-4+       52)       ; #x0034
+  (defconstant +xkb-key-5+       53)       ; #x0035
+  (defconstant +xkb-key-6+       54)       ; #x0036
+  (defconstant +xkb-key-7+       55)       ; #x0037
+  (defconstant +xkb-key-8+       56)       ; #x0038
+  (defconstant +xkb-key-9+       57)       ; #x0039
   (defconstant +xkb-key-E+       101)      ; #x0065
   (defconstant +xkb-key-P+       112)      ; #x0070
   (defconstant +xkb-key-Escape+  65307))   ; #xff1b
@@ -129,8 +136,7 @@ a manage sequence."
   (define-key +xkb-key-Return+ *mod-alt*
     (lambda ()
       (format t "~&; Stumpway: launching terminal~%")
-      (setf (uiop:getenv "WAYLAND_DISPLAY") "wayland-1")
-      (uiop:launch-program '("alacritty"))))
+      (uiop:launch-program '("foot"))))
 
   ;; Alt+Q - close focused window
   (define-key +xkb-key-Q+ *mod-alt*
@@ -169,32 +175,24 @@ a manage sequence."
                          (otherwise :master-stack))))
             (switch-layout out next))))))
 
-  ;; Alt+1 - master-stack
-  (define-key +xkb-key-1+ *mod-alt*
-    (lambda ()
-      (let ((outputs (all-outputs)))
-        (when outputs
-          (switch-layout (first outputs) :master-stack)))))
-
-  ;; Alt+2 - even
-  (define-key +xkb-key-2+ *mod-alt*
-    (lambda ()
-      (let ((outputs (all-outputs)))
-        (when outputs
-          (switch-layout (first outputs) :even)))))
-
-  ;; Alt+3 - monocle
-  (define-key +xkb-key-3+ *mod-alt*
-    (lambda ()
-      (let ((outputs (all-outputs)))
-        (when outputs
-          (switch-layout (first outputs) :monocle)))))
+  ;; Alt+1..9 - switch to workspace N
+  ;; Alt+Shift+1..9 - move focused window to workspace N
+  ;; (Alt+Space cycles layouts; the old Alt+1/2/3 layout bindings
+  ;; were replaced by workspaces)
+  (loop for i from 1 to 9
+        for keysym = (+ 48 i)
+        do (let ((ws i))
+             (define-key keysym *mod-alt*
+               (lambda ()
+                 (switch-workspace ws)))
+             (define-key keysym (append *mod-alt* *mod-shift*)
+               (lambda ()
+                 (move-focused-window-to-workspace ws)))))
 
   ;; Alt+E - launch emacs
   (define-key +xkb-key-E+ *mod-alt*
     (lambda ()
       (format t "~&; Stumpway: launching emacs~%")
-      (setf (uiop:getenv "WAYLAND_DISPLAY") "wayland-1")
       (uiop:launch-program '("emacs"))))
 
   ;; Alt+D - application launcher (native layer-shell popup)
@@ -204,17 +202,26 @@ a manage sequence."
       (handler-case
           (show-launcher)
         (error (e)
-          (format t "~&; Stumpway: launcher error: ~A~%" e))))))
+          (format t "~&; Stumpway: launcher error: ~A~%" e)))))
+
+  ;; Alt+B - toggle the status bar
+  (define-key +xkb-key-B+ *mod-alt*
+    (lambda ()
+      (format t "~&; Stumpway: toggling bar~%")
+      (handler-case
+          (toggle-bar)
+        (error (e)
+          (format t "~&; Stumpway: bar error: ~A~%" e))))))
 
 ;;; --- Application launcher ---
 
 (defparameter *app-launcher-entries*
-  '(("Alacritty (terminal)" . "alacritty")
+  '(("Foot (terminal)" . "foot")
     ("Emacs" . "emacs")
-    ("Vim (in terminal)" . "alacritty --command vim")
-    ("Htop (in terminal)" . "alacritty --command htop")
-    ("Neovim (in terminal)" . "alacritty --command nvim")
-    ("Bash (in terminal)" . "alacritty --command bash")
+    ("Vim (in terminal)" . "foot -e vim")
+    ("Htop (in terminal)" . "foot -e htop")
+    ("Neovim (in terminal)" . "foot -e nvim")
+    ("Bash (in terminal)" . "foot -e bash")
     ("MPV (media player)" . "mpv")
     ("Xterm" . "xterm")
     ("Zutty" . "zutty"))
@@ -237,10 +244,10 @@ Shows a curated list of Wayland-relevant applications."
     ;; Clear result file
     (with-open-file (f result-file :direction :output :if-exists :supersede)
       (format f ""))
-    ;; Launch alacritty with fzf, writing the selection to result-file
+    ;; Launch foot with fzf, writing the selection to result-file
     (uiop:launch-program
-      (list "alacritty"
-            "--command"
+      (list "foot"
+            "-e"
             "bash" "-c"
             (concatenate 'string
               "cat " names-file " | fzf --prompt='Run: ' > " result-file)))
@@ -265,7 +272,6 @@ Shows a curated list of Wayland-relevant applications."
                                :key #'car :test #'string=)))
               (when entry
                 (format t "~&; Stumpway: launching ~A~%" (cdr entry))
-                (setf (uiop:getenv "WAYLAND_DISPLAY") "wayland-1")
                 (uiop:launch-program
                   (list "bash" "-c" (cdr entry)))))))))))
 
