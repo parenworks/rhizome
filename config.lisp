@@ -90,7 +90,8 @@ Returns (values value found-p)."
                        :on-scroll-up "wpctl set-volume -l 1.0 @DEFAULT_AUDIO_SINK@ 5%+"
                        :on-scroll-down "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-")
               :network (:interval 10
-                        :on-click "foot -e nmtui"))))
+                        :on-click "foot -e nmtui"))
+    :window-rules ()))
 
 (defvar *config* (default-config)
   "The current stumpway configuration.")

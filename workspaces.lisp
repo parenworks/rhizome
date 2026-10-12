@@ -94,3 +94,64 @@ because they are on another workspace.")
     (when focused
       (move-window-to-workspace focused workspace
                                 (window-output focused)))))
+
+;;; --- Window rules ---
+;;;
+;;; Configure applications to open on specific workspaces, optionally
+;;; switching the output's layout and following the window there.
+;;; Rules live in the config and match a regex against the window's
+;;; app-id (default) or title:
+;;;
+;;;   (stumpway:configure
+;;;     '(:window-rules ((:match "vivaldi" :workspace 2 :follow t)
+;;;                      (:match "emacs" :workspace 3 :layout :monocle))))
+
+(defun window-rule-matches-p (win rule)
+  "Whether WIN matches RULE's :match regex."
+  (let* ((pattern (getf rule :match))
+         (key (getf rule :key :app-id))
+         (candidates
+           (case key
+             (:app-id (list (window-app-id win)))
+             (:title (list (window-title win)))
+             (:any (list (window-app-id win) (window-title win)))
+             (t (list (window-app-id win))))))
+    (and pattern
+         (some (lambda (candidate)
+                 (and candidate
+                      (cl-ppcre:scan (concatenate 'string
+                                                  "(?i)" pattern)
+                                     candidate)))
+               candidates))))
+
+(defun apply-window-rules (win)
+  "Apply the first matching window rule to WIN: assign its workspace,
+optionally switch the output's layout and/or follow the window.
+Returns the matched rule, if any."
+  (dolist (rule (config-get '(:window-rules)))
+    (when (window-rule-matches-p win rule)
+      (let ((workspace (getf rule :workspace))
+            (layout (getf rule :layout))
+            (follow (getf rule :follow)))
+        (when workspace
+          (assign-window-workspace win workspace)
+          (setf (window-minimized-p win) nil))
+        (when layout
+          (let ((outs (all-outputs)))
+            (when (and outs (gethash (find-layout-symbol layout) *layouts*))
+              (setf (output-current-layout (first outs))
+                    (find-layout-symbol layout)))))
+        (when (and follow workspace)
+          (let ((outs (all-outputs)))
+            (when outs
+              (switch-workspace workspace (first outs)))))
+        (request-manage-dirty)
+        (format t "~&; Stumpway: window rule ~S applied to ~A~%"
+                rule (or (window-app-id win) (window-title win) win))
+        (return rule)))))
+
+(defun find-layout-symbol (layout)
+  "Normalize a rule's :layout value (keyword or string) to a layout name."
+  (typecase layout
+    (string (intern (string-upcase layout) :keyword))
+    (t layout)))

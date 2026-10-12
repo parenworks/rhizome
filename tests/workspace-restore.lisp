@@ -1,14 +1,18 @@
 ;;; Regression test for workspace window restoration.
-;;; Simulates: IDE hidden on workspace 1, browser visible on
-;;; workspace 2, current workspace 1. render-layout-for-output must
-;;; SHOW the hidden workspace-1 window and HIDE the workspace-2 one.
+;;; Scenario: IDE hidden on workspace 1 (we switched away and back),
+;;; browser visible on workspace 2, current workspace is 1.
+;;; render-layout-for-output must SHOW the hidden workspace-1 window
+;;; and HIDE the workspace-2 one.
 (ql:quickload :stumpway)
 
 (in-package #:stumpway)
 
+;; Never start the bar from a test run
+(configure '(:bar (:enabled nil)))
+
 (let ((calls '()))
-  ;; Stub the river-touching functions so the logic can be exercised
-  ;; without a live compositor connection.
+  ;; Stub the river-touching functions so the layout logic can be
+  ;; exercised without a live compositor connection.
   (dolist (spec '((show-window      :show)
                   (hide-window      :hide)
                   (make-window-node :node)
@@ -39,20 +43,20 @@
           (window-hidden-p browser) nil
           (window-output browser) out)
     (assign-window-workspace browser 2)
-    ;; Current workspace: 2
-    (setf (gethash out *output-workspace*) 2)
+    ;; Current workspace: 1
+    (setf (gethash out *output-workspace*) 1)
 
     (render-layout-for-output out)
 
     (let* ((ide-shown (find (list :show ide) calls :test #'equal))
            (browser-hidden (find (list :hide browser) calls :test #'equal))
            (browser-shown (find (list :show browser) calls :test #'equal)))
-      (format t "~&=== RESULT ===~%")
-      (format t "ide correctly hidden: ~A~%" (and ide-shown t))
-      (format t "browser shown: ~A~%" (and browser-hidden t))
+      (format t "~&=== RESULT (switch BACK to ws 1) ===~%")
+      (format t "ide shown:      ~A~%" (and ide-shown t))
+      (format t "browser hidden: ~A~%" (and browser-hidden t))
       (format t "browser wrongly re-shown: ~A~%" (and browser-shown t))
       (if (and ide-shown browser-hidden (not browser-shown))
-          (format t "~&PASS-AWAY: switching to ws 2 hides ws 1 window, shows ws 2~%")
+          (format t "~&PASS: switching back to ws 1 restores hidden windows~%")
           (format t "~&FAIL: windows not restored correctly~%")))))
 
 (uiop:quit 0)

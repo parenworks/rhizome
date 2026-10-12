@@ -183,9 +183,10 @@ once per INTERVAL seconds."
 strftime subset: %H %M %S %d %m %y %Y %a %A %b %B."
   (multiple-value-bind (second minute hour date month year day-of-week)
       (get-decoded-time)
-    (let ((short-days #("Sun" "Mon" "Tue" "Wed" "Thu" "Fri" "Sat"))
-          (long-days #("Sunday" "Monday" "Tuesday" "Wednesday"
-                       "Thursday" "Friday" "Saturday"))
+    ;; Common Lisp counts day-of-week from 0 = Monday
+    (let ((short-days #("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"))
+          (long-days #("Monday" "Tuesday" "Wednesday" "Thursday"
+                       "Friday" "Saturday" "Sunday"))
           (short-months #("Jan" "Feb" "Mar" "Apr" "May" "Jun"
                            "Jul" "Aug" "Sep" "Oct" "Nov" "Dec"))
           (long-months #("January" "February" "March" "April" "May" "June"

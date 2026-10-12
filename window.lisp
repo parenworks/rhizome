@@ -54,11 +54,15 @@
         (:title
          (destructuring-bind (title) args
            (setf (window-title win) title)
-           (format t "~&; Stumpway: window title: ~A~%" title)))
+           (format t "~&; Stumpway: window title: ~A~%" title)
+           ;; Window rules may match on title
+           (apply-window-rules win)))
 
         (:app-id
          (destructuring-bind (app-id) args
-           (setf (window-app-id win) app-id)))
+           (setf (window-app-id win) app-id)
+           ;; Window rules may match on app-id
+           (apply-window-rules win)))
 
         (:closed
          (format t "~&; Stumpway: window closed~%")
