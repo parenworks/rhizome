@@ -78,6 +78,19 @@
              (format t "~&;   ~A~%" name))
            *command-table*))
 
+;;; --- Power management ---
+
+(defun shutdown-machine ()
+  "Power off the machine. Works from an active session (polkit
+grants login1 power-off to active local sessions)."
+  (format t "~&; Stumpway: powering off~%")
+  (uiop:launch-program '("systemctl" "poweroff")))
+
+(defun reboot-machine ()
+  "Reboot the machine."
+  (format t "~&; Stumpway: rebooting~%")
+  (uiop:launch-program '("systemctl" "reboot")))
+
 ;;; --- Screenshot ---
 
 (defun take-screenshot (&key (region nil))

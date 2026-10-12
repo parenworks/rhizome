@@ -169,7 +169,9 @@ On bare metal, river is the primary compositor — no nesting. The WSLg limitati
 | Alt+B          | Toggle the status bar               |
 | Print          | Screenshot (full screen, grim + wl-copy) |
 | Shift+Print    | Screenshot of selected region (slurp) |
-| Alt+;          | Live eval prompt |
+| Alt+;          | Live eval prompt                       |
+| Alt+Shift+Q    | Power off the machine                  |
+| Alt+Shift+R    | Reboot the machine                     |
 
 ** Live eval prompt (Alt+;)
 

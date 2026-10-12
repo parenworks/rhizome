@@ -17,6 +17,8 @@
 ;;;   Alt+B        - toggle the status bar
 ;;;   Print        - screenshot of full screen (grim)
 ;;;   Shift+Print  - screenshot of selected region (grim + slurp)
+;;;   Alt+Shift+Q  - power off the machine
+;;;   Alt+Shift+R  - reboot the machine
 ;;;   Alt+;        - live eval prompt (evaluate Lisp in the running WM)
 
 (in-package #:stumpway)
@@ -55,6 +57,7 @@
   (defconstant +xkb-key-P+       112)      ; #x0070
   (defconstant +xkb-key-Print+   65377)    ; #xff61
   (defconstant +xkb-key-Semicolon+ 59)      ; #x003b
+  (defconstant +xkb-key-R+       114)      ; #x0072
   (defconstant +xkb-key-Escape+  65307))   ; #xff1b
 
 ;;; --- Modifier bitfield constants ---
@@ -218,6 +221,15 @@ a manage sequence."
           (toggle-bar)
         (error (e)
           (format t "~&; Stumpway: bar error: ~A~%" e)))))
+
+  ;; Alt+Shift+Q - power off the machine
+  ;; Alt+Shift+R - reboot the machine
+  (define-key +xkb-key-Q+ (append *mod-alt* *mod-shift*)
+    (lambda ()
+      (shutdown-machine)))
+  (define-key +xkb-key-R+ (append *mod-alt* *mod-shift*)
+    (lambda ()
+      (reboot-machine)))
 
   ;; Alt+; - live eval prompt (type a Lisp expression, Enter evaluates
   ;; it in the running WM image; Escape cancels)

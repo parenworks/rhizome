@@ -42,6 +42,9 @@
    #:window-workspace
    ;; Screenshot
    #:take-screenshot
+   ;; Power
+   #:shutdown-machine
+   #:reboot-machine
    ;; Sequence control
    #:request-manage-dirty
    ;; Window access
