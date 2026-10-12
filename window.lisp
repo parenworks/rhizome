@@ -29,7 +29,8 @@
   "Register a new river_window_v1 proxy and set up event handlers."
   (let ((win (make-instance 'stumpway-window :proxy proxy)))
     (setf (gethash proxy *windows*) win
-          *last-registered-window* win)
+          *last-registered-window* win
+          *pending-autofocus* win)
     (push (lambda (event-name &rest args)
             (apply #'handle-window-event win event-name args))
           (wl:wl-proxy-hooks proxy))

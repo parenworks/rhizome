@@ -15,6 +15,8 @@
 ;;;   Alt+E        - launch emacs
 ;;;   Alt+D        - application launcher (native layer-shell popup)
 ;;;   Alt+B        - toggle the status bar
+;;;   Print        - screenshot of full screen (grim)
+;;;   Shift+Print  - screenshot of selected region (grim + slurp)
 
 (in-package #:stumpway)
 
@@ -50,6 +52,7 @@
   (defconstant +xkb-key-9+       57)       ; #x0039
   (defconstant +xkb-key-E+       101)      ; #x0065
   (defconstant +xkb-key-P+       112)      ; #x0070
+  (defconstant +xkb-key-Print+   65377)    ; #xff61
   (defconstant +xkb-key-Escape+  65307))   ; #xff1b
 
 ;;; --- Modifier bitfield constants ---
@@ -141,10 +144,11 @@ a manage sequence."
   ;; Alt+Q - close focused window
   (define-key +xkb-key-Q+ *mod-alt*
     (lambda ()
-      (let ((wins (all-windows)))
-        (when wins
-          (format t "~&; Stumpway: closing window~%")
-          (close-window (first wins))
+      (let* ((seats (all-seats))
+             (focused (and seats (seat-focused-window (first seats)))))
+        (when focused
+          (format t "~&; Stumpway: closing window ~A~%" (window-title focused))
+          (close-window focused)
           (request-manage-dirty)))))
 
   ;; Alt+J - focus next
@@ -211,7 +215,16 @@ a manage sequence."
       (handler-case
           (toggle-bar)
         (error (e)
-          (format t "~&; Stumpway: bar error: ~A~%" e))))))
+          (format t "~&; Stumpway: bar error: ~A~%" e)))))
+
+  ;; Print - screenshot of the full screen
+  ;; Shift+Print - screenshot of a selected region (slurp)
+  (define-key +xkb-key-Print+ *mod-none*
+    (lambda ()
+      (take-screenshot)))
+  (define-key +xkb-key-Print+ *mod-shift*
+    (lambda ()
+      (take-screenshot :region t))))
 
 ;;; --- Application launcher ---
 

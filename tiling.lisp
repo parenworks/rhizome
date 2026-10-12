@@ -96,35 +96,39 @@ WIDTH, HEIGHT and must return a list of (window x y w h) tuples."
 on OUTPUT's current workspace based on the current layout."
   (let* ((all-wins (all-windows))
          (workspace (current-workspace output))
-         (assigned (remove-if (lambda (win)
-                                (or (window-minimized-p win)
-                                    (not (eq (window-output win) output))
-                                    (and (window-workspace win)
-                                         (not (eql (window-workspace win)
-                                                   workspace)))))
-                              all-wins))
-         (unassigned (remove-if (lambda (win)
-                                  (or (window-minimized-p win)
-                                      (window-output win)))
-                                all-wins))
+         (assigned (remove-if
+                     (lambda (win)
+                       (or (window-minimized-p win)
+                           (not (eq (window-output win) output))
+                           (and (window-workspace win)
+                                (not (eql (window-workspace win)
+                                          workspace)))))
+                     all-wins))
+         (unassigned (remove-if
+                       (lambda (win)
+                         (or (window-minimized-p win)
+                             (window-output win)))
+                       all-wins))
          (wins (append assigned unassigned))
          (layout-fn (get-layout-function (output-current-layout output)))
-         (placements (if (and (> (output-width output) 0)
-                              (> (output-height output) 0))
-                         (funcall layout-fn wins (output-width output)
-                                  (max 0 (- (output-height output)
-                                            (bar-reserved-height))))
-                         nil)))
+         (placements
+           (if (and (> (output-width output) 0)
+                    (> (output-height output) 0))
+               (funcall layout-fn wins (output-width output)
+                        (max 0 (- (output-height output)
+                                  (bar-reserved-height))))
+               nil)))
     (format t "~&; Stumpway [debug]: apply-layout - ws ~D, ~A assigned, ~A unassigned, ~A placements~%"
             workspace (length assigned) (length unassigned) (length placements))
     (loop for (win x y w h) in placements
-          do (propose-window-dimensions win w h)
-             ;; Stamp newly placed windows with this output's workspace
-             (assign-window-workspace win workspace)
-             (setf (window-x win) (+ x (output-x output))
-                   (window-y win) (+ y (output-y output)
-                                       (bar-reserved-height))
-                   (window-output win) output))))
+          do (progn
+               (propose-window-dimensions win w h)
+               ;; Stamp newly placed windows with this output's workspace
+               (assign-window-workspace win workspace)
+               (setf (window-x win) (+ x (output-x output)))
+               (setf (window-y win) (+ y (output-y output)
+                                         (bar-reserved-height)))
+               (setf (window-output win) output)))))
 
 (defun render-layout-for-output (output)
   "Called during a render sequence. Set positions, borders, and z-order
@@ -134,12 +138,13 @@ layout. Windows on other workspaces are hidden."
                           (windows-on-workspace output
                                                 (current-workspace output))))
          (layout-fn (get-layout-function (output-current-layout output)))
-         (placements (if (and (> (output-width output) 0)
-                              (> (output-height output) 0))
-                         (funcall layout-fn wins (output-width output)
-                                  (max 0 (- (output-height output)
-                                            (bar-reserved-height))))
-                         nil)))
+         (placements
+           (if (and (> (output-width output) 0)
+                    (> (output-height output) 0))
+               (funcall layout-fn wins (output-width output)
+                        (max 0 (- (output-height output)
+                                  (bar-reserved-height))))
+               nil)))
     (format t "~&; Stumpway [debug]: render-layout - ~A windows, ~A placements~%"
             (length wins) (length placements))
     (loop for (win x y w h) in placements
@@ -149,18 +154,24 @@ layout. Windows on other workspaces are hidden."
                                     (+ x (output-x output))
                                     (+ y (output-y output)
                                         (bar-reserved-height)))
-               ;; Simple border: 2px, blue for focused, gray for unfocused
                (if (window-focused-p win)
-                   (set-window-borders win '(:top :bottom :left :right) 2 #x00 #x55 #xff #xff)
-                   (set-window-borders win '(:top :bottom :left :right) 1 #x40 #x40 #x40 #xff))
-               (show-window win)))
+                   (set-window-borders win '(:top :bottom :left :right)
+                                       2 #x00 #x55 #xff #xff)
+                   (set-window-borders win '(:top :bottom :left :right)
+                                       1 #x40 #x40 #x40 #xff))
+               ;; Only send show/hide on actual state transitions:
+               ;; river treats every show/hide request as a state change
+               ;; and starts a new manage/render sequence for it, so
+               ;; redundant requests each render cause an infinite loop.
+               (unless (window-hidden-p win)
+                 (show-window win))))
     ;; Hide windows not in the layout: windows on other workspaces,
-    ;; minimized windows, and overflow hidden by the layout (monocle)
+    ;; minimized windows, and overflow hidden by the layout (monocle).
     (let ((laid-out (mapcar #'first placements)))
       (loop for win in (windows-on-output output)
             unless (member win laid-out)
-            do (hide-window win)))))
-
+            do (unless (window-hidden-p win)
+                 (hide-window win))))))
 ;;; --- Frame tree operations (StumpWM-style) --
 
 (defun make-root-frame (width height)

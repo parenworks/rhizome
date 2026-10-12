@@ -40,6 +40,8 @@
    #:move-window-to-workspace
    #:move-focused-window-to-workspace
    #:window-workspace
+   ;; Screenshot
+   #:take-screenshot
    ;; Sequence control
    #:request-manage-dirty
    ;; Window access

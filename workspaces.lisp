@@ -72,6 +72,8 @@ because they are on another workspace.")
     (when newest
       (dolist (seat (all-seats))
         (focus-window newest seat))))
+  ;; The explicit focus stands; don't let a pending auto-focus override it
+  (setf *pending-autofocus* nil)
   (request-manage-dirty))
 
 (defun move-window-to-workspace (win workspace &optional output)

@@ -78,7 +78,11 @@
      (destructuring-bind (window-proxy) args
        (let ((win (gethash window-proxy *windows*)))
          (when win
-           (setf (seat-focused-window seat) win)
+           ;; River reports a pointer press / touch interaction with
+           ;; this window so the WM can give it keyboard focus.
+           ;; Actually send the focus request (previously only the
+           ;; internal slot was updated, so clicks never moved focus).
+           (focus-window win seat)
            (request-manage-dirty)))))
 
     (:removed

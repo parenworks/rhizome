@@ -77,3 +77,27 @@
              (declare (ignore fn))
              (format t "~&;   ~A~%" name))
            *command-table*))
+
+;;; --- Screenshot ---
+
+(defun take-screenshot (&key (region nil))
+  "Capture a screenshot with grim, saving it to
+~/Pictures/Screenshots/ and copying it to the Wayland clipboard.
+With :region t, select the area with slurp first."
+  (let* ((dir (merge-pathnames #P"Pictures/Screenshots/"
+                                (user-homedir-pathname)))
+         (path (merge-pathnames
+                 (multiple-value-bind (sec min hour day month year)
+                     (get-decoded-time)
+                   (format nil "~4,'0D~2,'0D~2,'0D-~2,'0D~2,'0D~2,'0D.png"
+                           year month day hour min sec))
+                 dir))
+         (path-str (namestring path))
+         (cmd (if region
+                  (format nil "grim -g \"$(slurp)\" ~S && wl-copy < ~S"
+                          path-str path-str)
+                  (format nil "grim ~S && wl-copy < ~S" path-str path-str))))
+    (ensure-directories-exist dir)
+    (uiop:launch-program (list "bash" "-c" cmd))
+    (format t "~&; Stumpway: screenshot ~A-> ~A~%"
+            (if region "region " "") path-str)))

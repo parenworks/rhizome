@@ -65,6 +65,11 @@
       (declare (ignore e))
       nil)))
 
+(defvar *pending-autofocus* nil
+  "Newly registered window awaiting auto-focus in the next manage
+sequence. Focus is applied once per new window, not on every manage
+cycle (which would fight the user for focus).")
+
 (defun update-wm-snapshot ()
   "Refresh the snapshot read by the bar thread. Called from the WM
 thread during manage and render sequences."
@@ -230,14 +235,15 @@ handlers should make window management requests here."
                      output (output-width output) (output-height output))
              (apply-layout-for-output output))
            *outputs*)
-  ;; Auto-focus: focus the most recently registered window on each seat,
-  ;; but only if it lives on the current workspace of its output
-  (let ((win *last-registered-window*))
+  ;; Auto-focus: focus a newly registered window once (not every
+  ;; manage cycle), and only if it lives on the current workspace
+  (let ((win *pending-autofocus*))
     (when (and win
                (gethash (window-proxy win) *windows*)
                (let ((out (window-output win)))
                  (or (null out)
                      (eql (window-workspace win) (current-workspace out)))))
+      (setf *pending-autofocus* nil)
       (dolist (seat (all-seats))
         (format t "~&; Stumpway [debug]: auto-focusing window ~A on seat ~A~%" win seat)
         (focus-window win seat)))))
@@ -295,6 +301,7 @@ window management updates."
         *output-workspace* (make-hash-table)
         *window-workspace* (make-hash-table)
         *minimized-windows* (make-hash-table)
+        *pending-autofocus* nil
         *input-manager* nil
         *libinput-config* nil
         *river-input-devices* (make-hash-table)

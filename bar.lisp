@@ -685,6 +685,7 @@ then runs the bar's connection loop on this process's main thread."
   (setf *bar-process*
         (uiop:launch-program
           (list "sbcl"
+                "--non-interactive"
                 "--eval" "(ql:quickload :stumpway)"
                 "--eval" "(stumpway:run-bar)")
           :output (bar-log-path)

@@ -167,6 +167,8 @@ On bare metal, river is the primary compositor — no nesting. The WSLg limitati
 | Alt+E          | Launch Emacs                        |
 | Alt+D          | Application launcher                |
 | Alt+B          | Toggle the status bar               |
+| Print          | Screenshot (full screen, grim + wl-copy) |
+| Shift+Print    | Screenshot of selected region (slurp) |
 
 ** Workspaces
 
