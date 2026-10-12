@@ -15,6 +15,8 @@
   "Currently repeating keysym, or nil.")
 (defvar *keyboard-repeat-stop* nil
   "Flag to stop the repeat thread.")
+(defparameter *keyboard-shift-p* nil
+  "Whether shift is currently held (from wl_keyboard modifiers).")
 
 (defclass stumpway-seat ()
   ((proxy          :initarg :proxy          :accessor seat-proxy)
@@ -123,6 +125,7 @@
 
 (defun setup-keyboard-handler (seat keyboard)
   "Set up event handler for wl_keyboard key events."
+  (declare (ignore seat))
   (push (lambda (event-name &rest args)
           (case event-name
             (:keymap nil)
@@ -131,22 +134,31 @@
             (:key
              (destructuring-bind (serial time key state) args
                (declare (ignore serial time))
-               (let ((keysym (evdev-to-xkb key)))
+               (let ((keysym (evdev-to-xkb key *keyboard-shift-p*)))
                  (cond
                    ((eq state :pressed)
                     (keyboard-stop-repeat)
-                    (when (and *launcher-active* keysym)
-                      (launcher-handle-key keysym nil)
-                      (when (member keysym '(65362 65364 65288))
-                        (keyboard-start-repeat keysym))))
+                    (cond
+                      ;; Live eval prompt consumes keys first
+                      ((and *eval-prompt-active* keysym)
+                       (eval-prompt-handle-key keysym))
+                      ((and *launcher-active* keysym)
+                       (launcher-handle-key keysym nil)
+                       (when (member keysym '(65362 65364 65288))
+                         (keyboard-start-repeat keysym)))))
                    ((eq state :released)
                     (keyboard-stop-repeat))))))
-            (:modifiers nil)
+            (:modifiers
+             (destructuring-bind (serial depressed latched locked group) args
+               (declare (ignore serial latched locked group))
+               ;; XKB shift is mask bit 0
+               (setf *keyboard-shift-p* (logbitp 0 depressed))))
             (:repeat-info
              (destructuring-bind (rate delay) args
                (setf *keyboard-repeat-rate* rate
                      *keyboard-repeat-delay* delay)
-               (format t "~&; Stumpway: keyboard repeat rate=~A delay=~A~%" rate delay)))))
+               (format t "~&; Stumpway: keyboard repeat rate=~A delay=~A~%"
+                       rate delay)))))
         (wl:wl-proxy-hooks keyboard)))
 
 (defun keyboard-start-repeat (keysym)
@@ -172,46 +184,62 @@
     (setf *keyboard-repeat-thread* nil))
   (setf *keyboard-repeat-key* nil))
 
-(defun evdev-to-xkb (keycode)
-  "Convert a Linux evdev keycode to an xkb keysym.
-This is a simplified mapping for basic ASCII and special keys.
-Evdev keycodes are offset by 8 from xkb keycodes."
-  (let ((xkb-keycode (+ keycode 8)))
-    ;; Common evdev keycodes (from linux/input-event-codes.h):
-    ;; 1=ESC, 15=Tab, 28=Enter, 14=Backspace
-    ;; 103=Up, 108=Down, 105=Left, 106=Right
-    ;; 11=0, 2-10=1-9, 16-25=Q-P, 30-38=A-L, 39=;, 40=', 41=`, 
-    ;; 42=LeftShift, 43=#, 44-50=Z-M, 51=,, 52=., 53=/
-    (case keycode
-      (1 65307)         ; ESC -> XK_Escape
-      (14 65288)        ; Backspace -> XK_BackSpace
-      (15 65289)        ; Tab -> XK_Tab
-      (28 65293)        ; Enter -> XK_Return
-      (103 65362)       ; Up -> XK_Up
-      (108 65364)       ; Down -> XK_Down
-      (105 65361)       ; Left -> XK_Left
-      (106 65363)       ; Right -> XK_Right
-      (57 32)           ; Space -> XK_space
-      ;; Letters (evdev 16-50 map to a-z, but layout-dependent)
-      ;; For QWERTY: 16=q, 17=w, 18=e, 19=r, 20=t, 21=y, 22=u, 23=i, 24=o, 25=p
-      ;; 30=a, 31=s, 32=d, 33=f, 34=g, 35=h, 36=j, 37=k, 38=l
-      ;; 44=z, 45=x, 46=c, 47=v, 48=b, 49=n, 50=m
-      (16 (char-code #\q)) (17 (char-code #\w)) (18 (char-code #\e))
-      (19 (char-code #\r)) (20 (char-code #\t)) (21 (char-code #\y))
-      (22 (char-code #\u)) (23 (char-code #\i)) (24 (char-code #\o))
-      (25 (char-code #\p))
-      (30 (char-code #\a)) (31 (char-code #\s)) (32 (char-code #\d))
-      (33 (char-code #\f)) (34 (char-code #\g)) (35 (char-code #\h))
-      (36 (char-code #\j)) (37 (char-code #\k)) (38 (char-code #\l))
-      (44 (char-code #\z)) (45 (char-code #\x)) (46 (char-code #\c))
-      (47 (char-code #\v)) (48 (char-code #\b)) (49 (char-code #\n))
-      (50 (char-code #\m))
-      ;; Numbers (evdev 2-11 map to 1-0)
-      (2 (char-code #\1)) (3 (char-code #\2)) (4 (char-code #\3))
-      (5 (char-code #\4)) (6 (char-code #\5)) (7 (char-code #\6))
-      (8 (char-code #\7)) (9 (char-code #\8)) (10 (char-code #\9))
-      (11 (char-code #\0))
-      (t nil))))
+(defun evdev-to-xkb (keycode &optional (shift-p nil))
+  "Convert a Linux evdev keycode to an xkb keysym, considering shift.
+QWERTY layout assumed. Supports the full printable ASCII set (with
+shift) so that Lisp expressions can be typed in the eval prompt."
+  (let ((row1 "qwertyuiop")
+        (row2 "asdfghjkl")
+        (row3 "zxcvbnm")
+        (digits "1234567890")
+        (shifted "!@#$%^&*()"))
+    (cond
+      ;; Letter rows; shift produces uppercase
+      ((<= 16 keycode 25)
+       (let ((c (char row1 (- keycode 16))))
+         (char-code (if shift-p (char-upcase c) c))))
+      ((<= 30 keycode 38)
+       (let ((c (char row2 (- keycode 30))))
+         (char-code (if shift-p (char-upcase c) c))))
+      ((<= 44 keycode 50)
+       (let ((c (char row3 (- keycode 44))))
+         (char-code (if shift-p (char-upcase c) c))))
+      ;; Digit row
+      ((<= 2 keycode 11)
+       (char-code (if shift-p
+                      (char shifted (- keycode 2))
+                      (char digits (- keycode 2)))))
+      ;; Punctuation with shift
+      (shift-p
+       (case keycode
+         (12 (char-code #\_)) (13 (char-code #\+))
+         (39 (char-code #\")) (40 (char-code #\{))
+         (41 (char-code #\~)) (43 (char-code #\|))
+         (51 (char-code #\<)) (52 (char-code #\>))
+         (53 (char-code #\?))
+         (t nil)))
+      ;; Unshifted
+      (t
+       (case keycode
+         (1 65307)         ; ESC
+         (14 65288)        ; Backspace
+         (15 65289)        ; Tab
+         (28 65293)        ; Enter
+         (103 65362)       ; Up
+         (108 65364)       ; Down
+         (105 65361)       ; Left
+         (106 65363)       ; Right
+         (57 32)           ; Space
+         (12 (char-code #\-))
+         (13 (char-code #\=))
+         (39 (char-code #\'))
+         (40 (char-code #\[))
+         (41 (char-code #\`))
+         (43 (char-code #\\))
+         (51 (char-code #\,))
+         (52 (char-code #\.))
+         (53 (char-code #\/))
+         (t nil))))))
 
 (defun all-seats ()
   "Return a list of all registered seats."

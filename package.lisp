@@ -66,4 +66,14 @@
    #:run-bar
    #:start-bar
    #:stop-bar
-   #:toggle-bar))
+   #:toggle-bar
+   ;; Hooks
+   #:add-hook
+   #:remove-hook
+   #:clear-hook
+   #:list-hooks
+   #:run-hook
+   ;; Eval prompt
+   #:show-eval-prompt
+   #:hide-eval-prompt
+   #:eval-prompt-eval))

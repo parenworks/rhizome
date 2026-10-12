@@ -63,6 +63,7 @@ because they are on another workspace.")
     (return-from switch-workspace))
   (setf (gethash output *output-workspace*) workspace)
   (format t "~&; Stumpway: switched to workspace ~D~%" workspace)
+  (run-hook :workspace-changed workspace output)
   ;; Focus the most recently registered window on the new workspace
   (let* ((wins (windows-on-workspace output workspace))
          (newest (if (and *last-registered-window*

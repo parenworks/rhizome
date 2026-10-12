@@ -169,6 +169,39 @@ On bare metal, river is the primary compositor — no nesting. The WSLg limitati
 | Alt+B          | Toggle the status bar               |
 | Print          | Screenshot (full screen, grim + wl-copy) |
 | Shift+Print    | Screenshot of selected region (slurp) |
+| Alt+;          | Live eval prompt |
+
+** Live eval prompt (Alt+;)
+
+A small centered prompt opens; type a Lisp expression and press Enter to
+evaluate it in the *running WM image* — redefine layouts, change state,
+inspect anything, without restarting the compositor. The keyboard handler
+tracks shift state (extended evdev-to-xkb mapping), so parens, quotes and
+colons are typeable. Results display in the prompt and log to the WM log;
+errors are caught and shown instead of killing the WM. Escape closes the
+prompt.
+
+#+begin_src lisp
+;; Examples typed into the prompt (implicit STUMPWAY package):
+(+ 1 2)                          ; => 3
+*workspace-count*                ; => 9
+(switch-workspace 3)             ; immediate effect
+#+end_src
+
+** Hooks
+
+User functions triggered on WM events. Handler errors are isolated: one
+bad hook never breaks others or the WM.
+
+#+begin_src lisp
+(stumpway:add-hook :window-created
+  (lambda (win) (format t "new: ~A~%" (stumpway:window-title win))))
+#+end_src
+
+Available hooks: =:window-created= (win), =:window-closed= (win),
+=:focus-changed= (win), =:layout-changed= (output layout-name),
+=:workspace-changed= (workspace output), =:output-created= (output).
+Also: =remove-hook=, =clear-hook=, =list-hooks=, =run-hook=.
 
 ** Workspaces
 
@@ -255,6 +288,8 @@ stumpway/
   river-protocol.lisp                 — Wayflan scanner for all protocol XMLs
   package.lisp                        — Package definition and exports
   config.lisp                         — Configuration system (defaults, user file, live overrides)
+  hooks.lisp                          — Event hooks (add-hook / run-hook)
+  eval-prompt.lisp                    — Live eval prompt (Alt+;)
   bar.lisp                            — Configurable status bar / mode-line (own process)
   wm-protocol.lisp                    — Manage/render sequence loop, Wayland connection, registry
   window.lisp                         — Window management (dimensions, focus, borders, auto-focus)
@@ -295,6 +330,9 @@ stumpway/
 - [X] Configurable status bar (modules, colors, intervals; ships enabled, can be disabled)
 - [X] Clickable bar modules (:on-click / :on-scroll-up / :on-scroll-down shell commands)
 - [X] Workspaces (Alt+1..9, Alt+Shift+1..9 moves window; shown in the bar)
+- [X] Window rules (:match regex on app-id/title, :workspace, :layout, :follow)
+- [X] Hooks (window creation/closed, focus, layout, workspace, output)
+- [X] Live eval prompt (Alt+; evaluates Lisp in the running WM image)
 - [X] wl_compositor, wl_shm, zwlr_layer_shell_v1 binding
 - [X] wl_seat binding with wl_keyboard for raw key events
 - [X] river_layer_shell_v1 protocol binding and output/seat registration
@@ -312,9 +350,7 @@ stumpway/
 ** Not started
 
 - [ ] Frame tree with dynamic splitting (StumpWM-style)
-- [ ] Live eval keybinding (Alt+: for eval expression)
 - [ ] Window rules (programmatically place specific apps on specific outputs)
-- [ ] Hooks for window creation, focus changes, layout switches
 - [ ] Niri-style scrollable tiling
 - [ ] Pointer bindings for interactive move/resize
 - [ ] Inspectable everything (describe window, inspect output, eval expressions)

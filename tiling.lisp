@@ -46,6 +46,7 @@ WIDTH, HEIGHT and must return a list of (window x y w h) tuples."
   "Switch OUTPUT to use LAYOUT-NAME."
   (setf (output-current-layout output) layout-name)
   (format t "~&; Stumpway: switched to ~A~%" layout-name)
+  (run-hook :layout-changed output layout-name)
   (request-manage-dirty))
 
 ;;; --- Built-in layouts --

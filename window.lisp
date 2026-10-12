@@ -34,6 +34,7 @@
     (push (lambda (event-name &rest args)
             (apply #'handle-window-event win event-name args))
           (wl:wl-proxy-hooks proxy))
+    (run-hook :window-created win)
     (format t "~&; Stumpway: new window registered~%")))
 
 (defun handle-window-event (win event-name &rest args)
@@ -66,6 +67,7 @@
 
         (:closed
          (format t "~&; Stumpway: window closed~%")
+         (run-hook :window-closed win)
          (remhash (window-proxy win) *windows*)
          (remhash win *window-workspace*)
          (remhash win *minimized-windows*))
@@ -123,7 +125,8 @@
         (setf (window-focused-p w) nil)))
     (rwm:river-seat-v1.focus-window (seat-proxy seat) (window-proxy win))
     (setf (window-focused-p win) t
-          (seat-focused-window seat) win)))
+          (seat-focused-window seat) win)
+    (run-hook :focus-changed win)))
 
 (defun close-window (win)
   "Request that WIN be closed."

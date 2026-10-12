@@ -23,6 +23,7 @@
     (push (lambda (event-name &rest args)
             (apply #'handle-output-event output event-name args))
           (wl:wl-proxy-hooks proxy))
+    (run-hook :output-created output)
     (format t "~&; Stumpway: new output registered~%")
     ;; Register with river_layer_shell_v1 if available
     (when *river-layer-shell*
