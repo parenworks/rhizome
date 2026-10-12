@@ -163,7 +163,10 @@ layout. Windows on other workspaces are hidden."
                ;; river treats every show/hide request as a state change
                ;; and starts a new manage/render sequence for it, so
                ;; redundant requests each render cause an infinite loop.
-               (unless (window-hidden-p win)
+               ;; Note: show only when hidden (e.g. switching back to
+               ;; this window's workspace) — this is the visible window
+               ;; restoration path.
+               (when (window-hidden-p win)
                  (show-window win))))
     ;; Hide windows not in the layout: windows on other workspaces,
     ;; minimized windows, and overflow hidden by the layout (monocle).
