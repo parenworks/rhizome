@@ -81,6 +81,11 @@ sudo apt install -y sbcl
 #+begin_src bash
 sudo pacman -S river wayland-protocols wlroots xkbcommon pixman libevdev \
   pkgconf scdoc sbcl
+# Bar module dependencies (optional, all configurable via :on-click):
+sudo pacman -S grim slurp wl-clipboard   # screenshots (Print / Shift+Print)
+sudo pacman -S pavucontrol               # volume module click target
+sudo pacman -S nm-connection-editor      # network module click target
+sudo pacman -S foot                      # terminal (Alt+Return)
 # Quicklisp: https://www.quicklisp.org/beta/
 #+end_src
 
@@ -244,9 +249,19 @@ so workspace switches and volume changes appear within one poll.
 Modules are clickable: the bar process binds a =wl_pointer= and records each
 module's rendered area as a click target. Modules can define shell-command
 actions in the config — =:on-click=, =:on-scroll-up=, =:on-scroll-down=.
-Defaults: clicking the volume module toggles mute and scrolling adjusts it by
-5%; clicking the network module opens nmtui in a terminal. The user config
-file lives at ~~/.config/stumpway/config.lisp~; the bar process logs to
+Defaults: clicking the volume module opens pavucontrol (scrolling adjusts it
+by 5%); clicking the network module opens nm-connection-editor. These
+targets are plain shell commands — any application works, e.g.:
+
+#+begin_src lisp
+(stumpway:configure
+  '(:modules (:volume (:on-click "pavucontrol")
+              :network (:on-click "nm-connection-editor"))))
+#+end_src
+
+The target applications are user choices, not hard dependencies —
+see the optional package list above. The user config file lives at
+~~/.config/stumpway/config.lisp~; the bar process logs to
 ~~/.cache/stumpway/bar.log~. Alt+B toggles the bar.
 
 ** Native application launcher (Alt+D)
