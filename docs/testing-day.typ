@@ -6,7 +6,8 @@
   author: "Glenn Thompson",
 )
 #set page(paper: "a4", margin: 2.2cm, numbering: "1 / 1")
-#set text(font: "New Computer Modern", size: 10pt, lang: "en")
+#set text(font: ("Adwaita Sans", "Noto Sans"), size: 10pt, lang: "en")
+#show raw: set text(font: ("JetBrainsMono NF", "Adwaita Mono"))
 #set heading(numbering: "1.1")
 #set par(leading: 0.65em)
 #set enum(indent: 1em)
