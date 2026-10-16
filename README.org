@@ -288,6 +288,8 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 | C-t e ←↑↓→ | Swap windows with that frame (exchange) |
 | C-t a   | Show the time (StumpWM: time) |
 | C-t m   | Redisplay the last message (lastmsg) |
+| C-t r   | Interactive resize: arrows until Enter/Esc (iresize) |
+| C-t C   | Command mode: sticky prefix until Escape |
 | C-t F11 | Toggle fullscreen      |
 | C-t h … | Help: b bindings, c command, f function, v variable, k key, w window |
 | C-t q   | Quit (press twice to confirm) |
@@ -594,10 +596,14 @@ manual, 180 commands). Where stumpway stands:
 
 *** Medium
 
-- [ ] Interactive resize mode (StumpWM's iresize, C-t r): arrows
-      resize the split until done (C-t +/- is single-step today)
-- [ ] Which-key hints: after C-t, show the available next keys
-- [ ] Command mode: sticky prefix until C-g (StumpWM push-top-map)
+- [X] Interactive resize mode (StumpWM's iresize, C-t r): arrows
+      resize the split until Enter commits or Escape aborts
+- [X] Which-key hints: after C-t (and after descending into nested
+      maps like C-t h or C-t M), the message window lists the available
+      next keys with their docs — multi-line since the message window
+      now wraps text at newlines
+- [X] Command mode (C-t C): sticky prefix — successive C-t commands
+      until Escape (StumpWM's command-mode)
 - [ ] Frame dump/restore: save and reload workspace layouts to files
       (StumpWM's fdump)
 - [ ] Window marks: tag windows (#), then move all marked

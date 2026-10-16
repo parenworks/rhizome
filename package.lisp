@@ -65,6 +65,9 @@
    #:define-keymap-key
    #:enter-prefix-mode
    #:exit-prefix-mode
+   #:enter-command-mode
+   #:enter-iresize-mode
+   #:which-key-text
    ;; Floating windows
    #:float-window
    #:unfloat-window

@@ -24,6 +24,9 @@ stubbed river requests. Run with:
 - `quickwins.lisp` — StumpWM quick-wins: window numbering (1..9, 0,
   overflow, reuse, renumber), pull/exchange/only/balance/fclear,
   lastmsg/time, quit-confirm, fullscreen request queueing, F-keys.
+- `interactivity.lisp` — multi-line messages, which-key hints,
+  iresize (arrows resize until Enter/Esc), and command mode (sticky
+  prefix: multiple commands until Escape).
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip

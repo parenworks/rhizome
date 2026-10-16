@@ -12,52 +12,76 @@
   "Universal time when the current message hides.")
 (defparameter *message-width* 700)
 (defparameter *message-height* 22)
+(defparameter *message-line-height* 20
+  "Pixels per message line (16px glyphs + 4px gap).")
 (defparameter *last-message* nil
   "The most recently shown message text (lastmsg, copy-last-message).")
 
+(defun message-lines (text)
+  "TEXT split into its display lines."
+  (cl-ppcre:split "\\n" text))
+
+(defun message-height-for (text)
+  "Surface height needed to display TEXT (all of its lines)."
+  (max 22 (+ 4 (* (length (message-lines text))
+                  *message-line-height*))))
+
 (defun show-message (text &optional (seconds 3))
   "Show TEXT on screen for SECONDS (default 3). If a message is
-already showing, replace it."
+already showing, replace it. Newlines start new lines."
   (setf *last-message* text)
   (unless (and *compositor* *shm* *layer-shell*)
     (format t "~&; Stumpway: ~A~%" text)
     (return-from show-message))
   (setf *message-expiry* (+ (get-universal-time) seconds))
-  ;; Reuse the visible surface when possible
-  (if (and *message-state* (gethash :shm-ptr *message-state*))
-      (message-render text)
-      (let ((state (make-hash-table)))
-        (setf *message-state* state)
-        ;; The render helpers expect the global wl_shm in the state hash
-        (setf (gethash :shm state) *shm*)
-        (let ((surface (wl:wl-compositor.create-surface *compositor*)))
-          (setf (gethash :surface state) surface)
-          (let ((layer-surface
-                  (rwm:zwlr-layer-shell-v1.get-layer-surface
-                    *layer-shell* surface nil :top "stumpway-message")))
-            (setf (gethash :layer-surface state) layer-surface)
-            (push (lambda (event-name &rest args)
-                    (case event-name
-                      (:configure
-                       (destructuring-bind (serial width height) args
-                         (message-configure-handler
-                           state layer-surface serial width height)))
-                      (:closed
-                       (setf *message-state* nil))))
-                  (wl:wl-proxy-hooks layer-surface))
-            (rwm:zwlr-layer-surface-v1.set-anchor layer-surface nil)
-            (rwm:zwlr-layer-surface-v1.set-size layer-surface
-              *message-width* *message-height*)
-            (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity
-              layer-surface :none)
-            (rwm:zwlr-layer-surface-v1.set-margin layer-surface 60 0 0 0)
-            ;; Render immediately if the buffer exists (configure will
-            ;; create it); store the text for the first render
-            (setf (gethash :text state) text)
-            (wl:wl-surface.commit surface))))))
+  (let ((height (message-height-for text)))
+    (if (and *message-state* (gethash :shm-ptr *message-state*))
+        (if (= height *message-height*)
+            (message-render text)
+            ;; Different height (more/fewer lines): drop the buffer and
+            ;; resize; the configure that follows re-creates the buffer
+            ;; at the new size and renders :text
+            (progn
+              (setf *message-height* height
+                    (gethash :text *message-state*) text)
+              (bar-destroy-shm *message-state*)
+              (rwm:zwlr-layer-surface-v1.set-size
+                (gethash :layer-surface *message-state*)
+                *message-width* height)
+              (wl:wl-surface.commit (gethash :surface *message-state*))))
+        (let ((state (make-hash-table)))
+          (setf *message-state* state
+                *message-height* height)
+          ;; The render helpers expect the global wl_shm in the state hash
+          (setf (gethash :shm state) *shm*)
+          (let ((surface (wl:wl-compositor.create-surface *compositor*)))
+            (setf (gethash :surface state) surface)
+            (let ((layer-surface
+                    (rwm:zwlr-layer-shell-v1.get-layer-surface
+                      *layer-shell* surface nil :top "stumpway-message")))
+              (setf (gethash :layer-surface state) layer-surface)
+              (push (lambda (event-name &rest args)
+                      (case event-name
+                        (:configure
+                         (destructuring-bind (serial width height) args
+                           (message-configure-handler
+                             state layer-surface serial width height)))
+                        (:closed
+                         (setf *message-state* nil))))
+                    (wl:wl-proxy-hooks layer-surface))
+              (rwm:zwlr-layer-surface-v1.set-anchor layer-surface nil)
+              (rwm:zwlr-layer-surface-v1.set-size layer-surface
+                *message-width* height)
+              (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity
+                layer-surface :none)
+              (rwm:zwlr-layer-surface-v1.set-margin layer-surface 60 0 0 0)
+              ;; Store the text for the first render (configure will
+              ;; create the buffer)
+              (setf (gethash :text state) text)
+              (wl:wl-surface.commit surface)))))))
 
 (defun message-render (text)
-  "Render TEXT into the message surface."
+  "Render TEXT into the message surface, one line per newline."
   (let ((state *message-state*))
     (when state
       (let ((ptr (gethash :shm-ptr state)))
@@ -71,8 +95,11 @@ already showing, replace it."
             (multiple-value-bind (ar ag ab)
                 (parse-hex-color (config-getf '(:bar) :accent
                                              :default "#7aa2f7"))
-              (bar-draw-text ptr width height text
-                             8 (floor (- height 16) 2) ar ag ab))
+              (loop for line in (message-lines text)
+                    for i from 0
+                    do (bar-draw-text ptr width height line
+                                      8 (+ 2 (* i *message-line-height*))
+                                      ar ag ab)))
             (wl:wl-surface.attach (gethash :surface state)
                                   (gethash :wl-buffer state) 0 0)
             (wl:wl-surface.damage (gethash :surface state) 0 0 width height)

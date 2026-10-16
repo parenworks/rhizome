@@ -25,6 +25,12 @@
   "Universal time when prefix mode auto-aborts.")
 (defparameter *prefix-size* 1
   "Width/height of the capture surface (invisible 1x1).")
+(defparameter *prefix-command-mode* nil
+  "Command mode: the prefix stays armed for successive commands until
+Escape (StumpWM's command-mode / push-top-map).")
+(defparameter *iresize-active* nil
+  "Interactive resize mode (StumpWM's iresize): arrows move the
+current split's dividing line until Enter commits or Escape aborts.")
 
 ;;; --- Keymaps ---
 
@@ -112,14 +118,19 @@ the surface maps and receives keyboard focus."
         (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity
           layer-surface :exclusive)
         (setf *prefix-mode-active* t)
-        (show-message "C-t -" 5)
+        ;; which-key: show the available follow-up keys
+        (show-message (which-key-text "C-t" *prefix-map*)
+                      (prefix-indicator-seconds))
         (wl:wl-surface.commit surface)))))
 
 (defun exit-prefix-mode ()
-  "End the prefix chain and destroy the capture surface."
+  "End the prefix chain and destroy the capture surface. Clears all
+prefix modes (command mode, iresize)."
   (setf *prefix-mode-active* nil
         *prefix-current-map* nil
-        *prefix-expiry* 0)
+        *prefix-expiry* 0
+        *prefix-command-mode* nil
+        *iresize-active* nil)
   (message-hide)
   (let ((state *prefix-state*))
     (when state
@@ -148,10 +159,13 @@ the surface maps and receives keyboard focus."
 (defun prefix-handle-key (keysym)
   "Dispatch one keysym within a prefix chain. Returns T."
   (cond
-    ;; Escape aborts
+    ;; Escape aborts whatever prefix mode is running
     ((= keysym 65307)
      (message "aborted")
      (exit-prefix-mode))
+    ;; iresize: arrows adjust the split until Enter/Esc
+    (*iresize-active*
+     (iresize-handle-key keysym))
     ;; describe-key pending: describe, don't run
     (*prefix-describe-key-pending*
      (setf *prefix-describe-key-pending* nil)
@@ -163,15 +177,33 @@ the surface maps and receives keyboard focus."
          ;; Nested keymap: descend, wait for the next key
          ((hash-table-p entry)
           (setf *prefix-current-map* entry
-                *prefix-expiry* (+ (get-universal-time) 5)))
-         ;; Action: run it, then end the chain
+                *prefix-expiry* (+ (get-universal-time)
+                                   (prefix-indicator-seconds)))
+          ;; which-key: the available follow-up keys
+          (show-message (which-key-text
+                          (format nil "C-t ~A" (keysym-name keysym))
+                          entry)
+                        (prefix-indicator-seconds)))
+         ;; Action: run it, then end the chain — unless command mode
+         ;; keeps the prefix armed for the next command
          ((and entry (functionp entry))
-          (exit-prefix-mode)
-          (handler-case
-              (funcall entry)
-            (error (e)
-              (format t "~&; Stumpway: prefix action error: ~A~%" e)
-              (message "error: ~A" e))))
+          (if *prefix-command-mode*
+              (progn
+                (handler-case
+                    (funcall entry)
+                  (error (e)
+                    (format t "~&; Stumpway: prefix action error: ~A~%" e)
+                    (message "error: ~A" e)))
+                (setf *prefix-current-map* *prefix-map*
+                      *prefix-expiry* (+ (get-universal-time) 60))
+                (show-message (which-key-text "C-t" *prefix-map*) 60))
+              (progn
+                (exit-prefix-mode)
+                (handler-case
+                    (funcall entry)
+                  (error (e)
+                    (format t "~&; Stumpway: prefix action error: ~A~%" e)
+                    (message "error: ~A" e))))))
          ;; Unmapped key: abort with feedback
          (t
           (message "unbound key")
@@ -321,6 +353,81 @@ quit-confirm)."
                  (if (window-floating-p win) " [float]" ""))
         (message "no focused window"))))
 
+;;; --- Which-key: show the available follow-up keys ---
+
+(defun prefix-indicator-seconds ()
+  "How long prefix-mode displays stay up (longer in command mode)."
+  (if *prefix-command-mode* 60 5))
+
+(defun which-key-text (title map)
+  "Display text listing MAP's bindings titled with the chain so far
+(TITLE), four entries per line so it fits the message window."
+  (let* ((entries (sort
+                    (loop for k being the hash-keys of map
+                          collect (string-right-trim
+                                    " "
+                                    (format nil "~A ~A"
+                                            (keysym-name k)
+                                            (or (gethash k *prefix-key-docs*)
+                                                ""))))
+                    #'string<))
+         (lines nil) (cur nil) (n 0))
+    (dolist (e entries)
+      (push e cur)
+      (incf n)
+      (when (= n 4)
+        (push (format nil "~{~A~^   ~}" (reverse cur)) lines)
+        (setf cur nil n 0)))
+    (when cur
+      (push (format nil "~{~A~^   ~}" (reverse cur)) lines))
+    (format nil "~A:~%~{~A~^~%~}" title (reverse lines))))
+
+;;; --- Command mode: sticky prefix ---
+
+(defun enter-command-mode ()
+  "Keep the prefix armed for successive commands until Escape
+(StumpWM's command-mode / push-top-map). The which-key display shows
+the available commands while it lasts."
+  (enter-prefix-mode)
+  (when *prefix-mode-active*
+    (setf *prefix-command-mode* t
+          *prefix-expiry* (+ (get-universal-time) 60))
+    (show-message (which-key-text "C-t" *prefix-map*) 60)))
+
+;;; --- Interactive resize (StumpWM's iresize) ---
+
+(defun enter-iresize-mode ()
+  "Resize interactively (StumpWM's iresize, C-t r): arrows move the
+current split's dividing line until Enter commits or Escape aborts."
+  (enter-prefix-mode)
+  (when *prefix-mode-active*
+    (setf *iresize-active* t
+          *prefix-expiry* (+ (get-universal-time) 60))
+    (show-message "resize: arrows, Enter, Esc" 60)))
+
+(defun exit-iresize-mode (&optional (feedback "resized"))
+  "Leave iresize, keeping the resized geometry."
+  (exit-prefix-mode)
+  (message "~A" feedback))
+
+(defun iresize-adjust (delta)
+  "Move the current split's dividing line by DELTA along its axis."
+  (with-frame-context
+    (resize-current-split out ws delta)))
+
+(defun iresize-handle-key (keysym)
+  "Handle one keysym inside iresize."
+  (case keysym
+    (65393 (exit-iresize-mode))
+    (65361 (iresize-adjust -30))     ; Left
+    (65363 (iresize-adjust 30))      ; Right
+    (65362 (iresize-adjust -30))     ; Up
+    (65364 (iresize-adjust 30))      ; Down
+    (t (message "arrows, Enter, Esc")))
+  ;; Keep the mode alive while the user works
+  (setf *prefix-expiry* (+ (get-universal-time) 60))
+  t)
+
 (defun setup-default-prefix-bindings ()
   "The default C-t keymap, mapped onto stumpway's features."
   ;; C-t w — windowlist (StumpWM: windowlist)
@@ -438,6 +545,12 @@ quit-confirm)."
     ;; w — describe the focused window
     (define-keymap-key help-map 119 (lambda () (describe-focused-window)))
     (define-prefix-key 104 help-map "help (then b c f v k w)"))  ; h
+  ;; C-t r — interactive resize mode: arrows until Enter/Esc
+  (define-prefix-key 114 (lambda () (enter-iresize-mode))
+                         "interactive resize (arrows, Enter)")
+  ;; C-t C — command mode: sticky prefix until Escape
+  (define-prefix-key 67 (lambda () (enter-command-mode))
+                         "command mode (sticky prefix)")
   ;; C-t q — quit, with confirm (StumpWM's quit-confirm)
   (define-prefix-key 113 (lambda () (quit-confirm))
                          "quit stumpway (press twice)"))           ; q

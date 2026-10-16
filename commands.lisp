@@ -191,6 +191,18 @@ Usage: pull <n>"
         (toggle-fullscreen win)
         (message "no focused window"))))
 
+(define-command :command-mode (output args)
+  "Keep the prefix armed for successive commands until Escape
+(StumpWM: command-mode)."
+  (declare (ignore output args))
+  (enter-command-mode))
+
+(define-command :iresize (output args)
+  "Interactive resize: arrows move the split until Enter/Esc
+(StumpWM: iresize)."
+  (declare (ignore output args))
+  (enter-iresize-mode))
+
 (define-command :only (output args)
   "Collapse the workspace to a single frame (StumpWM: only)."
   (declare (ignore args))
