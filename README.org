@@ -535,11 +535,74 @@ stumpway/
   - [X] evdev-to-xkb keycode conversion
   - [X] Exec field code stripping and Terminal=true wrapping
 
-** Not started
+** Roadmap (StumpWM parity audit)
 
+Audited against the StumpWM source (~/SourceCode/stumpwm: bindings.lisp,
+manual, 180 commands). Where stumpway stands:
+
+*** Ahead of StumpWM
+
+- Wayland-native throughout (no X11): river manage/render protocol,
+  layer-shell surfaces, wl_seat input
+- Native app launcher with .desktop scanning (StumpWM has none) and a
+  command palette
+- Live hot-reload development loop into the running WM
+- Config-driven bar space reservation with frame-tree refitting
+  (StumpWM refreshes; stumpway rescales trees on any change)
+- IPC command socket + swank (StumpWM ships stumpish as contrib)
+
+*** Quick wins (small, well-understood)
+
+- [ ] C-t m lastmsg: redisplay the last message; C-t a time message
+- [ ] C-t 1..9 select workspace directly (groups-map parity)
+- [ ] Window numbering: C-t 0..9 select window by number,
+      renumber/repack commands
+- [ ] Fullscreen toggle C-t F11 (river_window_v1.fullscreen request —
+      stumpway only reacts to client requests today)
+- [ ] Frame commands: only (collapse tree to one frame), balance
+      (equalize splits), fclear
+- [ ] exchange-direction: swap windows between frames (C-t x + arrows;
+      move is one-way today)
+- [ ] pull: pull any window (by number, or hidden ones with
+      pull-hidden-next/prev) into the current frame — StumpWM's real
+      C-t n/p semantics
+- [ ] Clipboard commands getsel/putsel via wl-clipboard
+- [ ] suspend/hibernate alongside poweroff/reboot
+- [ ] quit-confirm on C-t q
+
+*** Medium
+
+- [ ] Interactive resize mode (StumpWM's iresize, C-t r): arrows
+      resize the split until done (C-t +/- is single-step today)
+- [ ] Which-key hints: after C-t, show the available next keys
+- [ ] Command mode: sticky prefix until C-g (StumpWM push-top-map)
+- [ ] Frame dump/restore: save and reload workspace layouts to files
+      (StumpWM's fdump)
+- [ ] Window marks: tag windows (#), then move all marked
+      (gmove-marked)
+- [ ] set-prefix-key: change the prefix at runtime
+- [ ] Menus for scripting (StumpWM menu-definitions)
+
+*** Bigger
+
+- [ ] Minor modes: global/group/window-scoped keymap overlays
+      (StumpWM's emacs-like modes)
+- [ ] Multiple workspace types: StumpWM has tile, floating AND dynamic
+      (dwm-style) group types per workspace; stumpway workspaces are
+      uniform
+- [ ] Expose-style window overview (C-t RET)
+- [ ] Window selection expressions (WSE): a Lisp DSL for rule
+      matching over window sets
 - [ ] Niri-style scrollable tiling
 - [ ] Fuzzy search in launcher (currently substring match)
 - [ ] Switch modifier from Alt to Super on real hardware
+
+*** Not portable to Wayland (skipping, X11-isms)
+
+- send-raw-key / window-send-string / send-escape — no protocol for
+  injecting keys into other clients (Wayland security model)
+- ratwarp / ratclick — no pointer warping protocol
+- Setting window titles from the WM (no such request)
 
 * Continuing on a Linux machine (Arch Linux)
 
