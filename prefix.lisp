@@ -545,6 +545,9 @@ current split's dividing line until Enter commits or Escape aborts."
     ;; w — describe the focused window
     (define-keymap-key help-map 119 (lambda () (describe-focused-window)))
     (define-prefix-key 104 help-map "help (then b c f v k w)"))  ; h
+  ;; C-t # — mark the focused window for mark commands
+  (define-prefix-key 35 (lambda () (toggle-mark-focused))
+                         "mark/unmark window")                    ; #
   ;; C-t r — interactive resize mode: arrows until Enter/Esc
   (define-prefix-key 114 (lambda () (enter-iresize-mode))
                          "interactive resize (arrows, Enter)")

@@ -100,6 +100,20 @@ because they are on another workspace.")
       (move-window-to-workspace focused workspace
                                 (window-output focused)))))
 
+(defun move-marked-to-workspace (workspace)
+  "Move every marked window to WORKSPACE and clear the marks
+(StumpWM's gmove-marked)."
+  (let ((marked (marked-windows)))
+    (if (null marked)
+        (message "no marked windows")
+        (progn
+          (dolist (win marked)
+            (when (gethash (window-proxy win) *windows*)
+              (move-window-to-workspace win workspace)))
+          (clear-window-marks)
+          (message "~D moved to workspace ~D"
+                   (length marked) workspace)))))
+
 ;;; --- Window rules ---
 ;;;
 ;;; Configure applications to open on specific workspaces, optionally

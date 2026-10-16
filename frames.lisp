@@ -466,6 +466,141 @@ round-robin (StumpWM's fclear)."
                                                others))))
            (request-manage-dirty)))))
 
+;;; --- Frame dump/restore (StumpWM's fdump) ---
+;;;
+;;; A workspace's frame tree serializes to a readable sexp:
+;;;
+;;;   (:split :horizontal (0 0 1920 1060)
+;;;     (:frame (0 0 960 1060) 1 2)
+;;;     (:split :vertical (960 0 960 1060) (:frame ...) (:frame ...)))
+;;;
+;;; Windows are recorded by number; windows that no longer exist when
+;;; the dump is restored are skipped, and tiled windows not mentioned
+;;; in the dump pile onto the last frame. Rectangles scale
+;;; proportionally when the output's content area changed since the
+;;; dump.
+
+(defun frame-dump-pathname (name)
+  "Pathname of the frame dump NAME (stumpway-cmd dump-frame <name>)."
+  (merge-pathnames
+    (make-pathname :name (string-downcase (string name))
+                   :type "lisp"
+                   :directory '(:relative "frame-dumps"))
+    (merge-pathnames #P".local/share/stumpway/"
+                     (user-homedir-pathname))))
+
+(defun frame-tree-to-sexp (root)
+  "Serialize the frame tree ROOT to a readable sexp (window numbers
+per frame, the visible window first)."
+  (labels ((walk (frame)
+             (let ((rect (list :rect (frame-x frame) (frame-y frame)
+                                   (frame-width frame)
+                                   (frame-height frame))))
+               (if (frame-first-child frame)
+                   (list :split (frame-split-direction frame) rect
+                         (walk (frame-first-child frame))
+                         (walk (frame-second-child frame)))
+                   (list* :frame rect
+                          (loop for w in (frame-windows frame)
+                                collect (window-number w)))))))
+    (walk root)))
+
+(defun dump-rect (sexp)
+  "The rectangle of a dump node, as (x y w h)."
+  (rest (if (eq (first sexp) :split)
+            (third sexp)
+            (second sexp))))
+
+(defun sexp-to-frame-tree (sexp sx sy)
+  "Rebuild a frame tree from a dump sexp, scaling x/width by SX and
+y/height by SY. The dump's number lists are ignored here; callers
+assign windows after the tree is built."
+  (let* ((rect (dump-rect sexp))
+         (frame (make-frame :x (round (* (first rect) sx))
+                            :y (round (* (second rect) sy))
+                            :width (max 1 (round (* (third rect) sx)))
+                            :height (max 1 (round (* (fourth rect) sy))))))
+    (if (eq (first sexp) :split)
+        (let* ((direction (second sexp))
+               (first (sexp-to-frame-tree (fourth sexp) sx sy))
+               (second (sexp-to-frame-tree (fifth sexp) sx sy)))
+          (setf (frame-split-direction frame) direction
+                (frame-first-child frame) first
+                (frame-second-child frame) second
+                (frame-parent first) frame
+                (frame-parent second) frame)
+          frame)
+        frame)))
+
+(defun dump-frame (output workspace file)
+  "Write the workspace's frame tree to FILE (a printable sexp)."
+  (ensure-directories-exist file)
+  (with-open-file (s file :direction :output :if-exists :supersede)
+    (write (frame-tree-to-sexp (frame-tree-for output workspace))
+           :stream s :readably t))
+  (message "dumped to ~A" file))
+
+(defun dump-leaf-numbers (sexp)
+  "The per-frame window number lists of a dump sexp, in leaf order."
+  (if (eq (first sexp) :frame)
+      (list (cddr sexp))
+      (append (dump-leaf-numbers (fourth sexp))
+              (dump-leaf-numbers (fifth sexp)))))
+
+(defun restore-frame (output workspace file)
+  "Rebuild the workspace's frame tree from a dump FILE."
+  (let ((sexp (with-open-file (s file :direction :input)
+                (read s))))
+    (restore-workspace-from-sexp output workspace sexp)))
+
+(defun restore-workspace-from-sexp (output workspace sexp)
+  "Rebuild the workspace's frame tree from a dump sexp (see
+frame-tree-to-sexp). Windows are placed by number; missing ones are
+skipped, unmentioned tiled windows pile onto the last frame, and
+rectangles scale when the output's content area changed since the
+dump."
+  (let* ((root-rect (dump-rect sexp))
+         (content-w (output-width output))
+         (content-h (max 0 (- (output-height output)
+                              (bar-reserved-height))))
+         (sx (if (plusp (third root-rect))
+                 (/ content-w (third root-rect)) 1))
+         (sy (if (plusp (fourth root-rect))
+                 (/ content-h (fourth root-rect)) 1))
+         (tree (sexp-to-frame-tree sexp sx sy))
+         (leaves (frame-leaves tree))
+         (number-lists (dump-leaf-numbers sexp))
+         (assigned '()))
+    ;; Place windows by number, in frame order
+    ;; Numbers are pushed in reverse so the first dumped window ends
+    ;; up the frame's visible window (frame-push pushes front)
+    (loop for leaf in leaves
+          for numbers in number-lists
+          do (dolist (n (reverse numbers))
+                (let ((win (find-window-by-number n output workspace)))
+                  (when (and win
+                             (not (window-floating-p win))
+                             (not (member win assigned :test #'eq)))
+                    (frame-remove-window win)
+                    (frame-push-window win leaf)
+                    (push win assigned)))))
+    ;; Tiled windows the dump didn't mention pile onto the last frame
+    (let ((last (first (last leaves))))
+      (dolist (win (windows-on-workspace output workspace))
+        (when (and (not (window-floating-p win))
+                   (not (member win assigned :test #'eq)))
+          (frame-remove-window win)
+          (frame-push-window win last)
+          (push win assigned))))
+    ;; Commit: swap the tree in; current frame = the first frame
+    ;; that has windows, else the first leaf
+    (setf (gethash (frame-key output workspace) *frame-trees*) tree
+          (gethash (frame-key output workspace) *current-frames*)
+          (or (find-if (lambda (l) (frame-windows l)) leaves)
+              (first leaves)))
+    (request-manage-dirty)
+    tree))
+
 ;;; --- Tree construction from rectangles ---
 ;;;
 ;;; Layout templates (master-stack, even, monocle, custom user

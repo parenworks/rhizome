@@ -203,6 +203,46 @@ Usage: pull <n>"
   (declare (ignore output args))
   (enter-iresize-mode))
 
+(define-command :mark (output args)
+  "Mark/unmark the focused window for mark commands (StumpWM: mark)."
+  (declare (ignore output args))
+  (toggle-mark-focused))
+
+(define-command :clear-window-marks (output args)
+  "Remove every window mark (StumpWM: clear-window-marks)."
+  (declare (ignore output args))
+  (clear-window-marks))
+
+(define-command :move-marked (output args)
+  "Move every marked window to WORKSPACE and clear the marks
+(StumpWM: gmove-marked). Usage: move-marked <workspace>"
+  (when args
+    (let ((ws (or (parse-integer (first args) :junk-allowed t)
+                  -1)))
+      (move-marked-to-workspace ws))))
+
+(define-command :dump-frame (output args)
+  "Save the current workspace's frame layout to a file.
+Usage: dump-frame <name> (files live in ~/.local/share/stumpway/frame-dumps/)"
+  (when args
+    (dump-frame output (current-workspace output)
+                (frame-dump-pathname (first args)))))
+
+(define-command :restore-frame (output args)
+  "Restore a saved frame layout into the current workspace.
+Usage: restore-frame <name>"
+  (when args
+    (let ((file (frame-dump-pathname (first args))))
+      (if (probe-file file)
+          (restore-frame output (current-workspace output) file)
+          (message "no such dump: ~A" (first args))))))
+
+(define-command :set-prefix-key (output args)
+  "Change the prefix key at runtime (StumpWM: set-prefix-key).
+Usage: set-prefix-key <spec>  e.g. set-prefix-key C-z"
+  (when args
+    (set-prefix-key (first args))))
+
 (define-command :only (output args)
   "Collapse the workspace to a single frame (StumpWM: only)."
   (declare (ignore args))

@@ -10,12 +10,13 @@ focus it."
          (candidates
            (mapcar
              (lambda (win)
-               (format nil "~D: [~D] ~A"
+               (format nil "~D: [~D] ~A~A"
                        (or (window-number win) ?-)
                        (or (window-workspace win) 0)
                        (or (window-title win)
                            (window-app-id win)
-                           "?")))
+                           "?")
+                       (if (window-marked-p win) " *" "")))
              wins)))
     (if (null wins)
         (message "No windows")

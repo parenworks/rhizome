@@ -68,6 +68,17 @@
    #:enter-command-mode
    #:enter-iresize-mode
    #:which-key-text
+   #:set-prefix-key
+   ;; Window marks
+   #:window-marked-p
+   #:toggle-window-mark
+   #:toggle-mark-focused
+   #:clear-window-marks
+   #:move-marked-to-workspace
+   ;; Frame dumps
+   #:dump-frame
+   #:restore-frame
+   #:frame-dump-pathname
    ;; Floating windows
    #:float-window
    #:unfloat-window

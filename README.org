@@ -290,6 +290,7 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 | C-t m   | Redisplay the last message (lastmsg) |
 | C-t r   | Interactive resize: arrows until Enter/Esc (iresize) |
 | C-t C   | Command mode: sticky prefix until Escape |
+| C-t #   | Mark/unmark the focused window |
 | C-t F11 | Toggle fullscreen      |
 | C-t h … | Help: b bindings, c command, f function, v variable, k key, w window |
 | C-t q   | Quit (press twice to confirm) |
@@ -604,11 +605,16 @@ manual, 180 commands). Where stumpway stands:
       now wraps text at newlines
 - [X] Command mode (C-t C): sticky prefix — successive C-t commands
       until Escape (StumpWM's command-mode)
-- [ ] Frame dump/restore: save and reload workspace layouts to files
-      (StumpWM's fdump)
-- [ ] Window marks: tag windows (#), then move all marked
-      (gmove-marked)
-- [ ] set-prefix-key: change the prefix at runtime
+- [X] Frame dump/restore: the workspace's frame tree serializes to a
+      readable sexp with window numbers; restore rebuilds the tree,
+      places windows by number, skips the missing, scales when the
+      output changed (stumpway-cmd dump-frame / restore-frame <name>;
+      files in ~/.local/share/stumpway/frame-dumps/)
+- [X] Window marks: C-t # tags windows (marked ones show * in the
+      windowlist); move-marked <ws> moves them all and clears marks
+- [X] set-prefix-key: (stumpway:set-prefix-key "C-z") swaps the
+      prefix chord live, reinstalling the grab in the next manage
+      sequence; parse-key-spec speaks C/M/s/S-t style specs
 - [ ] Menus for scripting (StumpWM menu-definitions)
 
 *** Bigger

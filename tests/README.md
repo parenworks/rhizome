@@ -27,6 +27,10 @@ stubbed river requests. Run with:
 - `interactivity.lisp` — multi-line messages, which-key hints,
   iresize (arrows resize until Enter/Esc), and command mode (sticky
   prefix: multiple commands until Escape).
+- `medium3.lisp` — frame dump/restore round-trips (shape, rects,
+  window placement, output scaling, missing/unmentioned windows),
+  window marks lifecycle and move-marked, and set-prefix-key's key
+  spec parsing and binding swaps.
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip

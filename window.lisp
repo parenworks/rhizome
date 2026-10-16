@@ -104,6 +104,49 @@ frame focus there with it (StumpWM's select-window-by-number)."
            (dolist (seat (all-seats)) (focus-window win seat))
            (request-manage-dirty)))))
 
+;;; --- Window marks (StumpWM: mark / gmove-marked) ---
+
+(defvar *marked-windows* (make-hash-table)
+  "Windows tagged with C-t #; commands can act on all of them at once
+(move-marked, clear-window-marks).")
+
+(defun window-marked-p (win)
+  "Whether WIN carries a mark."
+  (gethash win *marked-windows*))
+
+(defun toggle-window-mark (win)
+  "Tag (or untag) WIN so mark commands act on it (StumpWM's mark,
+C-t #)."
+  (if (gethash win *marked-windows*)
+      (progn
+        (remhash win *marked-windows*)
+        (message "unmarked: ~A"
+                 (or (window-title win) (window-app-id win) "window")))
+      (progn
+        (setf (gethash win *marked-windows*) t)
+        (message "marked: ~A"
+                 (or (window-title win) (window-app-id win) "window")))))
+
+(defun toggle-mark-focused ()
+  "Mark/unmark the focused window."
+  (let ((win (find-if #'window-focused-p (all-windows))))
+    (if win
+        (toggle-window-mark win)
+        (message "no focused window"))))
+
+(defun clear-window-marks ()
+  "Remove every window mark."
+  (clrhash *marked-windows*)
+  (message "marks cleared"))
+
+(defun marked-windows ()
+  "All marked windows."
+  (loop for win being the hash-keys of *marked-windows* collect win))
+
+(defun release-window-mark (win)
+  "Drop WIN's mark (window closed)."
+  (remhash win *marked-windows*))
+
 ;;; --- Fullscreen (WM-initiated) ---
 
 (defvar *pending-fullscreen-requests* nil
@@ -185,7 +228,8 @@ request itself is flushed by the manage pass."
          (remhash (window-proxy win) *windows*)
          (remhash win *window-workspace*)
          (remhash win *minimized-windows*)
-         (release-window-number win))
+         (release-window-number win)
+         (release-window-mark win))
 
         (:fullscreen-requested
          (destructuring-bind (output) args

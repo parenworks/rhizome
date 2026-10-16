@@ -142,6 +142,59 @@ a manage sequence."
 
 ;;; --- Default keybindings ---
 
+;;; --- Prefix key (define once, change at runtime) ---
+
+(defvar *prefix-key-binding* (cons +xkb-key-T+ *mod-ctrl*)
+  "The keysym and modifiers of the current prefix binding (set-prefix-key).")
+
+(defun parse-key-spec (spec)
+  "Parse a key spec like \"C-t\", \"C-M-s\", \"s-Space\" or \"M-Return\"
+into (MODIFIERS KEYSYM). C = ctrl, M = alt, s = super, S = shift."
+  (let ((mods '()) (rest (string spec)))
+    (loop while (and (> (length rest) 1)
+                     (member (char rest 0) '(#\C #\M #\s #\S) :test #'char=)
+                     (char= (char rest 1) #\-))
+          do (case (char rest 0)
+               (#\C (push :ctrl mods))
+               (#\M (push :mod1 mods))
+               (#\s (push :mod4 mods))
+               (#\S (push :shift mods)))
+             (setf rest (subseq rest 2)))
+    (let ((down (string-downcase rest)))
+      (values (reverse mods)
+              (cond ((string= down "space") 32)
+                    ((string= down "return") 65293)
+                    ((string= down "enter") 65293)
+                    ((string= down "tab") 65289)
+                    ((string= down "escape") 65307)
+                    ((string= down "backspace") 65288)
+                    ((string= down "left") 65361)
+                    ((string= down "right") 65363)
+                    ((string= down "up") 65362)
+                    ((string= down "down") 65364)
+                    (t (when (= 1 (length rest))
+                         (char-code (char-downcase (char rest 0))))))))))
+
+(defun set-prefix-key (spec)
+  "Change the prefix key at runtime, e.g. (stumpway:set-prefix-key \"C-z\").
+Current grabs are destroyed and the new binding is installed during
+the next manage sequence, like set-user-mod."
+  (multiple-value-bind (mods keysym) (parse-key-spec spec)
+    (unless keysym
+      (message "bad key spec: ~A (e.g. \"C-z\", \"s-t\")" spec)
+      (return-from set-prefix-key))
+    ;; Swap the binding in the table
+    (remhash *prefix-key-binding* *keybindings*)
+    (setf *prefix-key-binding* (cons keysym mods))
+    (define-key keysym mods (lambda () (enter-prefix-mode)))
+    ;; Reinstall: destroy grabs, re-create during the next manage pass
+    (dolist (binding *active-bindings*)
+      (ignore-errors
+        (rwm:river-xkb-binding-v1.destroy binding)))
+    (setf *active-bindings* nil)
+    (request-manage-dirty)
+    (message "prefix: ~A" spec)))
+
 (defun setup-default-keybindings ()
   "Set up the default StumpWM-style keybindings."
 
@@ -231,7 +284,8 @@ a manage sequence."
   ;;   C-t w windowlist | C-t g workspace picker | C-t x command palette
   ;;   C-t : eval       | C-t ! shell command    | C-t b toggle bar
   ;;   C-t n/p next/prev workspace | C-t q quit stumpway
-  (define-key +xkb-key-T+ *mod-ctrl*
+  ;; The prefix key (changeable at runtime: set-prefix-key)
+  (define-key (car *prefix-key-binding*) (cdr *prefix-key-binding*)
     (lambda ()
       (enter-prefix-mode)))
   (setup-default-prefix-bindings)
