@@ -143,7 +143,22 @@
         (bar-module-action :clock :on-click) nil) ; unconfigured
     (ok "segment width counts an icons module"
         (bar-segment-width (list '(:icons ((:icon "a") (:icon "b")))))
-        (+ 40 *bar-module-gap*)))
+        (+ 40 *bar-module-gap*))
+
+    ;; --- Launcher: user-local desktop files + rescan ---
+
+    (ok "home applications dir resolves with the username intact"
+        (and (member #P"/home/glenn/.local/share/applications/"
+                     (launcher-desktop-paths)
+                     :test #'equal)
+             t)
+        t)
+    (ok "launcher rescan repopulates the app list"
+        (let ((*launcher-app-list* nil))
+          (launcher-refresh-app-list)
+          (and *launcher-app-list*
+               (plusp (length *launcher-app-list*))))
+        t))
 
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
   (unless (zerop fail) (uiop:quit 1)))

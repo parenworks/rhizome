@@ -41,25 +41,41 @@
 (defun launcher-desktop-paths ()
   "Return list of directories to search for .desktop files.
 Follows the XDG Desktop Entry specification."
-  (let ((xdg-dirs '())
-        (home (sb-ext:posix-getenv "HOME")))
-    ;; XDG_DATA_HOME/applications
-    (let ((xdg-data-home (sb-ext:posix-getenv "XDG_DATA_HOME")))
-      (when (and xdg-data-home (string/= xdg-data-home ""))
-        (push (merge-pathnames "applications/" xdg-data-home) xdg-dirs)))
-    ;; ~/.local/share/applications
-    (when home
-      (push (merge-pathnames ".local/share/applications/" home) xdg-dirs))
-    ;; XDG_DATA_DIRS/applications (system-wide)
-    (let ((xdg-data-dirs (sb-ext:posix-getenv "XDG_DATA_DIRS")))
-      (when (and xdg-data-dirs (string/= xdg-data-dirs ""))
-        (dolist (dir (ppcre:split ":" xdg-data-dirs))
-          (when (string/= dir "")
-            (push (merge-pathnames "applications/" dir) xdg-dirs)))))
-    ;; Fallback system dirs
-    (push #P"/usr/local/share/applications/" xdg-dirs)
-    (push #P"/usr/share/applications/" xdg-dirs)
-    (remove-duplicates xdg-dirs :test #'equal)))
+  (labels ((as-directory (path)
+             "PATH as a directory pathname (trailing slash matters:
+merge-pathnames against a slashless path treats its last component
+as a filename — \"/home/glenn\" + \"applications/\" merged to
+\"/home/applications/glenn\" in the wild, hiding user-local desktop
+entries like a freshly installed Variety)."
+             (let ((p (if (pathnamep path) path (pathname path))))
+               (if (uiop:directory-pathname-p p)
+                   p
+                   (uiop:ensure-directory-pathname p)))))
+    (let ((xdg-dirs '()))
+      ;; XDG_DATA_HOME/applications
+      (let ((xdg-data-home (sb-ext:posix-getenv "XDG_DATA_HOME")))
+        (when (and xdg-data-home (string/= xdg-data-home ""))
+          (push (merge-pathnames "applications/"
+                                 (as-directory xdg-data-home))
+                xdg-dirs)))
+      ;; ~/.local/share/applications
+      (let ((home (sb-ext:posix-getenv "HOME")))
+        (when home
+          (push (merge-pathnames ".local/share/applications/"
+                                 (as-directory home))
+                xdg-dirs)))
+      ;; XDG_DATA_DIRS/applications (system-wide)
+      (let ((xdg-data-dirs (sb-ext:posix-getenv "XDG_DATA_DIRS")))
+        (when (and xdg-data-dirs (string/= xdg-data-dirs ""))
+          (dolist (dir (ppcre:split ":" xdg-data-dirs))
+            (when (string/= dir "")
+              (push (merge-pathnames "applications/"
+                                     (as-directory dir))
+                    xdg-dirs)))))
+      ;; Fallback system dirs
+      (push #P"/usr/local/share/applications/" xdg-dirs)
+      (push #P"/usr/share/applications/" xdg-dirs)
+      (remove-duplicates xdg-dirs :test #'equal))))
 
 (defun launcher-parse-desktop-file (path)
   "Parse a .desktop file, return (display-name . command) if it should be shown.
@@ -858,9 +874,9 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
   (unless (and *compositor* *shm* *layer-shell*)
     (format t "~&; Stumpway: missing compositor/shm/layer-shell, cannot show launcher~%")
     (return-from show-launcher))
-  ;; Scan .desktop files if not yet loaded
-  (unless *launcher-app-list*
-    (launcher-refresh-app-list))
+  ;; Rescan .desktop files on every open: fresh installs (pacman -S
+  ;; variety ...) appear on the next launcher open, no restart
+  (launcher-refresh-app-list)
   (setf *launcher-query* ""
         *launcher-selection* 0
         *launcher-scroll-offset* 0
