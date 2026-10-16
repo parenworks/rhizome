@@ -630,16 +630,26 @@ manual, 180 commands). Where stumpway stands:
 
 *** Bigger
 
-- [ ] Minor modes: global/group/window-scoped keymap overlays
-      (StumpWM's emacs-like modes)
+- [X] Minor modes (Wayland-adapted): define-minor-mode /
+      define-minor-mode-key / enable-minor-mode overlay a mode
+      keymap onto prefix chains — enabled modes are consulted before
+      the prefix map, newest first. StumpWM's global key-stealing
+      variants can't exist on Wayland (no key injection), so modes
+      scope to C-t, where C-t h b lists them. IPC: enable-minor-mode
+      / disable-minor-mode <name>
 - [ ] Multiple workspace types: StumpWM has tile, floating AND dynamic
       (dwm-style) group types per workspace; stumpway workspaces are
       uniform
 - [ ] Expose-style window overview (C-t RET)
-- [ ] Window selection expressions (WSE): a Lisp DSL for rule
-      matching over window sets
+- [X] Window selection expressions (WSE, wse.lisp):
+      (:and (:app-id \"emacs\") (:title \"docs\")) over app-id,
+      title, number, workspace, float, marked, focused; wse-windows /
+      wse-map / wse-count for scripting, window rules accept :wse in
+      place of :match, stumpway-cmd wse <expr> reports matches
 - [ ] Niri-style scrollable tiling
-- [ ] Fuzzy search in launcher (currently substring match)
+- [X] Fuzzy search: prompts and the launcher match query characters
+      in order (case-insensitive subsequence), with substring matches
+      ranked ahead of scattered ones
 - [X] Switch modifier from Alt to Super on real hardware: the user
       modifier is =*mod*= (define once, use many), Super by default,
       switchable live with =set-user-mod=

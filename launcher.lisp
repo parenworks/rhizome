@@ -124,14 +124,19 @@ De-duplicates by display name (first occurrence wins)."
   (format t "~&; Stumpway: loaded ~A desktop entries~%" (length *launcher-app-list*)))
 
 (defun launcher-filter-entries ()
-  "Filter *launcher-app-list* by the current query string."
+  "Filter *launcher-app-list* by the current query string (fuzzy:
+characters in order, case-insensitive; substring matches rank
+first)."
   (let ((q (string-downcase *launcher-query*)))
     (if (string= q "")
         (copy-list *launcher-app-list*)
-        (remove-if-not
-          (lambda (entry)
-            (search q (string-downcase (car entry))))
-          *launcher-app-list*))))
+        (let ((direct '()) (fuzzy '()))
+          (dolist (entry *launcher-app-list*)
+            (let ((name (and entry (string-downcase (car entry)))))
+              (cond ((null name))
+                    ((search q name) (push entry direct))
+                    ((fuzzy-match-p q name) (push entry fuzzy)))))
+          (nconc (nreverse direct) (nreverse fuzzy))))))
 
 (defun launcher-visible-count (height)
   "How many entries fit in the visible area."

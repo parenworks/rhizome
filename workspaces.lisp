@@ -128,22 +128,26 @@ because they are on another workspace.")
 ;;;                      (:match "steam" :output 2))))
 
 (defun window-rule-matches-p (win rule)
-  "Whether WIN matches RULE's :match regex."
-  (let* ((pattern (getf rule :match))
-         (key (getf rule :key :app-id))
-         (candidates
-           (case key
-             (:app-id (list (window-app-id win)))
-             (:title (list (window-title win)))
-             (:any (list (window-app-id win) (window-title win)))
-             (t (list (window-app-id win))))))
-    (and pattern
-         (some (lambda (candidate)
-                 (and candidate
-                      (cl-ppcre:scan (concatenate 'string
-                                                  "(?i)" pattern)
-                                     candidate)))
-               candidates))))
+  "Whether WIN matches RULE's :wse expression (if given), else its
+:match regex."
+  (let ((wse (getf rule :wse)))
+    (if wse
+        (wse-matches-p win wse)
+        (let* ((pattern (getf rule :match))
+               (key (getf rule :key :app-id))
+               (candidates
+                 (case key
+                   (:app-id (list (window-app-id win)))
+                   (:title (list (window-title win)))
+                   (:any (list (window-app-id win) (window-title win)))
+                   (t (list (window-app-id win))))))
+              (and pattern
+                   (some (lambda (candidate)
+                           (and candidate
+                                (cl-ppcre:scan (concatenate 'string
+                                                            "(?i)" pattern)
+                                               candidate)))
+                         candidates))))))
 
 (defun all-outputs-sorted ()
   "Outputs in stable left-to-right, top-to-bottom order."

@@ -159,6 +159,33 @@ list, or NIL if unknown."
     ((:ctrl :control) *mod-ctrl*)
     (t nil)))
 
+;;; --- Fuzzy matching (prompt + launcher filtering) ---
+
+(defun fuzzy-match-p (query candidate)
+  "Whether QUERY's characters appear in CANDIDATE in order,
+case-insensitively — a subsequence match that subsumes substring
+matching (\"ff\" matches \"Firefox\", \"xf\" does not)."
+  (loop with i = 0
+        for ch across query
+        for pos = (position ch candidate :start i :test #'char-equal)
+        unless pos
+          return nil
+        do (setf i (1+ pos))
+        finally (return t)))
+
+(defun fuzzy-filter (query candidates)
+  "Candidates matching QUERY, substring matches first, fuzzy-only
+matches after; original order preserved within each group. An empty
+query returns the candidates unchanged."
+  (if (zerop (length query))
+      candidates
+      (let ((direct '()) (fuzzy '()))
+        (dolist (c candidates)
+          (cond ((null c))
+                ((search query c :test #'char-equal) (push c direct))
+                ((fuzzy-match-p query c) (push c fuzzy))))
+        (nconc (nreverse direct) (nreverse fuzzy)))))
+
 (defun load-user-config ()
   "Load the user's config file if it exists."
   (let ((path (config-pathname)))

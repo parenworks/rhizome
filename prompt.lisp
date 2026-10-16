@@ -42,15 +42,9 @@ exclusive surface can never trap input. Called from the main loop."
     (prompt-close)))
 
 (defun prompt-filtered ()
-  "Candidates matching the current query (case-insensitive substring)."
-  (let ((query *prompt-query*))
-    (if (zerop (length query))
-        *prompt-candidates*
-        (remove-if-not
-          (lambda (candidate)
-            (and candidate
-                 (search query candidate :test #'char-equal)))
-          *prompt-candidates*))))
+  "Candidates matching the current query (fuzzy: characters in
+order, case-insensitive; substring matches rank first)."
+  (fuzzy-filter *prompt-query* *prompt-candidates*))
 
 (defun prompt-selected ()
   "The currently selected candidate string, or NIL."

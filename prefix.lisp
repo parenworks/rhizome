@@ -172,7 +172,8 @@ prefix modes (command mode, iresize)."
      (describe-prefix-key keysym)
      (exit-prefix-mode))
     (t
-     (let ((entry (gethash keysym *prefix-current-map*)))
+     (let ((entry (or (minor-mode-lookup keysym)
+                      (gethash keysym *prefix-current-map*))))
        (cond
          ;; Nested keymap: descend, wait for the next key
          ((hash-table-p entry)
@@ -209,6 +210,67 @@ prefix modes (command mode, iresize)."
           (message "unbound key")
           (exit-prefix-mode))))))
   t)
+
+;;; --- Minor modes (StumpWM's keymap overlays, Wayland-adapted) ---
+;;;
+;;; StumpWM minor modes bind keys globally and re-send the unclaimed
+;;; ones to the focused window. Wayland forbids key injection, so
+;;; stumpway's minor modes scope to the prefix chain instead: while a
+;;; mode is enabled, ITS keymap is consulted before the prefix map
+;;; (most recently enabled mode first). Everything else about C-t
+;;; chains is unchanged.
+
+(defvar *minor-mode-keymaps* (make-hash-table)
+  "Maps minor mode names to their keymaps (all defined modes).")
+(defparameter *minor-mode-stack* nil
+  "Enabled minor modes, most recently enabled first. Their keymaps
+take precedence over the prefix map, in this order.")
+(defparameter *minor-mode-docs* (make-hash-table)
+  "Maps minor mode names to their docstrings.")
+
+(defmacro define-minor-mode (name &optional doc)
+  "Define a minor mode named NAME (any designator; keywords read
+best). Its bindings live in its own keymap, consulted before the
+prefix map while the mode is enabled:
+\(define-minor-mode :presentation \"bindings for talks\")"
+  `(eval-when (:compile-toplevel :load-toplevel :execute)
+     (unless (gethash ,name *minor-mode-keymaps*)
+       (setf (gethash ,name *minor-mode-keymaps*) (make-keymap)))
+     (setf (gethash ,name *minor-mode-docs*) ,doc)
+     ',name))
+
+(defun minor-mode-keymap (name)
+  "NAME's keymap (defining it if needed)."
+  (or (gethash name *minor-mode-keymaps*)
+      (setf (gethash name *minor-mode-keymaps*) (make-keymap))))
+
+(defun define-minor-mode-key (name keysym action)
+  "Bind KEYSYM in minor mode NAME to ACTION (a function)."
+  (setf (gethash keysym (minor-mode-keymap name)) action))
+
+(defun enable-minor-mode (name)
+  "Enable NAME: its keymap takes precedence over the prefix map."
+  (minor-mode-keymap name)
+  (unless (member name *minor-mode-stack*)
+    (push name *minor-mode-stack*))
+  (message "minor mode enabled: ~A" name))
+
+(defun disable-minor-mode (name)
+  "Disable NAME."
+  (setf *minor-mode-stack* (remove name *minor-mode-stack*))
+  (message "minor mode disabled: ~A" name))
+
+(defun enabled-minor-modes ()
+  "The enabled minor modes, most recently enabled first."
+  (copy-list *minor-mode-stack*))
+
+(defun minor-mode-lookup (keysym)
+  "The first binding for KEYSYM among the enabled minor modes (most
+recently enabled first), if any."
+  (loop for name in *minor-mode-stack*
+        for entry = (gethash keysym (gethash name *minor-mode-keymaps*))
+        when entry
+          return entry))
 
 ;;; --- Default prefix bindings (StumpWM-flavored) ---
 
@@ -300,7 +362,10 @@ quit-confirm)."
 
 (defun describe-prefix-bindings ()
   "List the C-t bindings in the message window."
-  (message "C-t: ~{~A~^, ~}"
+  (message "C-t:~A ~{~A~^, ~}"
+           (if *minor-mode-stack*
+               (format nil " minor modes: ~{~A~^ ~};" *minor-mode-stack*)
+               "")
            (sort (loop for k being the hash-keys of *prefix-map*
                        for doc = (gethash k *prefix-key-docs*)
                        collect (if doc

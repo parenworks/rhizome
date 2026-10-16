@@ -243,6 +243,37 @@ Usage: set-prefix-key <spec>  e.g. set-prefix-key C-z"
   (when args
     (set-prefix-key (first args))))
 
+(define-command :enable-minor-mode (output args)
+  "Enable a minor mode: its prefix bindings take precedence.
+Usage: enable-minor-mode <name>"
+  (declare (ignore output))
+  (when args
+    (enable-minor-mode (intern (string-upcase (first args)) :keyword))))
+
+(define-command :disable-minor-mode (output args)
+  "Disable a minor mode. Usage: disable-minor-mode <name>"
+  (declare (ignore output))
+  (when args
+    (disable-minor-mode (intern (string-upcase (first args)) :keyword))))
+
+(define-command :list-minor-modes (output args)
+  "List the enabled minor modes."
+  (declare (ignore output args))
+  (format nil "enabled: ~{~A~^, ~}" (enabled-minor-modes)))
+
+(define-command :wse (output args)
+  "List windows matching a selection expression.
+Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
+  (declare (ignore output))
+  (when args
+    (let ((wins (wse-windows (read-from-string
+                               (format nil "(~A)" (first args))))))
+      (format nil "~D: ~{~A~^, ~}"
+              (length wins)
+              (mapcar (lambda (w) (or (window-title w)
+                                      (window-app-id w) "?"))
+                      wins)))))
+
 (define-command :only (output args)
   "Collapse the workspace to a single frame (StumpWM: only)."
   (declare (ignore args))

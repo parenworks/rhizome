@@ -17,6 +17,7 @@
    (:file "seat" :depends-on ("wm-protocol"))
    (:file "input" :depends-on ("wm-protocol"))
    (:file "floating" :depends-on ("window" "output" "seat"))
+   (:file "wse" :depends-on ("window"))
    (:file "frames" :depends-on ("window" "output" "seat"))
    (:file "workspaces" :depends-on ("window" "output" "seat" "floating" "frames"))
    (:file "tiling" :depends-on ("window" "output" "seat" "workspaces" "floating" "frames"))

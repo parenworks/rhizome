@@ -31,6 +31,10 @@ stubbed river requests. Run with:
   window placement, output scaling, missing/unmentioned windows),
   window marks lifecycle and move-marked, and set-prefix-key's key
   spec parsing and binding swaps.
+- `bigger1.lisp` — minor modes (precedence over the prefix map,
+  stacking order, enable/disable), WSE expressions (and/or/not/any,
+  float/marked/number selectors, :wse window rules), and fuzzy
+  matching (subsequence + substring-first ranking).
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip

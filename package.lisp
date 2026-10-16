@@ -62,6 +62,21 @@
    #:run-shell-command-prompt
    #:select-from-menu
    #:menu
+   ;; Minor modes
+   #:define-minor-mode
+   #:define-minor-mode-key
+   #:minor-mode-keymap
+   #:enable-minor-mode
+   #:disable-minor-mode
+   #:enabled-minor-modes
+   ;; Window selection expressions
+   #:wse-matches-p
+   #:wse-windows
+   #:wse-map
+   #:wse-count
+   ;; Fuzzy matching
+   #:fuzzy-match-p
+   #:fuzzy-filter
    ;; Prefix key engine
    #:define-prefix-key
    #:define-keymap-key
