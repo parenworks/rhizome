@@ -282,18 +282,20 @@
 
       ;; Manage: t2/t3 pre-placed in the frame; the frameless t1 is
       ;; adopted (pushed front: it becomes the frame's visible
-      ;; window) and gets proposed the frame rectangle
+      ;; window) and gets proposed the frame rectangle. Auto-split is
+      ;; disabled here so this tests plain adoption.
       (let ((root (frame-tree-for out4 1)))
         (frame-push-window t3 root)
         (frame-push-window t2 root))
-      (setf calls '())
-      (apply-layout-for-output out4)
-      (ok "frameless window adopted into a frame"
-          (and (window-frame t1) t) t)
-      (ok "manage proposes frame dims for the visible window"
-          (called? t1 :propose-window-dimensions) t)
-      (ok "non-current frame window not proposed yet"
-          (called? t3 :propose-window-dimensions) nil)
+      (let ((*config* '(:tiling (:auto-split nil))))
+        (setf calls '())
+        (apply-layout-for-output out4)
+        (ok "frameless window adopted into a frame"
+            (and (window-frame t1) t) t)
+        (ok "manage proposes frame dims for the visible window"
+            (called? t1 :propose-window-dimensions) t)
+        (ok "non-current frame window not proposed yet"
+            (called? t3 :propose-window-dimensions) nil))
 
       ;; Split, then render: current window of each frame shown and
       ;; positioned at its frame rectangle; the other window in the
@@ -351,6 +353,61 @@
       (switch-layout out5 :monocle)
       (ok "monocle template collapses to one frame"
           (length (frame-leaves (frame-tree-for out5 4))) 1))
+
+    ;; --- Dynamic tiling: new windows split the current frame ---
+
+    (let* ((dyn (make-instance 'stumpway-output :proxy :dyn-out
+                              :width 1920 :height 1080))
+           (a (make-instance 'stumpway-window :proxy :dyn-a))
+           (b (make-instance 'stumpway-window :proxy :dyn-b))
+           (c (make-instance 'stumpway-window :proxy :dyn-c)))
+      (setf (gethash :dyn-a *windows*) a
+            (gethash :dyn-b *windows*) b
+            (gethash :dyn-c *windows*) c)
+      (dolist (win (list a b c))
+        (setf (window-output win) dyn))
+      (assign-window-workspace a 6)
+      (assign-window-workspace b 6)
+      (assign-window-workspace c 6)
+      (setf (gethash dyn *output-workspace*) 6)
+
+      ;; windows arrive one manage pass at a time, like river sends them
+      ;; first window: no split
+      (frames-manage-decisions dyn 6 (list a))
+      (ok "first window takes the lone frame"
+          (list (length (frame-leaves (frame-tree-for dyn 6)))
+                (eq (window-frame a) (frame-tree-for dyn 6)))
+          '(1 t))
+      ;; second window: the occupied frame splits, b gets the new half
+      (frames-manage-decisions dyn 6 (list b))
+      (ok "second window splits the frame (dynamic tiling)"
+          (length (frame-leaves (frame-tree-for dyn 6))) 2)
+      (ok "new window owns the fresh half"
+          (eq (window-frame b)
+              (frame-second-child (frame-tree-for dyn 6)))
+          t)
+      ;; third window: the current frame (b's) splits again
+      (frames-manage-decisions dyn 6 (list c))
+      (ok "third window splits the current frame again"
+          (length (frame-leaves (frame-tree-for dyn 6))) 3)
+      (ok "each window has its own frame"
+          (= (count-if (lambda (frame)
+                         (= (length (frame-windows frame)) 1))
+                       (frame-leaves (frame-tree-for dyn 6)))
+             3)
+          t)
+      ;; auto-split nil: everything piles into the current frame
+      (let ((*config* '(:tiling (:auto-split nil))))
+        (setf *frame-trees* (make-hash-table :test 'equal))
+        (dolist (win (list a b c))
+          (setf (window-frame win) nil))
+        (dolist (win (list a b c))
+          (frames-manage-decisions dyn 6 (list win)))
+        (ok "auto-split off: windows pile into one frame"
+            (list (length (frame-leaves (frame-tree-for dyn 6)))
+                  (reduce #'+ (frame-leaves (frame-tree-for dyn 6))
+                          :key (lambda (f) (length (frame-windows f)))))
+            (list 1 3))))
 
     ;; --- Bar reservation and tree refitting ---
 

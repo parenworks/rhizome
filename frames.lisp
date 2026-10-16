@@ -745,6 +745,36 @@ output dimensions change."
 
 ;;; --- Manage/render sequence integration ---
 
+(defun frame-adopt-window (win output workspace)
+  "Adopt a frameless WIN into the tiling. Dynamic tiling by default:
+if the current frame is occupied, split it first so every new window
+gets its own frame (dwm-style) — (:tiling (:auto-split nil)) opts
+back into strict StumpWM (one window per frame, hidden behind)."
+  (let ((frame (current-frame-for output workspace)))
+    (if (and (config-getf '(:tiling) :auto-split :default t)
+             (frame-windows frame)
+             (>= (frame-width frame) (* 2 *frame-min-size*))
+             (>= (frame-height frame) (* 2 *frame-min-size*)))
+        ;; Split along the longer axis so frames stay usable; the
+        ;; existing windows move to the first child (split-frame
+        ;; leaves them on the now-internal node otherwise), and the
+        ;; new window takes the fresh half with the current pointer
+        (let ((second (split-frame frame
+                                   (if (>= (frame-width frame)
+                                           (frame-height frame))
+                                       :horizontal
+                                       :vertical)
+                                   1/2))
+              (first (frame-first-child frame)))
+          (dolist (win (frame-windows frame))
+            (setf (window-frame win) first))
+          (setf (frame-windows first) (frame-windows frame)
+                (frame-windows frame) nil)
+          (frame-push-window win second)
+          (setf (gethash (frame-key output workspace) *current-frames*)
+                second))
+        (frame-push-window win frame))))
+
 (defun frames-manage-decisions (output workspace wins)
   "Manage-sequence decisions for the workspace's frame tree: clean up
 windows that died or moved, adopt frameless windows into the current
@@ -759,10 +789,10 @@ frame, and propose each leaf's visible window its rectangle."
                                   (eq (window-frame win) leaf)))
                            (frame-windows leaf))))
     ;; New windows (and frameless ones after a hot reload) open into
-    ;; the current frame, StumpWM-style
+    ;; the current frame — splitting it when occupied (dynamic tiling)
     (dolist (win wins)
       (unless (window-frame win)
-        (frame-push-window win (current-frame-for output workspace))))
+        (frame-adopt-window win output workspace)))
     ;; Each frame proposes its rectangle for its visible window
     (dolist (leaf leaves)
       (let ((win (frame-current-window leaf)))
