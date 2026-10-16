@@ -1,0 +1,452 @@
+;;; Frame trees for Stumpway — StumpWM's core data structure
+;;;
+;;; StumpWM doesn't have "layouts" in the i3 sense: the screen is a
+;;; recursive binary tree of FRAMES (rectangles) that the user carves
+;;; up interactively. Internal nodes are splits (a direction and a
+;;; dividing line), leaves are frames holding windows — one visible at
+;;; a time, cycled with C-t n/p. New windows open into the current
+;;; frame; closed windows leave the frame behind; master-stack, even
+;;; and monocle are all just particular trees.
+;;;
+;;;   C-t s / C-t S    split the current frame (side-by-side / stacked)
+;;;   C-t R            remove the current split (merge into sibling)
+;;;   C-t arrows       move focus between frames
+;;;   C-t n / C-t p    cycle the windows in the current frame
+;;;
+;;; Each output keeps one tree per workspace (the StumpWM per-group
+;;; layout). Trees are pure client-side state: the manage pass proposes
+;;; each frame's visible window its rectangle, the render pass places
+;;; it — the same river requests the preset layouts used.
+
+(in-package #:stumpway)
+
+(defparameter *frame-min-size* 50
+  "Smallest frame dimension a split or resize may produce.")
+
+;;; --- Frame structure ---
+
+(defstruct frame
+  "A rectangular region of an output that can hold windows."
+  (x 0 :type integer)
+  (y 0 :type integer)
+  (width 0 :type integer)
+  (height 0 :type integer)
+  (parent nil :type (or null frame))
+  (first-child nil :type (or null frame))
+  (second-child nil :type (or null frame))
+  (split-direction nil :type (or null (member :horizontal :vertical)))
+  (windows nil :type list))
+
+(defvar *frame-trees* (make-hash-table :test 'equal)
+  "Maps (OUTPUT . WORKSPACE) to the root frame of its tree.")
+(defvar *current-frames* (make-hash-table :test 'equal)
+  "Maps (OUTPUT . WORKSPACE) to the frame commands act on.")
+
+(defun frame-key (output workspace)
+  (cons output workspace))
+
+(defun frame-tree-for (output workspace)
+  "The workspace's frame tree, created on first use as a single
+full-screen frame (the StumpWM default — split from there)."
+  (or (gethash (frame-key output workspace) *frame-trees*)
+      (setf (gethash (frame-key output workspace) *frame-trees*)
+            (make-frame
+              :width (output-width output)
+              :height (max 0 (- (output-height output)
+                                (bar-reserved-height)))))))
+
+(defun frame-leaves (frame)
+  "All leaf frames of the tree rooted at FRAME, in layout order."
+  (if (frame-first-child frame)
+      (append (frame-leaves (frame-first-child frame))
+              (frame-leaves (frame-second-child frame)))
+      (list frame)))
+
+(defun frame-sibling (frame)
+  "FRAME's sibling under its parent, or NIL at the root."
+  (let ((parent (frame-parent frame)))
+    (and parent
+         (if (eq (frame-first-child parent) frame)
+             (frame-second-child parent)
+             (frame-first-child parent)))))
+
+(defun frame-current-window (frame)
+  "The window FRAME shows: its focused window if any, else the first."
+  (or (find-if #'window-focused-p (frame-windows frame))
+      (first (frame-windows frame))))
+
+(defun frame-push-window (win frame)
+  "Put WIN in FRAME, making it the frame's visible window."
+  (push win (frame-windows frame))
+  (setf (window-frame win) frame))
+
+(defun frame-remove-window (win)
+  "Take WIN out of whatever frame holds it."
+  (let ((frame (window-frame win)))
+    (when frame
+      (setf (frame-windows frame)
+            (remove win (frame-windows frame)))
+      (setf (window-frame win) nil))))
+
+(defun current-frame-for (output workspace)
+  "The frame commands act on: the focused window's frame when its
+window lives on this workspace, else the stored pointer, else the
+first leaf."
+  (let* ((key (frame-key output workspace))
+         (root (frame-tree-for output workspace))
+         (stored (gethash key *current-frames*))
+         (focused (find-if #'window-focused-p (all-windows))))
+    (or (and focused
+             (window-frame focused)
+             (eq (window-output focused) output)
+             (eql (window-workspace focused) workspace)
+             (window-frame focused))
+        (and stored
+             (member stored (frame-leaves root))
+             stored)
+        (first (frame-leaves root)))))
+
+;;; --- Tree editing ---
+
+(defun split-frame (frame direction ratio)
+  "Split FRAME in DIRECTION (:horizontal side-by-side, :vertical
+stacked) at RATIO (0.0-1.0). Returns the new (second) child frame."
+  (let ((first (make-frame :parent frame))
+        (second (make-frame :parent frame)))
+    (setf (frame-split-direction frame) direction
+          (frame-first-child frame) first
+          (frame-second-child frame) second)
+    (ecase direction
+      (:horizontal
+       (let ((split-x (+ (frame-x frame)
+                          (floor (* (frame-width frame) ratio)))))
+         (setf (frame-x first) (frame-x frame)
+               (frame-y first) (frame-y frame)
+               (frame-width first) (- split-x (frame-x frame))
+               (frame-height first) (frame-height frame)
+               (frame-x second) split-x
+               (frame-y second) (frame-y frame)
+               (frame-width second) (- (+ (frame-x frame) (frame-width frame))
+                                       split-x)
+               (frame-height second) (frame-height frame))))
+      (:vertical
+       (let ((split-y (+ (frame-y frame)
+                          (floor (* (frame-height frame) ratio)))))
+         (setf (frame-x first) (frame-x frame)
+               (frame-y first) (frame-y frame)
+               (frame-width first) (frame-width frame)
+               (frame-height first) (- split-y (frame-y frame))
+               (frame-x second) (frame-x frame)
+               (frame-y second) split-y
+               (frame-width second) (frame-width frame)
+               (frame-height second) (- (+ (frame-y frame) (frame-height frame))
+                                        split-y)))))
+    second))
+
+(defun split-current-frame (output workspace direction &optional (ratio 1/2))
+  "Split the current frame; focus moves to the new (second) frame so
+the next window opened lands there. The current window stays in the
+first child."
+  (let ((frame (current-frame-for output workspace)))
+    (split-frame frame direction ratio)
+    ;; Windows move down to the first child; the new frame is empty
+    (let ((first (frame-first-child frame)))
+      (dolist (win (frame-windows frame))
+        (setf (window-frame win) first))
+      (setf (frame-windows first) (frame-windows frame)
+            (frame-windows frame) nil))
+    (setf (gethash (frame-key output workspace) *current-frames*)
+          (frame-second-child frame))
+    (message "split")
+    (request-manage-dirty)))
+
+(defun remove-current-split (output workspace)
+  "Remove the current frame's split: its windows merge into the
+sibling frame, which takes over the parent's rectangle. No-op at the
+root."
+  (let* ((frame (current-frame-for output workspace))
+         (parent (frame-parent frame)))
+    (unless parent
+      (message "no split to remove")
+      (return-from remove-current-split))
+    (let ((sibling (frame-sibling frame)))
+      ;; Windows merge in, behind the sibling's own current window
+      (setf (frame-windows sibling)
+            (append (frame-windows sibling) (frame-windows frame)))
+      (dolist (win (frame-windows sibling))
+        (setf (window-frame win) sibling))
+      ;; The sibling takes over the parent's rectangle and position
+      (setf (frame-x sibling) (frame-x parent)
+            (frame-y sibling) (frame-y parent)
+            (frame-width sibling) (frame-width parent)
+            (frame-height sibling) (frame-height parent)
+            (frame-parent sibling) (frame-parent parent))
+      (let ((grand (frame-parent parent)))
+        (cond (grand
+               (if (eq (frame-first-child grand) parent)
+                   (setf (frame-first-child grand) sibling)
+                   (setf (frame-second-child grand) sibling)))
+              (t
+               (setf (gethash (frame-key output workspace) *frame-trees*)
+                     sibling))))
+      (setf (gethash (frame-key output workspace) *current-frames*) sibling)
+      (message "split removed")
+      (request-manage-dirty))))
+
+(defun resize-current-split (output workspace delta)
+  "Move the dividing line between the current frame and its sibling by
+DELTA pixels along the split axis (clamped so both sides stay
+usable). No-op at the root."
+  (let* ((frame (current-frame-for output workspace))
+         (parent (frame-parent frame)))
+    (unless parent
+      (message "no split to resize")
+      (return-from resize-current-split))
+    (let ((first (frame-first-child parent))
+          (second (frame-second-child parent))
+          (x2 (+ (frame-x parent) (frame-width parent)))
+          (y2 (+ (frame-y parent) (frame-height parent))))
+      (ecase (frame-split-direction parent)
+        (:horizontal
+         (let ((line (max (+ (frame-x parent) *frame-min-size*)
+                          (min (- x2 *frame-min-size*)
+                               (+ (frame-x first) (frame-width first) delta)))))
+           (setf (frame-width first) (- line (frame-x first))
+                 (frame-x second) line
+                 (frame-width second) (- x2 line))))
+        (:vertical
+         (let ((line (max (+ (frame-y parent) *frame-min-size*)
+                          (min (- y2 *frame-min-size*)
+                               (+ (frame-y first) (frame-height first) delta)))))
+           (setf (frame-height first) (- line (frame-y first))
+                 (frame-y second) line
+                 (frame-height second) (- y2 line)))))
+      (request-manage-dirty))))
+
+;;; --- Focus ---
+
+(defun frame-at-direction (frame direction leaves)
+  "The leaf nearest FRAME in DIRECTION (:left :right :up :down), or
+NIL. Prefers frames that share an edge band; falls back to the
+nearest in the raw direction."
+  (let ((fx1 (frame-x frame)) (fy1 (frame-y frame))
+        (fx2 (+ (frame-x frame) (frame-width frame)))
+        (fy2 (+ (frame-y frame) (frame-height frame))))
+    (flet ((in-dir-p (f)
+             (let ((x1 (frame-x f)) (y1 (frame-y f))
+                   (x2 (+ (frame-x f) (frame-width f)))
+                   (y2 (+ (frame-y f) (frame-height f))))
+               (ecase direction
+                 (:right (>= x1 fx2))
+                 (:left  (<= x2 fx1))
+                 (:down  (>= y1 fy2))
+                 (:up    (<= y2 fy1)))))
+           (distance (f)
+             (let ((x1 (frame-x f)) (y1 (frame-y f))
+                   (x2 (+ (frame-x f) (frame-width f)))
+                   (y2 (+ (frame-y f) (frame-height f))))
+               (ecase direction
+                 (:right (- x1 fx2))
+                 (:left  (- fx1 x2))
+                 (:down  (- y1 fy2))
+                 (:up    (- fy1 y2)))))
+           (overlaps-p (f)
+             (let ((x1 (frame-x f)) (y1 (frame-y f))
+                   (x2 (+ (frame-x f) (frame-width f)))
+                   (y2 (+ (frame-y f) (frame-height f))))
+               (ecase direction
+                 ((:right :left) (> (min y2 fy2) (max y1 fy1)))
+                 ((:down :up)    (> (min x2 fx2) (max x1 fx1)))))))
+      (let ((cands (remove-if-not #'in-dir-p
+                                  (remove frame leaves))))
+        (let ((sorted (sort cands #'< :key #'distance)))
+          (or (find-if #'overlaps-p sorted)
+              (first sorted)))))))
+
+(defun focus-frame-direction (output workspace direction)
+  "Move frame focus one step in DIRECTION. If the target frame holds
+windows, the nearest one takes keyboard focus."
+  (let* ((root (frame-tree-for output workspace))
+         (target (frame-at-direction (current-frame-for output workspace)
+                                     direction (frame-leaves root))))
+    (when target
+      (setf (gethash (frame-key output workspace) *current-frames*) target)
+      (let ((win (frame-current-window target)))
+        (when win
+          (dolist (seat (all-seats))
+            (focus-window win seat))))
+      (request-manage-dirty))))
+
+(defun cycle-frame-window (output workspace &optional (delta 1))
+  "Cycle the visible window of the current frame by DELTA (+1/-1).
+With a single window this is a no-op."
+  (let* ((frame (current-frame-for output workspace))
+         (wins (remove-if #'window-minimized-p (frame-windows frame))))
+    (when (cdr wins)
+      (let* ((cur (frame-current-window frame))
+             (pos (or (position cur wins :test #'eq) 0))
+             (next (nth (mod (+ pos delta) (length wins)) wins)))
+        (setf (frame-windows frame)
+              (append (list next) (remove next (frame-windows frame))))
+        (dolist (seat (all-seats))
+          (focus-window next seat))
+        (request-manage-dirty)))))
+
+;;; --- Tree construction from rectangles ---
+;;;
+;;; Layout templates (master-stack, even, monocle, custom user
+;;; layouts) produce rectangles; these build a frame tree whose
+;;; leaves are exactly those rectangles — when they form a valid
+;;; guillotine partition. Otherwise the workspace falls back to a
+;;; single frame (custom layouts with gaps/overlaps).
+
+(defun frame-find-cut (rects)
+  "Find a full cut through RECTS: a vertical line x=POS that no rect
+crosses (→ :horizontal split) or a horizontal line y=POS (→ :vertical
+split). Returns (DIRECTION POS LEFT/ABOVE RIGHT/BELOW), or NIL."
+  (flet ((x2 (r) (+ (first r) (third r)))
+         (y2 (r) (+ (second r) (fourth r))))
+    (let ((min-x (reduce #'min (mapcar #'first rects)))
+          (max-x (reduce #'max (mapcar #'x2 rects)))
+          (min-y (reduce #'min (mapcar #'second rects)))
+          (max-y (reduce #'max (mapcar #'y2 rects))))
+      (dolist (pos (sort (remove-duplicates (mapcar #'first rects)) #'<))
+        (when (and (> pos min-x) (< pos max-x))
+          (let ((a (remove-if (lambda (r) (>= (first r) pos)) rects))
+                (b (remove-if (lambda (r) (<= (x2 r) pos)) rects)))
+            (when (= (+ (length a) (length b)) (length rects))
+              (return-from frame-find-cut
+                (list :horizontal pos a b))))))
+      (dolist (pos (sort (remove-duplicates (mapcar #'second rects)) #'<))
+        (when (and (> pos min-y) (< pos max-y))
+          (let ((a (remove-if (lambda (r) (>= (second r) pos)) rects))
+                (b (remove-if (lambda (r) (<= (y2 r) pos)) rects)))
+            (when (= (+ (length a) (length b)) (length rects))
+              (return-from frame-find-cut
+                (list :vertical pos a b))))))
+      nil)))
+
+(defun build-tree-from-rects (rects)
+  "Build a frame tree whose leaves are RECTS ((x y w h) each), or NIL
+when they don't form a guillotine partition."
+  (labels ((bounds (rs)
+             (list (reduce #'min (mapcar #'first rs))
+                   (reduce #'min (mapcar #'second rs))
+                   (reduce #'max (mapcar (lambda (r) (+ (first r) (third r))) rs))
+                   (reduce #'max (mapcar (lambda (r) (+ (second r) (fourth r))) rs))))
+           (build (rs)
+             (if (= 1 (length rs))
+                 (destructuring-bind (x y w h) (first rs)
+                   (make-frame :x x :y y :width w :height h))
+                 (let ((cut (frame-find-cut rs)))
+                   (when cut
+                     (destructuring-bind (dir _pos a b) cut
+                       (let* ((bnd (bounds rs))
+                              (frame (make-frame
+                                       :x (first bnd) :y (second bnd)
+                                       :width (- (third bnd) (first bnd))
+                                       :height (- (fourth bnd) (second bnd))
+                                       :split-direction dir))
+                              (fa (build a))
+                              (fb (build b)))
+                         (setf (frame-first-child frame) fa
+                               (frame-second-child frame) fb
+                               (frame-parent fa) frame
+                               (frame-parent fb) frame)
+                         frame)))))))
+    (when rects (build rects))))
+
+(defun set-workspace-tree (output workspace rects windows)
+  "Rebuild the workspace's frame tree with leaves RECTS, distributing
+WINDOWS one per leaf in order (extras pile onto the last leaf).
+Falls back to a single frame when RECTS aren't a valid partition."
+  (let* ((key (frame-key output workspace))
+         (tree (build-tree-from-rects rects))
+         (width (output-width output))
+         (height (max 0 (- (output-height output)
+                          (bar-reserved-height)))))
+    (dolist (win windows) (frame-remove-window win))
+    (cond (tree
+           (let ((leaves (frame-leaves tree)))
+             (let ((rest windows))
+               (dolist (leaf leaves)
+                 (when rest
+                   (frame-push-window (pop rest) leaf)))
+               (when rest
+                 (let ((last (first (last leaves))))
+                   (setf (frame-windows last)
+                         (append (frame-windows last) rest))
+                   (dolist (win rest) (setf (window-frame win) last)))))
+             (setf (gethash key *frame-trees*) tree
+                   (gethash key *current-frames*) (first leaves))))
+          (t
+           ;; Not a guillotine partition (gaps/overlaps in a custom
+           ;; layout): one frame holding everything.
+           (let ((root (make-frame :width width :height height)))
+             (dolist (win windows)
+               (frame-push-window win root))
+             (setf (gethash key *frame-trees*) root
+                   (gethash key *current-frames*) root))))))
+
+;;; --- Manage/render sequence integration ---
+
+(defun frames-manage-decisions (output workspace wins)
+  "Manage-sequence decisions for the workspace's frame tree: clean up
+windows that died or moved, adopt frameless windows into the current
+frame, and propose each leaf's visible window its rectangle."
+  (let* ((root (frame-tree-for output workspace))
+         (leaves (frame-leaves root)))
+    ;; Drop dead windows and windows whose frame moved elsewhere
+    (dolist (leaf leaves)
+      (setf (frame-windows leaf)
+            (remove-if-not (lambda (win)
+                             (and (gethash (window-proxy win) *windows*)
+                                  (eq (window-frame win) leaf)))
+                           (frame-windows leaf))))
+    ;; New windows (and frameless ones after a hot reload) open into
+    ;; the current frame, StumpWM-style
+    (dolist (win wins)
+      (unless (window-frame win)
+        (frame-push-window win (current-frame-for output workspace))))
+    ;; Each frame proposes its rectangle for its visible window
+    (dolist (leaf leaves)
+      (let ((win (frame-current-window leaf)))
+        (when (and win (not (window-minimized-p win)))
+          (propose-window-dimensions win
+                                      (frame-width leaf)
+                                      (frame-height leaf)))))))
+
+(defun frames-render-decisions (output workspace wins)
+  "Render-sequence decisions for the frame tree: place each leaf's
+visible window at its rectangle, show it if hidden, and stamp its
+position. Returns the list of rendered (visible) windows so the
+render pass can exclude them from its hide logic."
+  (let* ((root (frame-tree-for output workspace))
+         (leaves (frame-leaves root))
+         (rendered nil))
+    ;; Adopt frameless windows even in a bare render pass (e.g. the
+    ;; first pass after a hot reload, before any manage sequence)
+    (dolist (win wins)
+      (unless (window-frame win)
+        (frame-push-window win (current-frame-for output workspace))))
+    (dolist (leaf leaves)
+      (let ((win (frame-current-window leaf)))
+        (when (and win (not (window-minimized-p win)))
+          (let ((x (+ (frame-x leaf) (output-x output)))
+                (y (+ (frame-y leaf) (output-y output)
+                      (bar-reserved-height))))
+            (make-window-node win)
+            (set-window-position win x y)
+            (setf (window-x win) x
+                  (window-y win) y)
+            (if (window-focused-p win)
+                (set-window-borders win '(:top :bottom :left :right)
+                                    2 #x00 #x55 #xff #xff)
+                (set-window-borders win '(:top :bottom :left :right)
+                                    1 #x40 #x40 #x40 #xff))
+            ;; Show only on transition: river treats every show/hide
+            ;; as a state change and starts a new sequence for it.
+            (when (window-hidden-p win)
+              (show-window win))
+            (push win rendered)))))
+    (nreverse rendered)))

@@ -15,6 +15,9 @@ stubbed river requests. Run with:
 - `window-rules.lisp` — app-id/title regex rules assign workspaces.
 - `floating.lisp` — float/tile state, geometry clamps, interactive
   resize math, manage/render integration, and `:float` window rules.
+- `frames.lisp` — frame tree operations: splits, merges, resizes,
+  directional focus, cycling, tree construction from rectangles,
+  layout templates, and manage/render integration.
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip

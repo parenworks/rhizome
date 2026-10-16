@@ -165,6 +165,27 @@ the surface maps and receives keyboard focus."
 
 ;;; --- Default prefix bindings (StumpWM-flavored) ---
 
+(defmacro with-frame-context (&body body)
+  "Run BODY with OUT and WS bound to the output and workspace frame
+commands act on. Skips when no output exists."
+  `(let* ((out* (first (all-outputs))))
+     (when out*
+       (let ((out out*) (ws (current-workspace out*)))
+         ,@body))))
+
+(defun switch-workspace-relative (delta)
+  "Switch to the workspace DELTA steps away (clamped to the range)."
+  (let ((out (first (all-outputs))))
+    (when out
+      (let ((target (+ (current-workspace out) delta)))
+        (when (<= 1 target *workspace-count*)
+          (switch-workspace target out))))))
+
+(defun focus-frame-direction* (direction)
+  "Prefix-chain wrapper: move frame focus in DIRECTION."
+  (with-frame-context
+    (focus-frame-direction out ws direction)))
+
 (defun setup-default-prefix-bindings ()
   "The default C-t keymap, mapped onto stumpway's features."
   ;; C-t w — windowlist (StumpWM: windowlist)
@@ -181,12 +202,26 @@ the surface maps and receives keyboard focus."
   (define-prefix-key 98 (lambda () (toggle-bar)))        ; b
   ;; C-t f — float/tile the focused window (GIMP-style floats)
   (define-prefix-key 102 (lambda () (toggle-float-focused))) ; f
-  ;; C-t n / C-t p — workspace next/previous
-  (define-prefix-key 110 (lambda () (switch-workspace
-                                       (1+ (or (getf (bar-snapshot) :workspace 1)
-                                               1)))))
-  (define-prefix-key 112 (lambda () (switch-workspace
-                                       (1- (or (getf (bar-snapshot) :workspace 1)
-                                               1)))))
+  ;; C-t n / C-t p — cycle the windows in the current frame
+  (define-prefix-key 110 (lambda () (with-frame-context
+                                       (cycle-frame-window out ws 1))))  ; n
+  (define-prefix-key 112 (lambda () (with-frame-context
+                                       (cycle-frame-window out ws -1)))) ; p
+  ;; C-t N / C-t P — next/previous workspace
+  (define-prefix-key 78 (lambda () (switch-workspace-relative 1)))   ; N
+  (define-prefix-key 80 (lambda () (switch-workspace-relative -1)))   ; P
+  ;; C-t s / C-t S — split the current frame (side-by-side / stacked)
+  (define-prefix-key 115 (lambda () (with-frame-context
+                                       (split-current-frame out ws :horizontal)))) ; s
+  (define-prefix-key 83 (lambda () (with-frame-context
+                                       (split-current-frame out ws :vertical))))    ; S
+  ;; C-t R — remove the current split (merge into sibling)
+  (define-prefix-key 82 (lambda () (with-frame-context
+                                       (remove-current-split out ws))))  ; R
+  ;; C-t arrows — move focus between frames
+  (define-prefix-key 65361 (lambda () (focus-frame-direction* :left)))
+  (define-prefix-key 65362 (lambda () (focus-frame-direction* :up)))
+  (define-prefix-key 65363 (lambda () (focus-frame-direction* :right)))
+  (define-prefix-key 65364 (lambda () (focus-frame-direction* :down)))
   ;; C-t q — quit stumpway (StumpWM: quit)
   (define-prefix-key 113 (lambda () (message "stopping stumpway") (stop))))

@@ -50,6 +50,33 @@
   (declare (ignore args))
   (remove-split output))
 
+(define-command :resize-split (output args)
+  "Move the current split's dividing line by ARG pixels (default +30)."
+  (resize-current-split output (current-workspace output)
+                        (or (and args
+                                 (parse-integer (first args) :junk-allowed t))
+                            30)))
+
+(define-command :focus-left (output args)
+  "Move frame focus left."
+  (declare (ignore args))
+  (focus-frame-direction output (current-workspace output) :left))
+
+(define-command :focus-right (output args)
+  "Move frame focus right."
+  (declare (ignore args))
+  (focus-frame-direction output (current-workspace output) :right))
+
+(define-command :focus-up (output args)
+  "Move frame focus up."
+  (declare (ignore args))
+  (focus-frame-direction output (current-workspace output) :up))
+
+(define-command :focus-down (output args)
+  "Move frame focus down."
+  (declare (ignore args))
+  (focus-frame-direction output (current-workspace output) :down))
+
 (define-command :toggle-float (output args)
   "Float/tile the focused window (GIMP-style floats)."
   (declare (ignore output args))

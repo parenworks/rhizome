@@ -75,6 +75,18 @@
    #:window-float-y
    #:window-float-width
    #:window-float-height
+   ;; Frame trees
+   #:frame-tree-for
+   #:frame-leaves
+   #:current-frame-for
+   #:frame-push-window
+   #:frame-remove-window
+   #:split-current-frame
+   #:remove-current-split
+   #:resize-current-split
+   #:focus-frame-direction
+   #:cycle-frame-window
+   #:set-workspace-tree
    ;; Sequence control
    #:request-manage-dirty
    ;; Window access

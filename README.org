@@ -262,7 +262,12 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 | C-t !   | Shell command prompt   |
 | C-t b   | Toggle the bar         |
 | C-t f   | Float/tile the focused window |
-| C-t n/p | Next/previous workspace|
+| C-t s   | Split frame side-by-side |
+| C-t S   | Split frame stacked (top/bottom) |
+| C-t R   | Remove split (merge into sibling) |
+| C-t n/p | Cycle windows in the current frame |
+| C-t N/P | Next/previous workspace|
+| C-t ←↑↓→| Move focus between frames |
 | C-t q   | Quit stumpway          |
 
 Escape aborts, an unbound key aborts with a message, and chains
@@ -358,11 +363,35 @@ Features:
 - Keyboard: type to filter, Up/Down to navigate, Enter to launch, Escape to close, Backspace to delete
 - Reuses shm buffer across redraws for fast rendering (no per-frame mmap/munmap)
 
-* Layouts
+* Frame trees (the StumpWM layout model)
 
-- =master-stack= — One master window on the left, rest stacked on the right (default)
-- =even= — Grid layout with equal-sized cells
-- =monocle= — Fullscreen, one window at a time
+The screen is a recursive binary tree of frames (frames.lisp) — the
+StumpWM core data structure. Internal nodes are splits; leaves are
+frames holding windows, one visible at a time:
+
+- Every workspace starts as a single full-screen frame; carve it up
+  with =C-t s= (side-by-side) and =C-t S= (stacked), merge back with
+  =C-t R=. The current window stays put on a split; the next window
+  opened lands in the new frame.
+- =C-t= arrows move focus between frames; =C-t n= / =C-t p= cycle
+  the windows inside the current frame; =stumpway-cmd resize-split
+  30= nudges a dividing line.
+- New windows open into the current frame; closed windows leave the
+  frame behind — the layout is yours and it stays.
+- Layout NAMES are frame-tree templates that rebuild the workspace's
+  tree: =:monocle= (one frame), =:master-stack= (master + stack),
+  =:even= (grid with a cell per window). Custom layouts defined with
+  =define-layout= become tree leaves too (their placements must
+  partition the screen; otherwise the workspace falls back to one
+  frame). User splits persist until the next =switch-layout=.
+
+** Layout templates
+
+| Name          | Shape                                        |
+|---------------+----------------------------------------------|
+| =master-stack= | One master frame on the left, stack on the right (default) |
+| =even=        | Grid with a frame per window                 |
+| =monocle=      | One frame filling the screen                  |
 
 ** Defining custom layouts
 
@@ -370,6 +399,7 @@ Features:
 (stumpway:define-layout :my-layout (windows width height)
   ;; Your tiling logic here
   ;; Must return a list of (window x y w h) tuples
+  ;; that tile the screen — the rectangles become frames
   (loop for win in windows
         for i below (length windows)
         collect (list win 0 (* i (floor height (length windows)))
@@ -432,7 +462,8 @@ stumpway/
   input.lisp                          — Input config via river-libinput-config-v1 (tap-to-click, tap-and-drag)
   workspaces.lisp                     — StumpWM-style workspaces (switch, move windows)
   floating.lisp                       — Floating windows (GIMP-style floats, interactive move/resize)
-  tiling.lisp                         — Tiling engine, layout functions, focus cycling
+  frames.lisp                         — Frame trees: splits, frame focus, cycling, manage/render passes
+  tiling.lisp                         — Layout templates (master-stack/even/monocle/custom), manage/render integration
   keybindings.lisp                    — xkb keybindings, default bindings, fzf launcher
   launcher.lisp                       — Native layer-shell app launcher (working)
   commands.lisp                       — User command dispatch
@@ -471,6 +502,11 @@ stumpway/
 - [X] Floating windows: C-t f toggles the focused window, window rules
       can float apps by regex, titlebar drag moves floats, resizes
       clamp to the window's min/max size hints
+- [X] Frame trees (the StumpWM layout model): per-workspace recursive
+      frame trees with user splits (C-t s/S), merge (C-t R),
+      directional frame focus (C-t arrows), window cycling within
+      frames (C-t n/p), and layout names as one-shot tree templates;
+      focus cycling (Alt+J/K) cycles the current frame's windows
 - [X] wl_compositor, wl_shm, zwlr_layer_shell_v1 binding
 - [X] wl_seat binding with wl_keyboard for raw key events
 - [X] river_layer_shell_v1 protocol binding and output/seat registration
@@ -487,7 +523,8 @@ stumpway/
 
 ** Not started
 
-- [ ] Frame tree with dynamic splitting (StumpWM-style)
+- [ ] Interactive split resize (C-t +/- style; resize-split command works today)
+- [ ] Move/copy window to the frame in a direction (C-t m style)
 - [ ] Window rules (programmatically place specific apps on specific outputs)
 - [ ] Niri-style scrollable tiling
 - [ ] WM-side pointer bindings (Alt+drag to move any window; client-requested titlebar drags already work for floats)

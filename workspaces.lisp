@@ -82,6 +82,9 @@ because they are on another workspace.")
   "Move WIN to WORKSPACE (1-based), switching to it if OUTPUT is given."
   (unless (<= 1 workspace *workspace-count*)
     (return-from move-window-to-workspace))
+  ;; Leave the old workspace's frame tree; adopted into the target
+  ;; workspace's current frame on its next manage pass
+  (frame-remove-window win)
   (assign-window-workspace win workspace)
   ;; Moving a minimized window restores it
   (setf (window-minimized-p win) nil)
