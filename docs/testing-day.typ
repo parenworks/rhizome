@@ -149,7 +149,7 @@ get its own frame.
   [#cb], [MOD+Shift+1..9], [Moves the focused window and follows it],
   [#cb], [C-t N / C-t P], [Next/previous workspace],
   [#cb], [`stumpway-cmd renumber` after closing windows], [Numbers compact 1..N; C-t ' selects by number],
-  [#cb], [C-t # then `stumpway-cmd move-marked 3`], [Marked window (*) moves; marks clear],
+  [#cb], [C-t \# then `stumpway-cmd move-marked 3`], [Marked window (star) moves; marks clear],
   [#cb], [Set a rule: `(configure '(:window-rules ((:match "foot" :workspace 4))))`, then launch a terminal], [It opens on workspace 4; check via C-t w (windowlist shows workspace numbers)],
   [#cb], [Same with a `:wse` rule: `(:wse (:and (:app-id "foot") (:float nil)) :float t)`], [Matching windows float automatically],
 )
@@ -160,7 +160,7 @@ get its own frame.
   columns: (auto, 1fr, 1fr),
   [ ], [Action], [Expected],
   [#cb], [MOD+D, type "ff"], ["Firefox"-style fuzzy hits rank after exact substring matches; the just-installed Variety appears],
-  [#cb], [MOD+W (windowlist)], [Numbers shown as `N: [ws] title`; marked windows show *; Enter jumps to its workspace and focuses],
+  [#cb], [MOD+W (windowlist)], [Numbers shown as `N: [ws] title`; marked windows show a star; Enter jumps to its workspace and focuses],
   [#cb], [MOD+X (command palette), type "bal"], [Fuzzy filters; Enter runs balance; the message window confirms],
   [#cb], [C-t ' then a number], [Selects that window by number],
   [#cb], [Tab/Up/Down in any prompt], [Selection cycles; Escape cancels cleanly every time],
@@ -275,7 +275,7 @@ Exercise expose, splits, and workspace switches while the video plays.
   [MOD+1..9], [Workspace], [C-t B], [Balance splits],
   [MOD+Shift+1..9], [Move window → ws], [C-t Return], [Expose],
   [MOD+Shift+L], [Lock], [C-t f], [Float/tile],
-  [MOD+Shift+E], [Logout (×2)], [C-t #], [Mark window],
+  [MOD+Shift+E], [Logout (×2)], [C-t \#], [Mark window],
   [C-t q], [Quit (×2)], [C-t m], [Last message],
   [C-t h], [Help chains], [C-t C], [Command mode],
 )
