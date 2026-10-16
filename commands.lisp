@@ -50,6 +50,11 @@
   (declare (ignore args))
   (remove-split output))
 
+(define-command :toggle-float (output args)
+  "Float/tile the focused window (GIMP-style floats)."
+  (declare (ignore output args))
+  (toggle-float-focused))
+
 (define-command :focus-next (output args)
   "Focus the next frame."
   (declare (ignore args))

@@ -25,7 +25,9 @@
    (wl-keyboard    :initarg :wl-keyboard    :accessor seat-wl-keyboard :initform nil)
    (focused-window :initarg :focused-window :accessor seat-focused-window :initform nil)
    (pointer-x      :initarg :pointer-x      :accessor seat-pointer-x :initform 0)
-   (pointer-y      :initarg :pointer-y      :accessor seat-pointer-y :initform 0))
+   (pointer-y      :initarg :pointer-y      :accessor seat-pointer-y :initform 0)
+   (op-pending     :initarg :op-pending     :accessor seat-op-pending :initform nil)
+   (op-state       :initarg :op-state       :accessor seat-op-state :initform nil))
   (:documentation "Represents an input seat managed by stumpway."))
 
 (defun register-seat (proxy)
@@ -86,6 +88,20 @@
            ;; internal slot was updated, so clicks never moved focus).
            (focus-window win seat)
            (request-manage-dirty)))))
+
+    (:op-delta
+     ;; Interactive float move/resize: river reports the TOTAL
+     ;; cumulative pointer motion since the op started. Applied by
+     ;; float-op-manage-pass in the manage sequence that follows.
+     (destructuring-bind (dx dy) args
+       (when (seat-op-state seat)
+         (setf (getf (seat-op-state seat) :dx) dx
+               (getf (seat-op-state seat) :dy) dy))))
+
+    (:op-release
+     ;; Buttons released: the op ends in the next manage sequence.
+     (when (seat-op-state seat)
+       (setf (getf (seat-op-state seat) :released) t)))
 
     (:removed
      (format t "~&; Stumpway: seat removed~%")

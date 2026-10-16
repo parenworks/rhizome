@@ -235,6 +235,12 @@ handlers should make window management requests here."
                      output (output-width output) (output-height output))
              (apply-layout-for-output output))
            *outputs*)
+
+  ;; Advance interactive float move/resize operations (op-start,
+  ;; op-delta application, op-end). Placeholder: redefined by
+  ;; floating.lisp, which loads later.
+  (float-op-manage-pass)
+
   ;; Auto-focus: focus a newly registered window once (not every
   ;; manage cycle), and only if it lives on the current workspace
   (let ((win *pending-autofocus*))
@@ -269,6 +275,11 @@ z-ordering) to the compositor."
         (setf *pending-manage* nil)
         (sequence-state-enter :idle))
       (sequence-state-enter :idle)))
+
+(defun float-op-manage-pass ()
+  "Start/apply/end interactive float move/resize operations during a
+manage sequence. Placeholder: redefined by floating.lisp."
+  nil)
 
 (defun on-render-sequence ()
   "Hook called during a render sequence. The tiling engine should set

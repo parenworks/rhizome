@@ -261,6 +261,7 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 | C-t :   | Live eval prompt       |
 | C-t !   | Shell command prompt   |
 | C-t b   | Toggle the bar         |
+| C-t f   | Float/tile the focused window |
 | C-t n/p | Next/previous workspace|
 | C-t q   | Quit stumpway          |
 
@@ -375,6 +376,39 @@ Features:
                       width (floor height (length windows)))))
 #+end_src
 
+* Floating windows
+
+Not everything belongs in a tiling grid: GIMP toolboxes, palette
+dialogs, and picture-in-picture video want to keep their own size and
+be moved around freely. Stumpway handles these StumpWM-style as floats
+(floating.lisp):
+
+- A floating window keeps its own position and dimensions; the tiling
+  layouts never see it, and it stacks above the tiling (the focused
+  float renders on top).
+- On first float the window is told it is NOT part of the tiling
+  (=river_window_v1.set_tiled= none), so it draws its own shadows and
+  decorations, and =propose_dimensions= 0x0 lets it pick its own
+  size — a GIMP toolbox comes up exactly as GIMP intends.
+- Titlebar dragging works: clients request interactive moves and the
+  =river_seat_v1= pointer-op protocol carries the cumulative motion;
+  resizes are clamped to the window's own min/max size hints, and a
+  float can never be dragged fully off-screen (a ~30px strip stays
+  reachable).
+- Floats live on workspaces like everything else: switching hides and
+  restores them with the rest.
+
+Toggle the focused window with =C-t f= or =stumpway-cmd toggle-float=;
+float apps automatically with a window rule:
+
+#+begin_src lisp
+(stumpway:configure
+  '(:window-rules ((:match "gimp" :float t))))
+#+end_src
+
+From the REPL: =(stumpway:float-window win)=, =(stumpway:unfloat-window win)=,
+=(stumpway:toggle-float win)=.
+
 * Project structure
 
 #+begin_example
@@ -397,6 +431,7 @@ stumpway/
   seat.lisp                           — Input seat, wl_seat binding, wl_keyboard for launcher
   input.lisp                          — Input config via river-libinput-config-v1 (tap-to-click, tap-and-drag)
   workspaces.lisp                     — StumpWM-style workspaces (switch, move windows)
+  floating.lisp                       — Floating windows (GIMP-style floats, interactive move/resize)
   tiling.lisp                         — Tiling engine, layout functions, focus cycling
   keybindings.lisp                    — xkb keybindings, default bindings, fzf launcher
   launcher.lisp                       — Native layer-shell app launcher (working)
@@ -430,9 +465,12 @@ stumpway/
 - [X] Configurable status bar (modules, colors, intervals; ships enabled, can be disabled)
 - [X] Clickable bar modules (:on-click / :on-scroll-up / :on-scroll-down shell commands)
 - [X] Workspaces (Alt+1..9, Alt+Shift+1..9 moves window; shown in the bar)
-- [X] Window rules (:match regex on app-id/title, :workspace, :layout, :follow)
+- [X] Window rules (:match regex on app-id/title, :workspace, :layout, :follow, :float)
 - [X] Hooks (window creation/closed, focus, layout, workspace, output)
 - [X] Live eval prompt (Alt+; evaluates Lisp in the running WM image)
+- [X] Floating windows: C-t f toggles the focused window, window rules
+      can float apps by regex, titlebar drag moves floats, resizes
+      clamp to the window's min/max size hints
 - [X] wl_compositor, wl_shm, zwlr_layer_shell_v1 binding
 - [X] wl_seat binding with wl_keyboard for raw key events
 - [X] river_layer_shell_v1 protocol binding and output/seat registration
@@ -452,7 +490,7 @@ stumpway/
 - [ ] Frame tree with dynamic splitting (StumpWM-style)
 - [ ] Window rules (programmatically place specific apps on specific outputs)
 - [ ] Niri-style scrollable tiling
-- [ ] Pointer bindings for interactive move/resize
+- [ ] WM-side pointer bindings (Alt+drag to move any window; client-requested titlebar drags already work for floats)
 - [ ] Inspectable everything (describe window, inspect output, eval expressions)
 - [ ] Fuzzy search in launcher (currently substring match)
 - [ ] Switch modifier from Alt to Super on real hardware

@@ -106,7 +106,8 @@ because they are on another workspace.")
 ;;;
 ;;;   (stumpway:configure
 ;;;     '(:window-rules ((:match "vivaldi" :workspace 2 :follow t)
-;;;                      (:match "emacs" :workspace 3 :layout :monocle))))
+;;;                      (:match "emacs" :workspace 3 :layout :monocle)
+;;;                      (:match "gimp" :float t))))
 
 (defun window-rule-matches-p (win rule)
   "Whether WIN matches RULE's :match regex."
@@ -134,7 +135,11 @@ Returns the matched rule, if any."
     (when (window-rule-matches-p win rule)
       (let ((workspace (getf rule :workspace))
             (layout (getf rule :layout))
-            (follow (getf rule :follow)))
+            (follow (getf rule :follow))
+            (float (getf rule :float)))
+        (when float
+          ;; GIMP-style: never in the tiling (see floating.lisp)
+          (float-window win))
         (when workspace
           (assign-window-workspace win workspace)
           (setf (window-minimized-p win) nil))

@@ -179,6 +179,8 @@ the surface maps and receives keyboard focus."
   (define-prefix-key 33 (lambda () (run-shell-command-prompt))) ; !
   ;; C-t b — toggle the bar
   (define-prefix-key 98 (lambda () (toggle-bar)))        ; b
+  ;; C-t f — float/tile the focused window (GIMP-style floats)
+  (define-prefix-key 102 (lambda () (toggle-float-focused))) ; f
   ;; C-t n / C-t p — workspace next/previous
   (define-prefix-key 110 (lambda () (switch-workspace
                                        (1+ (or (getf (bar-snapshot) :workspace 1)

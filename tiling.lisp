@@ -111,11 +111,14 @@ on OUTPUT's current workspace based on the current layout."
                              (window-output win)))
                        all-wins))
          (wins (append assigned unassigned))
+         ;; Floating windows are managed by the float engine
+         ;; (floating.lisp); the tiling layouts only see tiled windows.
+         (tiled-wins (remove-if #'window-floating-p wins))
          (layout-fn (get-layout-function (output-current-layout output)))
          (placements
            (if (and (> (output-width output) 0)
                     (> (output-height output) 0))
-               (funcall layout-fn wins (output-width output)
+               (funcall layout-fn tiled-wins (output-width output)
                         (max 0 (- (output-height output)
                                   (bar-reserved-height))))
                nil)))
@@ -129,7 +132,9 @@ on OUTPUT's current workspace based on the current layout."
                (setf (window-x win) (+ x (output-x output)))
                (setf (window-y win) (+ y (output-y output)
                                          (bar-reserved-height)))
-               (setf (window-output win) output)))))
+               (setf (window-output win) output)))
+    ;; Floats: own dimensions, not part of the tiling
+    (float-manage-decisions output)))
 
 (defun render-layout-for-output (output)
   "Called during a render sequence. Set positions, borders, and z-order
@@ -138,11 +143,12 @@ layout. Windows on other workspaces are hidden."
   (let* ((wins (remove-if #'window-minimized-p
                           (windows-on-workspace output
                                                 (current-workspace output))))
+         (tiled-wins (remove-if #'window-floating-p wins))
          (layout-fn (get-layout-function (output-current-layout output)))
          (placements
            (if (and (> (output-width output) 0)
                     (> (output-height output) 0))
-               (funcall layout-fn wins (output-width output)
+               (funcall layout-fn tiled-wins (output-width output)
                         (max 0 (- (output-height output)
                                   (bar-reserved-height))))
                nil)))
@@ -169,13 +175,17 @@ layout. Windows on other workspaces are hidden."
                ;; restoration path.
                (when (window-hidden-p win)
                  (show-window win))))
-    ;; Hide windows not in the layout: windows on other workspaces,
-    ;; minimized windows, and overflow hidden by the layout (monocle).
-    (let ((laid-out (mapcar #'first placements)))
-      (loop for win in (windows-on-output output)
-            unless (member win laid-out)
-            do (unless (window-hidden-p win)
-                 (hide-window win))))))
+    ;; Floating windows: own position and size, stacked above the
+    ;; tiling (see floating.lisp)
+    (let ((floats (float-render-decisions output
+                                          (mapcar #'first placements))))
+      ;; Hide windows not in the layout: windows on other workspaces,
+      ;; minimized windows, and overflow hidden by the layout (monocle).
+      (let ((laid-out (append (mapcar #'first placements) floats)))
+        (loop for win in (windows-on-output output)
+              unless (member win laid-out)
+              do (unless (window-hidden-p win)
+                   (hide-window win)))))))
 ;;; --- Frame tree operations (StumpWM-style) --
 
 (defun make-root-frame (width height)

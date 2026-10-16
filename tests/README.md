@@ -13,6 +13,8 @@ stubbed river requests. Run with:
   workspace's windows and SHOW the new one's, without redundant
   show/hide requests (which cause river manage/render loops).
 - `window-rules.lisp` — app-id/title regex rules assign workspaces.
+- `floating.lisp` — float/tile state, geometry clamps, interactive
+  resize math, manage/render integration, and `:float` window rules.
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip

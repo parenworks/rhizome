@@ -65,6 +65,16 @@
    #:define-keymap-key
    #:enter-prefix-mode
    #:exit-prefix-mode
+   ;; Floating windows
+   #:float-window
+   #:unfloat-window
+   #:toggle-float
+   #:toggle-float-focused
+   #:window-floating-p
+   #:window-float-x
+   #:window-float-y
+   #:window-float-width
+   #:window-float-height
    ;; Sequence control
    #:request-manage-dirty
    ;; Window access

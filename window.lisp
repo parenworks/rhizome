@@ -19,7 +19,16 @@
    (frame       :initarg :frame       :accessor window-frame :initform nil)
    (fullscreen  :initarg :fullscreen  :accessor window-fullscreen-p :initform nil)
    (hidden      :initarg :hidden      :accessor window-hidden-p :initform nil)
-   (focused     :initarg :focused     :accessor window-focused-p :initform nil))
+   (focused     :initarg :focused     :accessor window-focused-p :initform nil)
+   (floating    :initarg :floating    :accessor window-floating-p :initform nil)
+   (float-x     :initarg :float-x     :accessor window-float-x :initform nil)
+   (float-y     :initarg :float-y     :accessor window-float-y :initform nil)
+   (float-width :initarg :float-width :accessor window-float-width :initform nil)
+   (float-height :initarg :float-height :accessor window-float-height :initform nil)
+   (hint-min-width  :initarg :hint-min-width  :accessor window-hint-min-width :initform nil)
+   (hint-min-height :initarg :hint-min-height :accessor window-hint-min-height :initform nil)
+   (hint-max-width  :initarg :hint-max-width  :accessor window-hint-max-width :initform nil)
+   (hint-max-height :initarg :hint-max-height :accessor window-hint-max-height :initform nil))
   (:documentation "Represents a managed window in the river compositor."))
 
 (defvar *last-registered-window* nil
@@ -44,13 +53,21 @@
         (:dimensions
          (destructuring-bind (width height) args
            (setf (window-width win) width
-                 (window-height win) height)))
+                 (window-height win) height)
+           ;; A fresh floating window has no float size yet: adopt the
+           ;; dimensions the window chose for itself (e.g. a GIMP
+           ;; toolbox) so subsequent manage passes re-propose them.
+           (when (and (window-floating-p win)
+                      (not (window-float-width win)))
+             (setf (window-float-width win) width
+                   (window-float-height win) height))))
 
         (:dimensions-hint
          (destructuring-bind (min-w min-h max-w max-h) args
-           (declare (ignore min-w min-h max-w max-h))
-           ;; Could store these for layout constraints
-           nil))
+           (setf (window-hint-min-width win) min-w
+                 (window-hint-min-height win) min-h
+                 (window-hint-max-width win) max-w
+                 (window-hint-max-height win) max-h)))
 
         (:title
          (destructuring-bind (title) args
@@ -94,12 +111,17 @@
          (request-manage-dirty))
 
         (:pointer-move-requested
-         ;; Could start interactive move via seat op
-         nil)
+         (destructuring-bind (seat-proxy) args
+           (let ((seat (gethash seat-proxy *seats*)))
+             (when seat
+               ;; float-op-request is redefined by floating.lisp
+               (float-op-request win seat :move)))))
 
         (:pointer-resize-requested
-         ;; Could start interactive resize via seat op
-         nil)
+         (destructuring-bind (seat-proxy edges) args
+           (let ((seat (gethash seat-proxy *seats*)))
+             (when seat
+               (float-op-request win seat :resize edges)))))
 
         (t
          (format t "~&; Stumpway: unhandled window event ~A~%" event-name)))
@@ -161,3 +183,20 @@ Requires that the window's node has been created."
   (unless (window-node win)
     (let ((node (rwm:river-window-v1.get-node (window-proxy win))))
       (setf (window-node win) node))))
+
+(defun set-window-tiled-state (win edges)
+  "Tell WIN which EDGES it is tiled on (manage-sequence request).
+An empty/none list means the window is not part of the tiling, so
+clients draw their own decorations — what floating windows want."
+  (rwm:river-window-v1.set-tiled (window-proxy win) edges))
+
+(defun place-node-above (node other-node)
+  "Place render NODE directly above OTHER-NODE (z-order,
+render-sequence request)."
+  (rwm:river-node-v1.place-above node other-node))
+
+(defun float-op-request (win seat type &optional edges)
+  "Record a client-requested interactive move/resize of WIN on SEAT.
+Placeholder: redefined by floating.lisp, which loads later."
+  (declare (ignore win seat type edges))
+  nil)
