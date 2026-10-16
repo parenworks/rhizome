@@ -411,6 +411,49 @@ Falls back to a single frame when RECTS aren't a valid partition."
                (setf (gethash key *frame-trees*) root
                      (gethash key *current-frames*) root)))))))
 
+(defun frame-set-rect (frame x y width height)
+  "Rescale FRAME (and its whole subtree) to a new rectangle,
+preserving each split's dividing line as a ratio of the parent."
+  (setf (frame-x frame) x
+        (frame-y frame) y
+        (frame-width frame) width
+        (frame-height frame) height)
+  (when (frame-first-child frame)
+    (let* ((first (frame-first-child frame))
+           (second (frame-second-child frame))
+           (x2 (+ x width))
+           (y2 (+ y height)))
+      (ecase (frame-split-direction frame)
+        (:horizontal
+         (let* ((total (+ (frame-width first) (frame-width second)))
+                (split-x (if (plusp total)
+                             (+ x (floor (* width (/ (frame-width first)
+                                                      total))))
+                             (+ x (floor width 2)))))
+           (frame-set-rect first x y (- split-x x) height)
+           (frame-set-rect second split-x y (- x2 split-x) height)))
+        (:vertical
+         (let* ((total (+ (frame-height first) (frame-height second)))
+                (split-y (if (plusp total)
+                             (+ y (floor (* height (/ (frame-height first)
+                                                       total))))
+                             (+ y (floor height 2)))))
+           (frame-set-rect first x y width (- split-y y))
+           (frame-set-rect second x split-y width (- y2 split-y))))))))
+
+(defun refit-output-frame-trees (output)
+  "Rescale every existing frame tree of OUTPUT to the output's current
+content area (output size minus the bar). Frame trees cache their
+geometry at creation, so this runs whenever the reservation or the
+output dimensions change."
+  (let ((width (output-width output))
+        (height (max 0 (- (output-height output)
+                          (bar-reserved-height)))))
+    (maphash (lambda (key root)
+               (when (eq (car key) output)
+                 (frame-set-rect root 0 0 width height)))
+             *frame-trees*)))
+
 ;;; --- Manage/render sequence integration ---
 
 (defun frames-manage-decisions (output workspace wins)

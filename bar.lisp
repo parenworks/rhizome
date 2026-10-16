@@ -676,8 +676,10 @@ then runs the bar's connection loop on this process's main thread."
 
 ;;; --- Process lifecycle (the bar runs as its own process) ---
 
-(defparameter *bar-process* nil
-  "The running bar process, a uiop:process object.")
+(defvar *bar-process* nil
+  "The running bar process, a uiop:process object. DEFVAR: reloading
+  bar.lisp must not orphan a running bar (bar-reserved-height no
+  longer depends on this, but toggle-bar still uses it).")
 
 (defun bar-alive-p ()
   "Whether the bar process is running."
@@ -719,12 +721,15 @@ then runs the bar's connection loop on this process's main thread."
   (format t "~&; Stumpway: bar stopped~%"))
 
 (defun bar-reserved-height ()
-  "Vertical pixels reserved for the bar (0 when disabled/not running).
+  "Vertical pixels reserved for the bar (0 when disabled).
 River reports full output dimensions to the WM even when the bar's
 layer surface has an exclusive zone, so the WM reserves the space
-itself in its layout math."
-  (if (and (config-getf '(:bar) :enabled :default t)
-           (bar-alive-p))
+itself in its layout math. Config-driven, NOT process-driven: the
+bar draws in this space whether the WM spawned it or not, and
+gating on in-image process tracking breaks whenever bar.lisp is
+reloaded or the bar is started independently (windows then tiled
+under the bar, their menus hidden behind it)."
+  (if (config-getf '(:bar) :enabled :default t)
       (config-getf '(:bar) :height :default 20)
       0))
 
@@ -733,19 +738,30 @@ itself in its layout math."
   (if (bar-alive-p)
       (stop-bar)
       (start-bar))
-  ;; Re-tile windows to use (or free) the bar's space
+  ;; Re-tile windows into the (un)reserved space: frame trees cache
+  ;; their geometry, so rescale them first
+  (dolist (out (all-outputs))
+    (refit-output-frame-trees out))
   (when *wm-proxy*
     (request-manage-dirty)))
 
 (defun bar-apply-config ()
   "Apply the current config to the bar: start, stop or restart as needed."
-  (cond
-    ((not (config-getf '(:bar) :enabled :default t))
-     (when (bar-alive-p) (stop-bar)))
-    ((bar-alive-p)
-     ;; Restart to pick up structural changes (height, modules, colors
-     ;; are picked up by the new process from the config file).
-     (stop-bar)
-     (start-bar))
-    (t
-     (start-bar))))
+  (let ((before (bar-reserved-height)))
+    (cond
+      ((not (config-getf '(:bar) :enabled :default t))
+       (when (bar-alive-p) (stop-bar)))
+      ((bar-alive-p)
+       ;; Restart to pick up structural changes (height, modules, colors
+       ;; are picked up by the new process from the config file).
+       (stop-bar)
+       (start-bar))
+      (t
+       (start-bar)))
+    ;; The reserved space may have changed (height, enabled): rescale
+    ;; existing frame trees and re-tile into it
+    (unless (eql before (bar-reserved-height))
+      (dolist (out (all-outputs))
+        (refit-output-frame-trees out))
+      (when *wm-proxy*
+        (request-manage-dirty)))))

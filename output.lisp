@@ -52,7 +52,16 @@
     (:dimensions
      (destructuring-bind (width height) args
        (setf (output-width output) width
-             (output-height output) height)))
+             (output-height output) height)
+       ;; Frame trees cache their geometry: rescale them to the new
+       ;; size and re-tile (defined in frames.lisp, which loads later)
+       (handler-case
+           (progn
+             (refit-output-frame-trees output)
+             (when *wm-proxy*
+               (request-manage-dirty)))
+         (error (e)
+           (format t "~&; Stumpway: error refitting frame trees: ~A~%" e)))))
 
     (:wl-output
      (destructuring-bind (name) args

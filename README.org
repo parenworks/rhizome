@@ -498,7 +498,7 @@ stumpway/
 - [X] Robust event handling (handler-case around dispatch loop)
 - [X] Tap-to-click + tap-and-drag via river-libinput-config-v1 (1/2/3 finger tap = left/right/middle)
 - [X] Input device discovery via river-input-management-v1 (names, types)
-- [X] Configurable status bar (modules, colors, intervals; ships enabled, can be disabled)
+- [X] Configurable status bar (modules, colors, intervals; ships enabled, can be disabled); the WM reserves its space in the layout math (config-driven — windows never tile under the bar, and frame trees rescale when the bar is toggled, its height changes, or outputs are resized)
 - [X] Clickable bar modules (:on-click / :on-scroll-up / :on-scroll-down shell commands)
 - [X] Workspaces (Alt+1..9, Alt+Shift+1..9 moves window; shown in the bar)
 - [X] Window rules (:match regex on app-id/title, :workspace, :layout, :follow, :float)

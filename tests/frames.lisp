@@ -352,6 +352,48 @@
       (ok "monocle template collapses to one frame"
           (length (frame-leaves (frame-tree-for out5 4))) 1))
 
+    ;; --- Bar reservation and tree refitting ---
+
+    ;; bar-reserved-height is config-driven (not process-driven:
+    ;; windows tiled under the bar otherwise)
+    (let ((*config* '(:bar (:enabled t :height 34))))
+      (ok "bar reserved height follows the config"
+          (bar-reserved-height) 34))
+    (let ((*config* '(:bar (:enabled nil :height 34))))
+      (ok "no reservation when the bar is disabled"
+          (bar-reserved-height) 0))
+
+    ;; Refitting rescales trees when the content area changes
+    (let* ((out6 (make-instance 'stumpway-output :proxy :out6-proxy
+                               :width 1920 :height 1080))
+           (root (frame-tree-for out6 7)))
+      (split-current-frame out6 7 :horizontal)   ; 960 | 960
+      (split-current-frame out6 7 :vertical)     ; right half: 540/540
+      (setf (gethash (frame-key out6 7) *current-frames*)
+            (frame-first-child root))
+      ;; Bar appears: content height 1080 -> 1046 (34px bar)
+      (let ((*config* '(:bar (:enabled t :height 34))))
+        (refit-output-frame-trees out6))
+      (let ((left (frame-first-child root))
+            (right (frame-second-child root))
+            (rt (frame-first-child (frame-second-child root)))
+            (rb (frame-second-child (frame-second-child root))))
+        (ok "refit scales the tree to the content height"
+            (frame-height root) 1046)
+        (ok "refit keeps the horizontal split ratio"
+            (list (frame-width left) (frame-width right)) '(960 960))
+        (ok "refit keeps the vertical split ratio"
+            (list (frame-height rt) (frame-height rb)) '(523 523))
+        (ok "refit keeps children inside the parent"
+            (list (frame-y rb) (frame-height rb)) '(523 523)))
+      ;; Bar goes away: content height back to 1080
+      (let ((*config* '(:bar (:enabled nil))))
+        (refit-output-frame-trees out6))
+      (ok "refit back to the full output"
+          (list (frame-height root)
+                (frame-height (frame-second-child (frame-second-child root))))
+          '(1080 540)))
+
     (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
     (unless (zerop fail) (uiop:quit 1))))
 
