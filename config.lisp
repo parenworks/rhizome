@@ -125,6 +125,40 @@ Restarting running components (e.g. the bar) is handled automatically."
   (merge-pathnames #P".config/stumpway/config.lisp"
                    (user-homedir-pathname)))
 
+;;; --- Modifier keys (define once, use many) ---
+;;;
+;;; River's xkb bindings take modifier lists; these variables name the
+;;; common ones so bindings read as intent, not bitmasks. *mod* is THE
+;;; user modifier — every direct binding (MOD+Return terminal,
+;;; MOD+1..9 workspaces, MOD+drag window moves, ...) routes through
+;;; it. Default Super (:mod4); change at runtime with
+;;; (stumpway:set-user-mod :alt) or :super.
+
+(defparameter *mod-none*  '(:none)
+  "No modifier.")
+(defparameter *mod-shift* '(:shift)
+  "Shift.")
+(defparameter *mod-ctrl*  '(:ctrl)
+  "Control (the C-t prefix chord).")
+(defparameter *mod-alt*   '(:mod1)
+  "Alt.")
+(defparameter *mod-super* '(:mod4)
+  "Super / Logo / Windows key.")
+
+(defparameter *mod* *mod-super*
+  "The user modifier: what direct keybindings and pointer grabs
+(MOD+drag moves a window) are bound to. Defaults to Super; set to
+*mod-alt* for the classic StumpWM-on-X11 Alt feel.")
+
+(defun resolve-mod (mod)
+  "Map a friendly modifier name (:alt, :super, :ctrl) to its modifier
+list, or NIL if unknown."
+  (case mod
+    ((:alt :mod1) *mod-alt*)
+    ((:super :logo :windows :mod4) *mod-super*)
+    ((:ctrl :control) *mod-ctrl*)
+    (t nil)))
+
 (defun load-user-config ()
   "Load the user's config file if it exists."
   (let ((path (config-pathname)))

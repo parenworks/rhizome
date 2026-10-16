@@ -4,26 +4,27 @@
 ;;; bindings with the compositor. Bindings are defined with
 ;;; keysyms and modifiers, and trigger callbacks when pressed.
 ;;;
-;;; Default bindings (StumpWM-style, with Alt as prefix):
+;;; Default bindings (StumpWM-style; MOD is the user modifier — Super
+;;; by default, see *mod* in config.lisp):
 ;;;   Ctrl+T       - prefix key (StumpWM-style keychains)
-;;;   Alt+Return   - launch terminal (foot)
-;;;   Alt+Q        - close focused window
-;;;   Alt+J        - focus next window
-;;;   Alt+K        - focus previous window
-;;;   Alt+Space    - cycle layout
-;;;   Alt+1..9     - switch to workspace 1..9
-;;;   Alt+Shift+1..9 - move focused window to workspace 1..9
-;;;   Alt+E        - launch emacs
-;;;   Alt+D        - application launcher (native layer-shell popup)
-;;;   Alt+B        - toggle the status bar
+;;;   MOD+Return   - launch terminal (foot)
+;;;   MOD+Q        - close focused window
+;;;   MOD+J        - focus next window
+;;;   MOD+K        - focus previous window
+;;;   MOD+Space    - cycle layout
+;;;   MOD+1..9     - switch to workspace 1..9
+;;;   MOD+Shift+1..9 - move focused window to workspace 1..9
+;;;   MOD+E        - launch emacs
+;;;   MOD+D        - application launcher (native layer-shell popup)
+;;;   MOD+B        - toggle the status bar
 ;;;   Print        - screenshot of full screen (grim)
 ;;;   Shift+Print  - screenshot of selected region (grim + slurp)
-;;;   Alt+W        - window list (pick, jump to window)
-;;;   Alt+G        - workspace picker
-;;;   Alt+X        - command palette
-;;;   Alt+Shift+Q  - power off the machine
-;;;   Alt+Shift+R  - reboot the machine
-;;;   Alt+;        - live eval prompt (evaluate Lisp in the running WM)
+;;;   MOD+W        - window list (pick, jump to window)
+;;;   MOD+G        - workspace picker
+;;;   MOD+X        - command palette
+;;;   MOD+Shift+Q  - power off the machine
+;;;   MOD+Shift+R  - reboot the machine
+;;;   MOD+;        - live eval prompt (evaluate Lisp in the running WM)
 
 (in-package #:stumpway)
 
@@ -69,13 +70,9 @@
   (defconstant +xkb-key-Escape+  65307))   ; #xff1b
 
 ;;; --- Modifier bitfield constants ---
-;;; Wayflan expects bitfield enums as lists of keywords.
-
-(defparameter *mod-none*  '(:none))
-(defparameter *mod-shift* '(:shift))
-(defparameter *mod-ctrl*  '(:ctrl))
-(defparameter *mod-alt*   '(:mod1))
-(defparameter *mod-super* '(:mod4))
+;;; Wayflan expects bitfield enums as lists of keywords. The
+;;; definitions (*mod*, *mod-alt*, *mod-super*, ...) live in
+;;; config.lisp, which loads before both this file and seat.lisp.
 
 ;;; --- Keybinding registration ---
 
@@ -148,14 +145,14 @@ a manage sequence."
 (defun setup-default-keybindings ()
   "Set up the default StumpWM-style keybindings."
 
-  ;; Alt+Return - launch terminal
-  (define-key +xkb-key-Return+ *mod-alt*
+  ;; MOD+Return - launch terminal
+  (define-key +xkb-key-Return+ *mod*
     (lambda ()
       (format t "~&; Stumpway: launching terminal~%")
       (uiop:launch-program '("foot"))))
 
-  ;; Alt+Q - close focused window
-  (define-key +xkb-key-Q+ *mod-alt*
+  ;; MOD+Q - close focused window
+  (define-key +xkb-key-Q+ *mod*
     (lambda ()
       (let* ((seats (all-seats))
              (focused (and seats (seat-focused-window (first seats)))))
@@ -164,22 +161,22 @@ a manage sequence."
           (close-window focused)
           (request-manage-dirty)))))
 
-  ;; Alt+J - focus next
-  (define-key +xkb-key-J+ *mod-alt*
+  ;; MOD+J - focus next
+  (define-key +xkb-key-J+ *mod*
     (lambda ()
       (let ((outputs (all-outputs)))
         (when outputs
           (focus-next (first outputs))))))
 
-  ;; Alt+K - focus previous
-  (define-key +xkb-key-K+ *mod-alt*
+  ;; MOD+K - focus previous
+  (define-key +xkb-key-K+ *mod*
     (lambda ()
       (let ((outputs (all-outputs)))
         (when outputs
           (focus-previous (first outputs))))))
 
-  ;; Alt+Space - cycle layout
-  (define-key +xkb-key-Space+ *mod-alt*
+  ;; MOD+Space - cycle layout
+  (define-key +xkb-key-Space+ *mod*
     (lambda ()
       (let ((outputs (all-outputs)))
         (when outputs
@@ -192,28 +189,28 @@ a manage sequence."
                          (otherwise :master-stack))))
             (switch-layout out next))))))
 
-  ;; Alt+1..9 - switch to workspace N
-  ;; Alt+Shift+1..9 - move focused window to workspace N
-  ;; (Alt+Space cycles layouts; the old Alt+1/2/3 layout bindings
+  ;; MOD+1..9 - switch to workspace N
+  ;; MOD+Shift+1..9 - move focused window to workspace N
+  ;; (MOD+Space cycles layouts; the old Alt+1/2/3 layout bindings
   ;; were replaced by workspaces)
   (loop for i from 1 to 9
         for keysym = (+ 48 i)
         do (let ((ws i))
-             (define-key keysym *mod-alt*
+             (define-key keysym *mod*
                (lambda ()
                  (switch-workspace ws)))
-             (define-key keysym (append *mod-alt* *mod-shift*)
+             (define-key keysym (append *mod* *mod-shift*)
                (lambda ()
                  (move-focused-window-to-workspace ws)))))
 
-  ;; Alt+E - launch emacs
-  (define-key +xkb-key-E+ *mod-alt*
+  ;; MOD+E - launch emacs
+  (define-key +xkb-key-E+ *mod*
     (lambda ()
       (format t "~&; Stumpway: launching emacs~%")
       (uiop:launch-program '("emacs"))))
 
-  ;; Alt+D - application launcher (native layer-shell popup)
-  (define-key +xkb-key-D+ *mod-alt*
+  ;; MOD+D - application launcher (native layer-shell popup)
+  (define-key +xkb-key-D+ *mod*
     (lambda ()
       (format t "~&; Stumpway: launching application launcher~%")
       (handler-case
@@ -221,8 +218,8 @@ a manage sequence."
         (error (e)
           (format t "~&; Stumpway: launcher error: ~A~%" e)))))
 
-  ;; Alt+B - toggle the status bar
-  (define-key +xkb-key-B+ *mod-alt*
+  ;; MOD+B - toggle the status bar
+  (define-key +xkb-key-B+ *mod*
     (lambda ()
       (format t "~&; Stumpway: toggling bar~%")
       (handler-case
@@ -239,28 +236,28 @@ a manage sequence."
       (enter-prefix-mode)))
   (setup-default-prefix-bindings)
 
-  ;; Alt+W - window list (pick a window, jump to it)
-  ;; Alt+G - workspace picker
-  ;; Alt+X - command palette
-  (define-key +xkb-key-W+ *mod-alt*
+  ;; MOD+W - window list (pick a window, jump to it)
+  ;; MOD+G - workspace picker
+  ;; MOD+X - command palette
+  (define-key +xkb-key-W+ *mod*
     (lambda () (windowlist)))
-  (define-key +xkb-key-G+ *mod-alt*
+  (define-key +xkb-key-G+ *mod*
     (lambda () (workspace-list)))
-  (define-key +xkb-key-X+ *mod-alt*
+  (define-key +xkb-key-X+ *mod*
     (lambda () (command-palette)))
 
-  ;; Alt+Shift+Q - power off the machine
-  ;; Alt+Shift+R - reboot the machine
-  (define-key +xkb-key-Q+ (append *mod-alt* *mod-shift*)
+  ;; MOD+Shift+Q - power off the machine
+  ;; MOD+Shift+R - reboot the machine
+  (define-key +xkb-key-Q+ (append *mod* *mod-shift*)
     (lambda ()
       (shutdown-machine)))
-  (define-key +xkb-key-R+ (append *mod-alt* *mod-shift*)
+  (define-key +xkb-key-R+ (append *mod* *mod-shift*)
     (lambda ()
       (reboot-machine)))
 
-  ;; Alt+; - live eval prompt (type a Lisp expression, Enter evaluates
+  ;; MOD+; - live eval prompt (type a Lisp expression, Enter evaluates
   ;; it in the running WM image; Escape cancels)
-  (define-key +xkb-key-Semicolon+ *mod-alt*
+  (define-key +xkb-key-Semicolon+ *mod*
     (lambda ()
       (format t "~&; Stumpway: opening eval prompt~%")
       (handler-case
@@ -345,3 +342,36 @@ Shows a curated list of Wayland-relevant applications."
   "Install keybindings during a manage sequence if not yet installed."
   (when (and *xkb-bindings-proxy* (null *active-bindings*))
     (install-keybindings)))
+
+(defun set-user-mod (mod)
+  "Change the user modifier — the MOD in MOD+Return, MOD+1..9,
+MOD+drag, ... — live. MOD is a friendly name: :alt, :super or :ctrl.
+Current grabs are destroyed and everything re-binds with the new
+modifier during the next manage sequence (enable requests are
+manage-sequence-only in river's protocol).
+
+  (stumpway:set-user-mod :alt)     ; classic StumpWM-on-X11 feel
+  (stumpway:set-user-mod :super)   ; the default"
+  (let ((resolved (resolve-mod mod)))
+    (unless resolved
+      (message "unknown modifier: ~A (try :alt, :super, :ctrl)" mod)
+      (return-from set-user-mod))
+    (setf *mod* resolved)
+    ;; Re-register the user bindings with the new modifier
+    (clrhash *keybindings*)
+    (setup-default-keybindings)
+    ;; Destroy the current grabs; install-keybindings-if-needed
+    ;; re-creates them during the next manage sequence
+    (dolist (binding *active-bindings*)
+      (ignore-errors
+        (rwm:river-xkb-binding-v1.destroy binding)))
+    (setf *active-bindings* nil)
+    ;; MOD+drag pointer grabs likewise
+    (dolist (binding *pointer-bindings*)
+      (ignore-errors
+        (rwm:river-pointer-binding-v1.destroy binding)))
+    (setf *pointer-bindings* nil
+          *pointer-bindings-enabled* nil)
+    (clrhash *seats-with-pointer-bindings*)
+    (request-manage-dirty)
+    (message "mod key: ~(~A~)" mod)))

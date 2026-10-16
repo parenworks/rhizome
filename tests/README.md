@@ -21,6 +21,9 @@ stubbed river requests. Run with:
 - `parity.lisp` — Alt+drag pointer bindings (drag floats tiled
   windows), the C-t h help system, describe-key, move-window-to-frame,
   and `:output` window rules.
+- `quickwins.lisp` — StumpWM quick-wins: window numbering (1..9, 0,
+  overflow, reuse, renumber), pull/exchange/only/balance/fclear,
+  lastmsg/time, quit-confirm, fullscreen request queueing, F-keys.
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip

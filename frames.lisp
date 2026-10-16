@@ -312,6 +312,160 @@ With a single window this is a no-op."
           (focus-window next seat))
         (request-manage-dirty)))))
 
+;;; --- Pull / exchange / frame tree collapse (StumpWM commands) ---
+
+(defun pull-window-into-current-frame (win output workspace)
+  "Pull WIN into the current frame, making it the visible window
+(StumpWM's pull). Floats stay put."
+  (cond ((null win) (message "no window"))
+        ((window-floating-p win) (message "floats are not pulled into frames"))
+        (t
+         (frame-remove-window win)
+         (frame-push-window win (current-frame-for output workspace))
+         (dolist (seat (all-seats))
+           (focus-window win seat))
+         (request-manage-dirty))))
+
+(defun pull-window-by-number (n &optional (output (first (all-outputs)))
+                                   (workspace (current-workspace output)))
+  "Pull the window with number N into the current frame
+(StumpWM's pull N)."
+  (pull-window-into-current-frame (find-window-by-number n output workspace)
+                                  output workspace))
+
+(defun visible-frame-windows (output workspace)
+  "The windows currently displayed by the workspace's frames."
+  (remove nil
+          (mapcar #'frame-current-window
+                  (frame-leaves (frame-tree-for output workspace)))))
+
+(defun pull-hidden-next (output workspace &optional (delta 1))
+  "Pull the next (or previous, DELTA -1) window not displayed in any
+frame into the current frame, in number order (StumpWM's
+pull-hidden-next/previous)."
+  (let* ((visible (visible-frame-windows output workspace))
+         (hidden (remove-if (lambda (w)
+                              (or (window-floating-p w)
+                                  (member w visible :test #'eq)))
+                            (windows-on-workspace output workspace)))
+         (focused (find-if #'window-focused-p (all-windows))))
+    (cond ((null hidden)
+           (message "no hidden windows"))
+          (t
+           ;; Number order; the focused window's number anchors the walk
+           (let* ((cur-n (and focused (window-number focused)))
+                  (next (or (if (plusp delta)
+                                (find-if (lambda (w)
+                                           (and cur-n
+                                                (> (window-number w) cur-n)))
+                                         hidden)
+                                (find-if (lambda (w)
+                                           (and cur-n
+                                                (< (window-number w) cur-n)))
+                                         hidden :from-end t))
+                            (if (plusp delta)
+                                (first hidden)
+                                (first (last hidden))))))
+             (pull-window-into-current-frame next output workspace))))))
+
+(defun exchange-window-direction (output workspace direction)
+  "Swap the current frame's window with the one in the frame in
+DIRECTION (StumpWM's exchange-direction). Focus follows the window
+that arrives in the current frame."
+  (let* ((root (frame-tree-for output workspace))
+         (cur (current-frame-for output workspace))
+         (target (frame-at-direction cur direction (frame-leaves root)))
+         (w1 (frame-current-window cur))
+         (w2 (and target (frame-current-window target))))
+    (cond ((null w1) (message "no window in the current frame"))
+          ((null target) (message "no frame ~A" direction))
+          ((eq target cur) (message "already there"))
+          (t
+           (frame-remove-window w1)
+           (when w2 (frame-remove-window w2))
+           (frame-push-window w1 target)
+           (when w2 (frame-push-window w2 cur))
+           (when w2
+             (dolist (seat (all-seats))
+               (focus-window w2 seat)))
+           (request-manage-dirty)))))
+
+(defun frame-only (output workspace)
+  "Collapse the workspace to a single frame: every window merges into
+the current frame, which becomes the whole content area (StumpWM's
+only, C-t Q)."
+  (let* ((root (frame-tree-for output workspace))
+         (leaves (frame-leaves root))
+         (cur (current-frame-for output workspace))
+         (wins (loop for leaf in leaves append (frame-windows leaf))))
+    (if (= (length leaves) 1)
+        (message "already the only frame")
+        (progn
+          (dolist (win wins)
+            (setf (window-frame win) nil))
+          (setf (frame-windows cur) wins)
+          (dolist (win wins)
+            (setf (window-frame win) cur))
+          ;; The current frame becomes the root
+          (setf (frame-x cur) 0
+                (frame-y cur) 0
+                (frame-width cur) (output-width output)
+                (frame-height cur) (max 0 (- (output-height output)
+                                              (bar-reserved-height)))
+                (frame-parent cur) nil
+                (frame-first-child cur) nil
+                (frame-second-child cur) nil
+                (frame-split-direction cur) nil)
+          (setf (gethash (frame-key output workspace) *frame-trees*) cur
+                (gethash (frame-key output workspace) *current-frames*) cur)
+          (request-manage-dirty)))))
+
+(defun frame-balance (output workspace)
+  "Equalize every split in the workspace's tree (StumpWM's
+balance-frames)."
+  (labels ((balance (frame)
+             (when (frame-first-child frame)
+               (let ((first (frame-first-child frame))
+                     (second (frame-second-child frame))
+                     (x (frame-x frame))
+                     (y (frame-y frame))
+                     (w (frame-width frame))
+                     (h (frame-height frame)))
+                 (ecase (frame-split-direction frame)
+                   (:horizontal
+                    (let ((half (floor w 2)))
+                      (frame-set-rect first x y half h)
+                      (frame-set-rect second (+ x half) y (- w half) h)))
+                   (:vertical
+                    (let ((half (floor h 2)))
+                      (frame-set-rect first x y w half)
+                      (frame-set-rect second x (+ y half) w (- h half)))))
+                 (balance first)
+                 (balance second)))))
+    (balance (frame-tree-for output workspace))
+    (request-manage-dirty)))
+
+(defun frame-clear (output workspace)
+  "Clear the current frame: its windows move out to the other frames,
+round-robin (StumpWM's fclear)."
+  (let* ((root (frame-tree-for output workspace))
+         (leaves (frame-leaves root))
+         (cur (current-frame-for output workspace))
+         (others (remove cur leaves)))
+    (cond ((null others)
+           (message "no other frame to move windows to"))
+          ((null (frame-windows cur))
+           (message "frame is already empty"))
+          (t
+           (let ((rest (frame-windows cur)))
+             (setf (frame-windows cur) nil)
+             (loop for win in rest
+                   for i from 0
+                   do (frame-push-window win
+                                          (nth (mod i (length others))
+                                               others))))
+           (request-manage-dirty)))))
+
 ;;; --- Tree construction from rectangles ---
 ;;;
 ;;; Layout templates (master-stack, even, monocle, custom user

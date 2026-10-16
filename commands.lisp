@@ -132,6 +132,157 @@ describe-command."
              (format t "~&;   ~A~%" name))
            *command-table*))
 
+;;; --- StumpWM quick-win commands ---
+
+(define-command :lastmsg (output args)
+  "Redisplay the most recent message (StumpWM: lastmsg)."
+  (declare (ignore output args))
+  (lastmsg))
+
+(define-command :time (output args)
+  "Show the current date and time (StumpWM: time)."
+  (declare (ignore output args))
+  (time-message))
+
+(define-command :select-window (output args)
+  "Focus the window with number N. Usage: select-window <n>"
+  (when args
+    (select-window-by-number (or (parse-integer (first args) :junk-allowed t)
+                                 -1))))
+
+(define-command :pull (output args)
+  "Pull the window with number N into the current frame.
+Usage: pull <n>"
+  (when args
+    (pull-window-by-number (or (parse-integer (first args) :junk-allowed t)
+                               -1)
+                           output
+                           (current-workspace output))))
+
+(define-command :pull-next (output args)
+  "Pull the next hidden window into the current frame
+(StumpWM: pull-hidden-next)."
+  (declare (ignore args))
+  (pull-hidden-next output (current-workspace output) 1))
+
+(define-command :pull-prev (output args)
+  "Pull the previous hidden window into the current frame
+(StumpWM: pull-hidden-previous)."
+  (declare (ignore args))
+  (pull-hidden-next output (current-workspace output) -1))
+
+(define-command :renumber (output args)
+  "Renumber the workspace's windows from 1 (StumpWM: renumber)."
+  (declare (ignore args))
+  (renumber-windows output (current-workspace output))
+  "renumbered")
+
+(define-command :repack-window-numbers (output args)
+  "Fill gaps in the workspace's window numbers (StumpWM: repack)."
+  (declare (ignore args))
+  (repack-window-numbers output (current-workspace output))
+  "repacked")
+
+(define-command :toggle-fullscreen (output args)
+  "Toggle the focused window's fullscreen (StumpWM: fullscreen)."
+  (declare (ignore args))
+  (let ((win (find-if #'window-focused-p (all-windows))))
+    (if win
+        (toggle-fullscreen win)
+        (message "no focused window"))))
+
+(define-command :only (output args)
+  "Collapse the workspace to a single frame (StumpWM: only)."
+  (declare (ignore args))
+  (frame-only output (current-workspace output)))
+
+(define-command :balance (output args)
+  "Equalize every split in the workspace (StumpWM: balance-frames)."
+  (declare (ignore args))
+  (frame-balance output (current-workspace output)))
+
+(define-command :fclear (output args)
+  "Clear the current frame; its windows move to the other frames
+(StumpWM: fclear)."
+  (declare (ignore args))
+  (frame-clear output (current-workspace output)))
+
+(define-command :exchange-left (output args)
+  "Swap the current frame's window with the frame to the left
+(StumpWM: exchange-direction)."
+  (declare (ignore args))
+  (exchange-window-direction output (current-workspace output) :left))
+
+(define-command :exchange-right (output args)
+  "Swap the current frame's window with the frame to the right."
+  (declare (ignore args))
+  (exchange-window-direction output (current-workspace output) :right))
+
+(define-command :exchange-up (output args)
+  "Swap the current frame's window with the frame above."
+  (declare (ignore args))
+  (exchange-window-direction output (current-workspace output) :up))
+
+(define-command :exchange-down (output args)
+  "Swap the current frame's window with the frame below."
+  (declare (ignore args))
+  (exchange-window-direction output (current-workspace output) :down))
+
+;;; --- Clipboard (via wl-clipboard) ---
+
+(defun getsel ()
+  "The Wayland clipboard/primary selection contents, as a string."
+  (string-right-trim '(#\newline #\return #\space)
+                     (uiop:run-program '("wl-paste" "--no-newline")
+                                       :output :string
+                                       :ignore-error-status t)))
+
+(defun putsel (text)
+  "Put TEXT on the Wayland clipboard."
+  (uiop:run-program '("wl-copy")
+                    :input (format nil "~A" text)
+                    :ignore-error-status t))
+
+(defun copy-last-message ()
+  "Copy the most recent on-screen message to the clipboard
+(StumpWM: copy-last-message)."
+  (when *last-message*
+    (putsel *last-message*))
+  "copied")
+
+(define-command :getsel (output args)
+  "Show the clipboard contents (StumpWM: getsel)."
+  (declare (ignore output args))
+  (message "~A" (getsel)))
+
+(define-command :putsel (output args)
+  "Put ARGS on the clipboard. Usage: putsel <text>"
+  (declare (ignore output))
+  (when args
+    (putsel (first args))
+    "copied"))
+
+(define-command :copy-last-message (output args)
+  "Copy the most recent message to the clipboard."
+  (declare (ignore output args))
+  (copy-last-message))
+
+;;; --- Power management ---
+
+(define-command :suspend (output args)
+  "Suspend the machine (systemctl suspend)."
+  (declare (ignore output args))
+  (message "suspending")
+  (uiop:launch-program '("systemctl" "suspend"))
+  "suspending")
+
+(define-command :hibernate (output args)
+  "Hibernate the machine (systemctl hibernate)."
+  (declare (ignore output args))
+  (message "hibernating")
+  (uiop:launch-program '("systemctl" "hibernate"))
+  "hibernating")
+
 ;;; --- IPC-facing commands (see ipc.lisp) ---
 
 (define-command :switch-workspace (output args)

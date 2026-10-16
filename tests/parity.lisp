@@ -178,7 +178,9 @@
     (ok "bindings registered with docs"
         (gethash 119 *prefix-key-docs*) "windowlist")
     (ok "nested move map installed"
-        (hash-table-p (gethash 109 *prefix-map*)) t)
+        (hash-table-p (gethash 77 *prefix-map*)) t)
+    (ok "nested exchange map installed"
+        (hash-table-p (gethash 101 *prefix-map*)) t)
     (ok "nested help map installed"
         (hash-table-p (gethash 104 *prefix-map*)) t)
     (ok "resize bindings registered"
@@ -246,7 +248,29 @@
       (setf *pointer-bindings* nil *pointer-bindings-enabled* nil)
       (enable-pointer-bindings-if-needed)
       (ok "pointer bindings marked enabled"
-          *pointer-bindings-enabled* t)))
+          *pointer-bindings-enabled* t)
+
+      ;; --- The user modifier (define once, use many) ---
+
+      (ok "default mod is super" *mod* '(:mod4))
+      (ok "resolve-mod maps alt" (resolve-mod :alt) '(:mod1))
+      (ok "resolve-mod maps super" (resolve-mod :super) '(:mod4))
+      (ok "resolve-mod maps ctrl" (resolve-mod :ctrl) '(:ctrl))
+      (ok "resolve-mod rejects junk" (resolve-mod :banana) nil)
+      ;; default bindings are built on *mod*
+      (setf *keybindings* (make-hash-table :test 'equal))
+      (setup-default-keybindings)
+      (ok "terminal binding on the user mod"
+          (and (gethash (cons +xkb-key-Return+ *mod*) *keybindings*) t) t)
+      (set-user-mod :alt)
+      (ok "set-user-mod switches to alt"
+          *mod* '(:mod1))
+      (set-user-mod :super)
+      (ok "set-user-mod switches back to super"
+          *mod* '(:mod4))
+      (set-user-mod :banana)
+      (ok "set-user-mod rejects unknown modifiers"
+          *mod* '(:mod4))))
 
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
   (unless (zerop fail) (uiop:quit 1)))

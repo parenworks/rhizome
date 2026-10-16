@@ -34,12 +34,109 @@
 (defvar *last-registered-window* nil
   "The most recently registered window, for auto-focus.")
 
+;;; --- Window numbering (StumpWM-style 1..9, then 0) ---
+
+(defvar *window-number-map* (make-hash-table)
+  "Maps windows to their numbers (window-number / C-t ' prompt).")
+(defvar *window-number-overflow* 10
+  "Numbers handed out when 1..9 and 0 are all taken.")
+
+(defun window-number (win)
+  "WIN's number, or NIL."
+  (gethash win *window-number-map*))
+
+(defun assign-window-number (win)
+  "Give WIN the lowest free number (1..9, then 0), or a fresh
+overflow number beyond 10 when they're all taken."
+  (let* ((taken (loop for n being the hash-values of *window-number-map*
+                      collect n))
+         (n (loop for c in '(1 2 3 4 5 6 7 8 9 0)
+                  thereis (and (not (member c taken)) c))))
+    (setf (gethash win *window-number-map*)
+          (or n (prog1 *window-number-overflow*
+                  (incf *window-number-overflow*))))))
+
+(defun release-window-number (win)
+  "Forget WIN's number (window closed)."
+  (remhash win *window-number-map*))
+
+(defun find-window-by-number (n &optional (output (first (all-outputs)))
+                                      (workspace (current-workspace output)))
+  "The window with number N on OUTPUT's WORKSPACE, if any."
+  (find-if (lambda (win)
+             (and (eql (window-number win) n)
+                  (eq (window-output win) output)
+                  (eql (window-workspace win) workspace)))
+           (all-windows)))
+
+(defun renumber-windows (&optional (output (first (all-outputs)))
+                             (workspace (current-workspace output)))
+  "Renumber the workspace's windows from 1 in number order
+(StumpWM's renumber)."
+  (let* ((wins (sort (windows-on-workspace output workspace)
+                     #'<
+                     :key (lambda (w) (or (window-number w) 999)))))
+    (loop for win in wins
+          for n from 1
+          do (setf (gethash win *window-number-map*) n))))
+
+(defun repack-window-numbers (&optional (output (first (all-outputs)))
+                               (workspace (current-workspace output)))
+  "Fill gaps in the workspace's window numbers, keeping relative
+order (StumpWM's repack-window-numbers)."
+  (renumber-windows output workspace))
+
+(defun select-window-by-number (n)
+  "Focus the window with number N on the current workspace, moving
+frame focus there with it (StumpWM's select-window-by-number)."
+  (let* ((out (first (all-outputs)))
+         (ws (current-workspace out))
+         (win (find-window-by-number n out ws)))
+    (cond ((null win)
+           (message "no window ~D" n))
+          ((window-floating-p win)
+           (dolist (seat (all-seats)) (focus-window win seat))
+           (request-manage-dirty))
+          (t
+           (when (window-frame win)
+             (setf (gethash (frame-key out ws) *current-frames*)
+                   (window-frame win)))
+           (dolist (seat (all-seats)) (focus-window win seat))
+           (request-manage-dirty)))))
+
+;;; --- Fullscreen (WM-initiated) ---
+
+(defvar *pending-fullscreen-requests* nil
+  "Windows whose fullscreen request is waiting for the next manage
+sequence (river_window_v1.fullscreen is a manage-sequence request).")
+
+(defun flush-fullscreen-requests ()
+  "Send pending fullscreen requests (called during a manage
+sequence)."
+  (dolist (win *pending-fullscreen-requests*)
+    (handler-case
+        (if (window-fullscreen-p win)
+            (rwm:river-window-v1.exit-fullscreen (window-proxy win))
+            (rwm:river-window-v1.fullscreen (window-proxy win)))
+      (error (e)
+        (format t "~&; Stumpway: fullscreen request failed: ~A~%" e))))
+  (setf *pending-fullscreen-requests* nil))
+
+(defun toggle-fullscreen (win)
+  "Toggle WIN's fullscreen (StumpWM's C-t F11). The fullscreen
+request itself is flushed by the manage pass."
+  (when win
+    (setf (window-fullscreen-p win) (not (window-fullscreen-p win)))
+    (pushnew win *pending-fullscreen-requests*)
+    (request-manage-dirty)))
+
 (defun register-window (proxy)
   "Register a new river_window_v1 proxy and set up event handlers."
   (let ((win (make-instance 'stumpway-window :proxy proxy)))
     (setf (gethash proxy *windows*) win
           *last-registered-window* win
           *pending-autofocus* win)
+    (assign-window-number win)
     (push (lambda (event-name &rest args)
             (apply #'handle-window-event win event-name args))
           (wl:wl-proxy-hooks proxy))
@@ -87,7 +184,8 @@
          (run-hook :window-closed win)
          (remhash (window-proxy win) *windows*)
          (remhash win *window-workspace*)
-         (remhash win *minimized-windows*))
+         (remhash win *minimized-windows*)
+         (release-window-number win))
 
         (:fullscreen-requested
          (destructuring-bind (output) args

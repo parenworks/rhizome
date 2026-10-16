@@ -245,6 +245,10 @@ handlers should make window management requests here."
   ;; floating.lisp, which loads later.
   (float-op-manage-pass)
 
+  ;; Flush pending WM-initiated fullscreen requests
+  ;; (river_window_v1.fullscreen is a manage-sequence request)
+  (flush-fullscreen-requests)
+
   ;; Auto-focus: focus a newly registered window once (not every
   ;; manage cycle), and only if it lives on the current workspace
   (let ((win *pending-autofocus*))

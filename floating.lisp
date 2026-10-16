@@ -202,7 +202,7 @@ exclude them from its hide logic."
 
 (defun float-op-request (win seat type &optional edges)
   "A client asked to move/resize WIN interactively (titlebar drag, or
-an Alt+drag binding). op-start-pointer is a manage-sequence request,
+an MOD+drag binding). op-start-pointer is a manage-sequence request,
 so record the request here and start the op in the next manage pass.
 Floating windows only: dragging the tiling is a no-op."
   (when (and (window-floating-p win) (gethash (window-proxy win) *windows*))
@@ -228,9 +228,9 @@ point."
             (find-if #'inside-p (all-windows)))))))
 
 (defun pointer-drag-start (seat type)
-  "An Alt+drag began on SEAT: StumpWM behavior — dragging a tiled
+  "A MOD+drag began on SEAT: StumpWM behavior — dragging a tiled
 window floats it first — then an interactive move/resize op starts
-(the river pointer-op protocol; see float-op-manage-pass). Alt+Right
+(the river pointer-op protocol; see float-op-manage-pass). Right-drag
 resizes from the classic bottom-right corner."
   (let ((win (window-at-pointer seat)))
     (when win

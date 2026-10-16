@@ -206,6 +206,35 @@ commands act on. Skips when no output exists."
   (with-frame-context
     (move-window-to-frame-direction out ws direction)))
 
+(defun select-window-by-number-prompt ()
+  "Prompt for a window number and focus that window (StumpWM's C-t ')."
+  (prompt-open "Window number:"
+              :candidates
+              (sort (loop for n being the hash-values of *window-number-map*
+                          collect (format nil "~D" n))
+                    #'string<)
+              :on-complete
+              (lambda (choice)
+                (let ((n (parse-integer choice :junk-allowed t)))
+                  (when n
+                    (select-window-by-number n))))))
+
+(defparameter *quit-armed-at* 0
+  "Universal time C-t q was last armed (quit-confirm).")
+
+(defun quit-confirm ()
+  "Quit only on a second C-t q within 3 seconds (StumpWM's
+quit-confirm)."
+  (let ((now (get-universal-time)))
+    (if (> *quit-armed-at* (- now 3))
+        (progn
+          (setf *quit-armed-at* 0)
+          (message "stopping stumpway")
+          (stop))
+        (progn
+          (setf *quit-armed-at* now)
+          (message "Press C-t q again to quit")))))
+
 ;;; --- Help system (StumpWM's C-t h chains) ---
 
 (defun keysym-name (keysym)
@@ -308,18 +337,31 @@ commands act on. Skips when no output exists."
   (define-prefix-key 98 (lambda () (toggle-bar)) "toggle bar")   ; b
   ;; C-t f — float/tile the focused window (GIMP-style floats)
   (define-prefix-key 102 (lambda () (toggle-float-focused)) "float/tile window") ; f
-  ;; C-t n / C-t p — cycle the windows in the current frame
+  ;; C-t n / C-t p — pull the next/previous hidden window into the
+  ;; current frame (StumpWM's pull-hidden-next/previous)
   (define-prefix-key 110 (lambda () (with-frame-context
-                                       (cycle-frame-window out ws 1)))
-                         "cycle window in frame (next)")          ; n
+                                       (pull-hidden-next out ws 1)))
+                         "pull next hidden window")              ; n
   (define-prefix-key 112 (lambda () (with-frame-context
-                                       (cycle-frame-window out ws -1)))
-                         "cycle window in frame (prev)")          ; p
+                                       (pull-hidden-next out ws -1)))
+                         "pull previous hidden window")          ; p
   ;; C-t N / C-t P — next/previous workspace
   (define-prefix-key 78 (lambda () (switch-workspace-relative 1))
                          "next workspace")                        ; N
   (define-prefix-key 80 (lambda () (switch-workspace-relative -1))
                          "previous workspace")                    ; P
+  ;; C-t 1..9 — switch workspace directly (groups-map parity)
+  (dolist (n '(1 2 3 4 5 6 7 8 9))
+    (define-prefix-key (+ 48 n)
+                       (lambda () (switch-workspace n (first (all-outputs))))
+                       (format nil "workspace ~D" n)))
+  ;; C-t ' — select window by number (StumpWM's select)
+  (define-prefix-key 39 (lambda () (select-window-by-number-prompt))
+                         "select window by number")               ; '
+  ;; C-t a — show the time (StumpWM's time)
+  (define-prefix-key 97 (lambda () (time-message)) "time")       ; a
+  ;; C-t m — redisplay the last message (StumpWM's lastmsg)
+  (define-prefix-key 109 (lambda () (lastmsg)) "last message")   ; m
   ;; C-t s / C-t S — split the current frame (side-by-side / stacked)
   (define-prefix-key 115 (lambda () (with-frame-context
                                        (split-current-frame out ws :horizontal)))
@@ -343,14 +385,44 @@ commands act on. Skips when no output exists."
   (define-prefix-key 65362 (lambda () (focus-frame-direction* :up)) "focus frame up")
   (define-prefix-key 65363 (lambda () (focus-frame-direction* :right)) "focus frame right")
   (define-prefix-key 65364 (lambda () (focus-frame-direction* :down)) "focus frame down")
-  ;; C-t m <arrow> — move the focused window to the frame in that
-  ;; direction (StumpWM: move-window)
+  ;; C-t M <arrow> — move the focused window to the frame in that
+  ;; direction (StumpWM: move-window; StumpWM's C-t m is lastmsg)
   (let ((move-map (make-keymap)))
     (define-keymap-key move-map 65361 (lambda () (move-window-direction* :left)))
     (define-keymap-key move-map 65362 (lambda () (move-window-direction* :up)))
     (define-keymap-key move-map 65363 (lambda () (move-window-direction* :right)))
     (define-keymap-key move-map 65364 (lambda () (move-window-direction* :down)))
-    (define-prefix-key 109 move-map "move window to frame (then arrows)")) ; m
+    (define-prefix-key 77 move-map "move window to frame (then arrows)")) ; M
+  ;; C-t e <arrow> — swap the current frame's window with the frame
+  ;; in that direction (StumpWM: exchange-direction, C-t x there;
+  ;; stumpway keeps C-t x for the command palette)
+  (let ((exchange-map (make-keymap)))
+    (define-keymap-key exchange-map 65361
+                       (lambda () (with-frame-context
+                                    (exchange-window-direction out ws :left))))
+    (define-keymap-key exchange-map 65362
+                       (lambda () (with-frame-context
+                                    (exchange-window-direction out ws :up))))
+    (define-keymap-key exchange-map 65363
+                       (lambda () (with-frame-context
+                                    (exchange-window-direction out ws :right))))
+    (define-keymap-key exchange-map 65364
+                       (lambda () (with-frame-context
+                                    (exchange-window-direction out ws :down))))
+    (define-prefix-key 101 exchange-map "exchange windows (then arrows)")) ; e
+  ;; C-t Q — collapse the workspace to one frame (StumpWM's only)
+  (define-prefix-key 81 (lambda () (with-frame-context
+                                      (frame-only out ws)))
+                         "collapse to one frame")                  ; Q
+  ;; C-t B — equalize all splits (StumpWM's balance-frames)
+  (define-prefix-key 66 (lambda () (with-frame-context
+                                      (frame-balance out ws)))
+                         "balance frames")                         ; B
+  ;; C-t F11 — toggle fullscreen (StumpWM's fullscreen)
+  (define-prefix-key 65480 (lambda () (toggle-fullscreen
+                                        (find-if #'window-focused-p
+                                                 (all-windows))))
+                         "toggle fullscreen")                      ; F11
   ;; C-t h — help map (StumpWM: *help-map*)
   (let ((help-map (make-keymap)))
     ;; b — describe-bindings
@@ -366,6 +438,6 @@ commands act on. Skips when no output exists."
     ;; w — describe the focused window
     (define-keymap-key help-map 119 (lambda () (describe-focused-window)))
     (define-prefix-key 104 help-map "help (then b c f v k w)"))  ; h
-  ;; C-t q — quit stumpway (StumpWM: quit)
-  (define-prefix-key 113 (lambda () (message "stopping stumpway") (stop))
-                         "quit stumpway"))                        ; q
+  ;; C-t q — quit, with confirm (StumpWM's quit-confirm)
+  (define-prefix-key 113 (lambda () (quit-confirm))
+                         "quit stumpway (press twice)"))           ; q

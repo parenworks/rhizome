@@ -18,25 +18,25 @@
 (defparameter *keyboard-shift-p* nil
   "Whether shift is currently held (from wl_keyboard modifiers).")
 
-;;; --- Pointer bindings (Alt+drag move/resize) ---
+;;; --- Pointer bindings (MOD+drag move/resize) ---
 
 (defvar *pointer-bindings* nil
-  "Active river_pointer_binding_v1 objects (Alt+drag bindings).")
+  "Active river_pointer_binding_v1 objects (MOD+drag bindings).")
 (defvar *pointer-bindings-enabled* nil
-  "Whether the Alt+drag bindings have been enabled (they may only be
+  "Whether the MOD+drag bindings have been enabled (they may only be
 enabled during a manage sequence).")
 (defvar *seats-with-pointer-bindings* (make-hash-table)
-  "Seats that already have Alt+drag bindings (skip re-creation).")
+  "Seats that already have MOD+drag bindings (skip re-creation).")
 
 (defun setup-pointer-bindings (seat)
-  "Create the StumpWM-style Alt+drag bindings on SEAT: Alt+Left-drag
+  "Create the StumpWM-style MOD+drag bindings on SEAT: MOD+Left-drag
 moves the window under the pointer (floating it first if tiled),
-Alt+Right-drag resizes it."
+MOD+Right-drag resizes it. The modifier is the user's *mod*."
   (dolist (spec '((:move 272) (:resize 273)))   ; BTN_LEFT / BTN_RIGHT
     (let* ((type (first spec))
            (button (second spec))
            (binding (rwm:river-seat-v1.get-pointer-binding
-                      (seat-proxy seat) button '(:mod1))))
+                      (seat-proxy seat) button *mod*)))
       (push (lambda (event-name &rest args)
               (declare (ignore args))
               (when (eq event-name :pressed)
@@ -45,7 +45,7 @@ Alt+Right-drag resizes it."
       (push binding *pointer-bindings*))))
 
 (defun enable-pointer-bindings-if-needed ()
-  "Give every seat its Alt+drag bindings and enable them. Pointer
+  "Give every seat its MOD+drag bindings and enable them. Pointer
 bindings may only be enabled during a manage sequence, so this runs
 from on-manage-sequence; it also covers seats that registered before
 a hot reload added the feature."
@@ -66,7 +66,7 @@ a hot reload added the feature."
     (setf *pointer-bindings-enabled* t)))
 
 (defun pointer-drag-start (seat type)
-  "An Alt+drag began. Placeholder: redefined by floating.lisp."
+  "An MOD+drag began. Placeholder: redefined by floating.lisp."
   (declare (ignore seat type))
   nil)
 
@@ -90,7 +90,7 @@ a hot reload added the feature."
             (apply #'handle-seat-event seat event-name args))
           (wl:wl-proxy-hooks proxy))
     (format t "~&; Stumpway: new seat registered~%")
-    ;; Alt+drag move/resize bindings (enabled during manage sequences)
+    ;; MOD+drag move/resize bindings (enabled during manage sequences)
     (handler-case
         (progn
           (setup-pointer-bindings seat)
@@ -316,6 +316,10 @@ shift) so that Lisp expressions can be typed in the eval prompt."
          (105 65361)       ; Left
          (106 65363)       ; Right
          (57 32)           ; Space
+         ;; Function keys F1-F12
+         (59 65470) (60 65471) (61 65472) (62 65473)
+         (63 65474) (64 65475) (65 65476) (66 65477)
+         (67 65478) (68 65479) (87 65480) (88 65481)
          (12 (char-code #\-))
          (13 (char-code #\=))
          (39 (char-code #\'))

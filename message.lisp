@@ -12,10 +12,13 @@
   "Universal time when the current message hides.")
 (defparameter *message-width* 700)
 (defparameter *message-height* 22)
+(defparameter *last-message* nil
+  "The most recently shown message text (lastmsg, copy-last-message).")
 
 (defun show-message (text &optional (seconds 3))
   "Show TEXT on screen for SECONDS (default 3). If a message is
 already showing, replace it."
+  (setf *last-message* text)
   (unless (and *compositor* *shm* *layer-shell*)
     (format t "~&; Stumpway: ~A~%" text)
     (return-from show-message))
@@ -110,3 +113,22 @@ already showing, replace it."
 (defun message (format-string &rest args)
   "Show a formatted message on screen (like StumpWM's message)."
   (show-message (apply #'format nil format-string args)))
+
+(defun lastmsg ()
+  "Redisplay the most recent message (StumpWM's C-t m)."
+  (if *last-message*
+      (show-message *last-message*)
+      (message "no previous message")))
+
+(defun time-message ()
+  "Show the current date and time (StumpWM's C-t a)."
+  (multiple-value-bind (sec min hour day month year dow)
+      (decode-universal-time (get-universal-time))
+    (declare (ignore sec year))
+    (let ((days #("Mon" "Tue" "Wed" "Thu" "Fri" "Sat" "Sun"))
+          (months #("Jan" "Feb" "Mar" "Apr" "May" "Jun"
+                    "Jul" "Aug" "Sep" "Oct" "Nov" "Dec")))
+      (message "~A ~A ~2,'0D  ~2,'0D:~2,'0D"
+               (aref days (mod dow 7))
+               (aref months (1- month))
+               day hour min))))

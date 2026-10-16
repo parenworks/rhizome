@@ -85,7 +85,7 @@ sudo pacman -S river wayland-protocols wlroots xkbcommon pixman libevdev \
 sudo pacman -S grim slurp wl-clipboard   # screenshots (Print / Shift+Print)
 sudo pacman -S pavucontrol               # volume module click target
 sudo pacman -S nm-connection-editor      # network module click target
-sudo pacman -S foot                      # terminal (Alt+Return)
+sudo pacman -S foot                      # terminal (MOD+Return)
 # Quicklisp: https://www.quicklisp.org/beta/
 #+end_src
 
@@ -154,32 +154,43 @@ On bare metal, river is the primary compositor — no nesting. The WSLg limitati
 
 ** WSLg-specific notes
 
-- Windows hijacks the Super key, so Alt (= :mod1) is used as the modifier
+- Windows hijacks the Super key, so use (stumpway:set-user-mod :alt) under WSLg; on real hardware the default Super modifier applies
 - =WAYLAND_DISPLAY= must be set to =wayland-1= for launched applications
 - Some CFFI string decoding errors from Wayflan can occur with certain window titles (e.g. Emacs dashboard) — handled with =handler-case= around the event dispatch loop
 
 * Keybindings
 
+MOD is the user modifier — Super by default, defined once as =*mod*=
+(config.lisp) and used by every direct binding and the MOD+drag
+pointer grabs. Change it live:
+
+#+begin_src lisp
+(stumpway:set-user-mod :alt)     ; classic StumpWM-on-X11 feel
+(stumpway:set-user-mod :super)   ; the default
+#+end_src
+
 | Key            | Action                              |
 |----------------+-------------------------------------|
-| Alt+Return     | Launch terminal (foot)              |
-| Alt+Q          | Close focused window                |
-| Alt+J          | Focus next window                   |
-| Alt+K          | Focus previous window               |
-| Alt+Space      | Cycle layout (master-stack/even/monocle) |
-| Alt+1..9       | Switch to workspace 1..9               |
-| Alt+Shift+1..9 | Move focused window to workspace N    |
-| Alt+E          | Launch Emacs                        |
-| Alt+D          | Application launcher                |
-| Alt+B          | Toggle the status bar               |
+| MOD+Return     | Launch terminal (foot)              |
+| MOD+Q          | Close focused window                |
+| MOD+J          | Focus next window                   |
+| MOD+K          | Focus previous window               |
+| MOD+Space      | Cycle layout (master-stack/even/monocle) |
+| MOD+1..9       | Switch to workspace 1..9               |
+| MOD+Shift+1..9 | Move focused window to workspace N    |
+| MOD+E          | Launch Emacs                        |
+| MOD+D          | Application launcher                |
+| MOD+B          | Toggle the status bar               |
+| MOD+Left-drag  | Move window (floats tiled windows)   |
+| MOD+Right-drag | Resize window (bottom-right corner)  |
 | Print          | Screenshot (full screen, grim + wl-copy) |
 | Shift+Print    | Screenshot of selected region (slurp) |
-| Alt+;          | Live eval prompt                       |
+| MOD+;          | Live eval prompt                       |
 | Ctrl+T         | Prefix key (StumpWM keychains)          |
-| Alt+Shift+Q    | Power off the machine                  |
-| Alt+Shift+R    | Reboot the machine                     |
+| MOD+Shift+Q    | Power off the machine                  |
+| MOD+Shift+R    | Reboot the machine                     |
 
-** Live eval prompt (Alt+;)
+** Live eval prompt (MOD+;)
 
 A small centered prompt opens; type a Lisp expression and press Enter to
 evaluate it in the *running WM image* — redefine layouts, change state,
@@ -266,12 +277,20 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 | C-t S   | Split frame stacked (top/bottom) |
 | C-t R   | Remove split (merge into sibling) |
 | C-t +/- | Grow/shrink the current split |
-| C-t n/p | Cycle windows in the current frame |
+| C-t Q   | Collapse to one frame (only) |
+| C-t B   | Balance all splits     |
+| C-t n/p | Pull next/previous hidden window into the frame |
+| C-t '   | Select window by number (prompt) |
+| C-t 1-9 | Switch workspace       |
 | C-t N/P | Next/previous workspace|
 | C-t ←↑↓→| Move focus between frames |
-| C-t m ←↑↓→ | Move the focused window to that frame |
+| C-t M ←↑↓→ | Move the focused window to that frame |
+| C-t e ←↑↓→ | Swap windows with that frame (exchange) |
+| C-t a   | Show the time (StumpWM: time) |
+| C-t m   | Redisplay the last message (lastmsg) |
+| C-t F11 | Toggle fullscreen      |
 | C-t h … | Help: b bindings, c command, f function, v variable, k key, w window |
-| C-t q   | Quit stumpway          |
+| C-t q   | Quit (press twice to confirm) |
 
 Escape aborts, an unbound key aborts with a message, and chains
 auto-expire after 5 seconds. Extend with
@@ -288,10 +307,10 @@ else. Messages auto-hide after 3 seconds.
 The generalized input prompt (prompt.lisp) provides filtering and
 selection, powering three interactive clients:
 
-- =Alt+W= — window list: pick by title, jump to the window's
+- =MOD+W= — window list: pick by title, jump to the window's
   workspace and focus it
-- =Alt+G= — workspace picker
-- =Alt+X= — command palette (run any command from the command table)
+- =MOD+G= — workspace picker
+- =MOD+X= — command palette (run any command from the command table)
 
 Type to filter, Up/Down or Tab to select, Enter to complete, Escape to
 cancel. The same engine is available for extensions:
@@ -300,7 +319,7 @@ cancel. The same engine is available for extensions:
 ** Workspaces
 
 Nine StumpWM-style workspaces per output. Windows open on the current
-workspace; =Alt+1..9= switches workspaces, =Alt+Shift+1..9= moves the focused
+workspace; =MOD+1..9= switches workspaces, =MOD+Shift+1..9= moves the focused
 window (and follows it). Windows on other workspaces are hidden and reappear
 on return. The current workspace is shown in the bar's =:workspaces= module
 with the active number highlighted in the accent color. The WM exports its
@@ -349,9 +368,9 @@ targets are plain shell commands — any application works, e.g.:
 The target applications are user choices, not hard dependencies —
 see the optional package list above. The user config file lives at
 ~~/.config/stumpway/config.lisp~; the bar process logs to
-~~/.cache/stumpway/bar.log~. Alt+B toggles the bar.
+~~/.cache/stumpway/bar.log~. MOD+B toggles the bar.
 
-** Native application launcher (Alt+D)
+** Native application launcher (MOD+D)
 
 The launcher is a native Wayland layer-shell overlay — no external process like fzf or rofi needed. It uses =zwlr_layer_shell_v1= + =river_layer_shell_v1= to create a top-layer popup with exclusive keyboard interactivity.
 
@@ -428,8 +447,8 @@ be moved around freely. Stumpway handles these StumpWM-style as floats
   resizes are clamped to the window's own min/max size hints, and a
   float can never be dragged fully off-screen (a ~30px strip stays
   reachable).
-- Alt+Left-drag moves any window — a dragged tiled window floats
-  first, StumpWM-style; Alt+Right-drag resizes from the bottom-right.
+- MOD+Left-drag moves any window — a dragged tiled window floats
+  first, StumpWM-style; MOD+Right-drag resizes from the bottom-right.
 - Floats live on workspaces like everything else: switching hides and
   restores them with the rest.
 
@@ -458,7 +477,7 @@ stumpway/
   prefix.lisp                         — Prefix key engine (Ctrl+T chains)
   message.lisp                        — Transient on-screen messages
   hooks.lisp                          — Event hooks (add-hook / run-hook)
-  eval-prompt.lisp                    — Live eval prompt (Alt+;)
+  eval-prompt.lisp                    — Live eval prompt (MOD+;)
   bar.lisp                            — Configurable status bar / mode-line (own process)
   wm-protocol.lisp                    — Manage/render sequence loop, Wayland connection, registry
   window.lisp                         — Window management (dimensions, focus, borders, auto-focus)
@@ -473,6 +492,9 @@ stumpway/
   launcher.lisp                       — Native layer-shell app launcher (working)
   commands.lisp                       — User command dispatch
   main.lisp                           — Entry point for standalone execution
+  tests/                              — Regression suite (plain SBCL scripts, run
+                                        each with: sbcl --non-interactive --load tests/<name>.lisp
+                                        — see tests/README.md)
   protocol/
     river-window-management-v1.xml    — River window management protocol
     river-xkb-bindings-v1.xml         — River keyboard bindings protocol
@@ -491,19 +513,19 @@ stumpway/
 - [X] Master-stack, even, and monocle layouts
 - [X] Window focus management with auto-focus on new windows
 - [X] Window borders (focused vs unfocused)
-- [X] Keyboard bindings via river-xkb-bindings-v1 (Alt modifier)
-- [X] Focus cycling (Alt+J/K) sorted by window position with wrap-around
-- [X] Layout cycling and switching (Alt+Space)
-- [X] Launch terminal (Alt+Return) and Emacs (Alt+E)
+- [X] Keyboard bindings via river-xkb-bindings-v1 (user modifier: Super by default)
+- [X] Focus cycling (MOD+J/K) sorted by window position with wrap-around
+- [X] Layout cycling and switching (MOD+Space)
+- [X] Launch terminal (MOD+Return) and Emacs (MOD+E)
 - [X] Robust event handling (handler-case around dispatch loop)
 - [X] Tap-to-click + tap-and-drag via river-libinput-config-v1 (1/2/3 finger tap = left/right/middle)
 - [X] Input device discovery via river-input-management-v1 (names, types)
 - [X] Configurable status bar (modules, colors, intervals; ships enabled, can be disabled); the WM reserves its space in the layout math (config-driven — windows never tile under the bar, and frame trees rescale when the bar is toggled, its height changes, or outputs are resized)
 - [X] Clickable bar modules (:on-click / :on-scroll-up / :on-scroll-down shell commands)
-- [X] Workspaces (Alt+1..9, Alt+Shift+1..9 moves window; shown in the bar)
+- [X] Workspaces (MOD+1..9, MOD+Shift+1..9 moves window; shown in the bar)
 - [X] Window rules (:match regex on app-id/title, :workspace, :layout, :follow, :float)
 - [X] Hooks (window creation/closed, focus, layout, workspace, output)
-- [X] Live eval prompt (Alt+; evaluates Lisp in the running WM image)
+- [X] Live eval prompt (MOD+; evaluates Lisp in the running WM image)
 - [X] Floating windows: C-t f toggles the focused window, window rules
       can float apps by regex, titlebar drag moves floats, resizes
       clamp to the window's min/max size hints
@@ -512,10 +534,10 @@ stumpway/
       (C-t +/-), directional frame focus (C-t arrows), moving windows
       between frames (C-t m + arrows), window cycling within frames
       (C-t n/p), and layout names as one-shot tree templates;
-      focus cycling (Alt+J/K) cycles the current frame's windows
-- [X] WM-side pointer bindings: Alt+Left-drag moves the window under
+      focus cycling (MOD+J/K) cycles the current frame's windows
+- [X] WM-side pointer bindings: MOD+Left-drag moves the window under
       the pointer (a dragged tiled window floats first, StumpWM-style),
-      Alt+Right-drag resizes from the bottom-right corner
+      MOD+Right-drag resizes from the bottom-right corner
 - [X] Help system (C-t h): describe-bindings, describe-command,
       describe-function, describe-variable, describe-key (C-t h k,
       waits for the next key), and the focused window's details
@@ -524,7 +546,7 @@ stumpway/
 - [X] wl_compositor, wl_shm, zwlr_layer_shell_v1 binding
 - [X] wl_seat binding with wl_keyboard for raw key events
 - [X] river_layer_shell_v1 protocol binding and output/seat registration
-- [X] Native layer-shell launcher (Alt+D) with:
+- [X] Native layer-shell launcher (MOD+D) with:
   - [X] .desktop file scanning from XDG directories
   - [X] 8x16 bitmap font with full ASCII printable glyphs
   - [X] Direct-to-shm rendering (reuses buffer, no per-frame mmap/munmap)
@@ -553,22 +575,22 @@ manual, 180 commands). Where stumpway stands:
 
 *** Quick wins (small, well-understood)
 
-- [ ] C-t m lastmsg: redisplay the last message; C-t a time message
-- [ ] C-t 1..9 select workspace directly (groups-map parity)
-- [ ] Window numbering: C-t 0..9 select window by number,
-      renumber/repack commands
-- [ ] Fullscreen toggle C-t F11 (river_window_v1.fullscreen request —
-      stumpway only reacts to client requests today)
-- [ ] Frame commands: only (collapse tree to one frame), balance
-      (equalize splits), fclear
-- [ ] exchange-direction: swap windows between frames (C-t x + arrows;
-      move is one-way today)
-- [ ] pull: pull any window (by number, or hidden ones with
-      pull-hidden-next/prev) into the current frame — StumpWM's real
-      C-t n/p semantics
-- [ ] Clipboard commands getsel/putsel via wl-clipboard
-- [ ] suspend/hibernate alongside poweroff/reboot
-- [ ] quit-confirm on C-t q
+- [X] C-t m lastmsg: redisplay the last message; C-t a time message
+- [X] C-t 1..9 select workspace directly (groups-map parity)
+- [X] Window numbering: C-t ' selects by number (prompt), renumber /
+      repack commands, numbers shown in the windowlist
+- [X] Fullscreen toggle C-t F11 (river_window_v1.fullscreen request —
+      stumpway only reacted to client requests before)
+- [X] Frame commands: only (C-t Q collapse to one frame), balance
+      (C-t B equalize splits), fclear (clears the current frame)
+- [X] exchange-direction: swap windows between frames (C-t e + arrows;
+      StumpWM binds C-t x, which stumpway keeps for the command palette)
+- [X] pull: pull any window (by number via stumpway-cmd pull N, or the
+      next/previous hidden window with C-t n/p — StumpWM's real
+      pull-hidden-next/prev semantics)
+- [X] Clipboard commands getsel/putsel/copy-last-message via wl-clipboard
+- [X] suspend/hibernate alongside poweroff/reboot
+- [X] quit-confirm on C-t q
 
 *** Medium
 
@@ -595,7 +617,9 @@ manual, 180 commands). Where stumpway stands:
       matching over window sets
 - [ ] Niri-style scrollable tiling
 - [ ] Fuzzy search in launcher (currently substring match)
-- [ ] Switch modifier from Alt to Super on real hardware
+- [X] Switch modifier from Alt to Super on real hardware: the user
+      modifier is =*mod*= (define once, use many), Super by default,
+      switchable live with =set-user-mod=
 
 *** Not portable to Wayland (skipping, X11-isms)
 
@@ -641,7 +665,7 @@ This project was developed on WSL2/Ubuntu 24.04 as a development environment. To
    #+end_src
 
 6. *Key differences on real hardware*:
-   - Super key (=:mod4=) is available — consider switching from Alt to Super
+   - The default Super (= :mod4) user modifier works out of the box
    - =WAYLAND_DISPLAY= is typically =wayland-0= (not =wayland-1= as in WSLg nesting)
    - No CFFI string decoding errors from nested compositor quirks
    - GPU acceleration works properly for shm buffer rendering

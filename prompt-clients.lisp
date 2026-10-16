@@ -10,7 +10,8 @@ focus it."
          (candidates
            (mapcar
              (lambda (win)
-               (format nil "[~D] ~A"
+               (format nil "~D: [~D] ~A"
+                       (or (window-number win) ?-)
                        (or (window-workspace win) 0)
                        (or (window-title win)
                            (window-app-id win)

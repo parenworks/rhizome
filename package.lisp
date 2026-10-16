@@ -87,7 +87,22 @@
    #:focus-frame-direction
    #:cycle-frame-window
    #:move-window-to-frame-direction
+   #:pull-window-into-current-frame
+   #:pull-hidden-next
+   #:exchange-window-direction
+   #:frame-only
+   #:frame-balance
+   #:frame-clear
    #:set-workspace-tree
+   ;; Window numbers, messages, fullscreen, clipboard
+   #:window-number
+   #:select-window-by-number
+   #:renumber-windows
+   #:lastmsg
+   #:time-message
+   #:toggle-fullscreen
+   #:getsel
+   #:putsel
    ;; Sequence control
    #:request-manage-dirty
    ;; Window access
@@ -103,6 +118,10 @@
    ;; Keybindings
    #:define-key
    #:setup-default-keybindings
+   #:*mod*
+   #:set-user-mod
+   #:*mod-alt*
+   #:*mod-super*
    ;; Configuration
    #:*config*
    #:configure
