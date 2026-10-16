@@ -34,9 +34,13 @@ already showing, replace it."
                     *layer-shell* surface nil :top "stumpway-message")))
             (setf (gethash :layer-surface state) layer-surface)
             (push (lambda (event-name &rest args)
-                    (declare (ignore args))
-                    (when (eq event-name :closed)
-                      (setf *message-state* nil)))
+                    (case event-name
+                      (:configure
+                       (destructuring-bind (serial width height) args
+                         (message-configure-handler
+                           state layer-surface serial width height)))
+                      (:closed
+                       (setf *message-state* nil))))
                   (wl:wl-proxy-hooks layer-surface))
             (rwm:zwlr-layer-surface-v1.set-anchor layer-surface nil)
             (rwm:zwlr-layer-surface-v1.set-size layer-surface

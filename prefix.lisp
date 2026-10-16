@@ -86,9 +86,13 @@ the surface maps and receives keyboard focus."
                 *layer-shell* surface nil :top "stumpway-prefix")))
         (setf (gethash :layer-surface state) layer-surface)
         (push (lambda (event-name &rest args)
-                (declare (ignore args))
-                (when (eq event-name :closed)
-                  (setf *prefix-mode-active* nil)))
+                (case event-name
+                  (:configure
+                   (destructuring-bind (serial width height) args
+                     (prefix-capture-configure
+                       state layer-surface serial width height)))
+                  (:closed
+                   (setf *prefix-mode-active* nil))))
               (wl:wl-proxy-hooks layer-surface))
         ;; Anchor top-left, 1x1, no exclusive zone: invisible
         (rwm:zwlr-layer-surface-v1.set-anchor
