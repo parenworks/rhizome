@@ -77,6 +77,11 @@
    ;; Fuzzy matching
    #:fuzzy-match-p
    #:fuzzy-filter
+   ;; Session management
+   #:lock-screen
+   #:logout-session
+   #:logout-confirm
+   #:start-idle-locker
    ;; Prefix key engine
    #:define-prefix-key
    #:define-keymap-key

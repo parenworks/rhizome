@@ -189,6 +189,8 @@ pointer grabs. Change it live:
 | Ctrl+T         | Prefix key (StumpWM keychains)          |
 | MOD+Shift+Q    | Power off the machine                  |
 | MOD+Shift+R    | Reboot the machine                     |
+| MOD+Shift+L    | Lock the session (see below)           |
+| MOD+Shift+E    | Log out to the greeter (press twice)  |
 
 ** Live eval prompt (MOD+;)
 
@@ -376,6 +378,25 @@ targets are plain shell commands — any application works, e.g.:
               :network (:on-click "nm-connection-editor"))))
 #+end_src
 
+The bar also renders application icons with click actions —
+launcher-style, with real PNG icons decoded and alpha-blended into
+the shm buffer:
+
+#+begin_src lisp
+(stumpway:configure
+  '(:bar (:modules (:left (:layout :windows
+                                (:icons ((:icon "flameshot" :on-click "flameshot gui")
+                                         (:icon "variety" :on-click "variety")
+                                         (:icon "/path/to/custom.png" :on-click "stumpway-cmd lock"))))
+                     :center (:clock)
+                     :right (:volume :network :battery)))))
+#+end_src
+
+=:icon= is an icon name (searched in the hicolor theme directories,
+PNG only) or an absolute path; icons render at 16x16 and each carries
+its own =:on-click= / =:on-scroll-up= / =:on-scroll-down= actions
+through the same hitbox chain as text modules.
+
 The target applications are user choices, not hard dependencies —
 see the optional package list above. The user config file lives at
 ~~/.config/stumpway/config.lisp~; the bar process logs to
@@ -438,6 +459,28 @@ frames holding windows, one visible at a time:
         collect (list win 0 (* i (floor height (length windows)))
                       width (floor height (length windows)))))
 #+end_src
+
+* Session: locking and logging out
+
+The locker is a configurable external program — =swaylock= by default
+(=sudo pacman -S swaylock=; hyprlock and friends work too):
+
+#+begin_src lisp
+(stumpway:configure
+  '(:lock (:command "swaylock"
+           :args ("--daemonize")
+           :idle-seconds 300)))   ; swayidle auto-lock; 0 = off
+#+end_src
+
+MOD+Shift+L locks now; =stumpway-cmd lock= too. With =:idle-seconds=
+set, the WM spawns =swayidle= at startup and locks after that many
+seconds of inactivity.
+
+MOD+Shift+E (or =stumpway-cmd logout=) ends the river session and
+returns to the display manager's greeter — press twice within three
+seconds to confirm. River 0.4.x ships no riverctl, so stumpway
+SIGTERMs the compositor, which triggers its clean shutdown path (the
+WM receives the finished event and exits with it).
 
 * Floating windows
 

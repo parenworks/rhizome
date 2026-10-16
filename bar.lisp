@@ -248,13 +248,127 @@ the segment's base color). Unknown or failing modules render empty."
 
 (defun bar-segment-width (modules)
   "Total pixel width of a module list, including inter-module gaps."
-  (+ (reduce #'+ (mapcar (lambda (module)
-                          (* 8 (reduce #'+ (mapcar (lambda (part)
-                                                     (length (first part)))
-                                                   (bar-module-parts module)))))
-                        modules)
+  (+ (reduce #'+
+             (mapcar (lambda (module)
+                       (if (icons-module-p module)
+                           (bar-icons-width module)
+                           (* 8 (reduce #'+
+                                        (mapcar (lambda (part)
+                                                  (length (first part)))
+                                                (bar-module-parts module))))))
+                     modules)
              :initial-value 0)
      (* *bar-module-gap* (length modules))))
+
+;;; --- Icons module (application icons with click actions) ---
+;;;
+;;; A module spec of the form (:icons (entry ...)) renders each
+;;; entry's icon as a 16x16 image; entries carry their own click
+;;; actions inline:
+;;;
+;;;   (:icons ((:icon "flameshot" :on-click "flameshot gui")
+;;;            (:icon "variety" :on-click "variety")
+;;;            (:icon "/path/to/custom.png" :on-click "stumpway-cmd lock")))
+
+(defparameter *bar-icon-size* 16
+  "Rendered icon size (fits the 20px default bar).")
+(defparameter *bar-icon-cache* (make-hash-table :test 'equal)
+  "Maps icon specs to scaled RGBA data (list width height vector).")
+(defparameter *bar-icon-dirs*
+  '("/usr/share/icons/hicolor/128x128/apps/"
+    "/usr/share/icons/hicolor/64x64/apps/"
+    "/usr/share/icons/hicolor/48x48/apps/"
+    "/usr/share/icons/hicolor/256x256/apps/"
+    "/usr/share/icons/hicolor/scalable/apps/"
+    "/usr/share/pixmaps/")
+  "Icon search order for name specs (PNG only; SVG skipped).")
+
+(defun icons-module-p (module)
+  "Whether MODULE is an icons module spec: (:icons (entry ...))."
+  (and (listp module) (eq (first module) :icons)))
+
+(defun bar-icons-entries (module)
+  "The icon entries of an icons module."
+  (second module))
+
+(defun bar-icons-width (module)
+  "Pixel width of an icons module (icons + inter-icon gaps)."
+  (* (+ *bar-icon-size* 4) (length (bar-icons-entries module))))
+
+(defun find-icon-file (spec)
+  "Resolve an :icon spec — an absolute path, or an icon name searched
+in the standard theme directories (PNG only)."
+  (cond ((and (find #\/ spec) (probe-file spec)) spec)
+        (t (loop for dir in *bar-icon-dirs*
+                 for file = (concatenate 'string dir spec ".png")
+                 when (probe-file file)
+                   return file))))
+
+(defun scale-icon (source-w source-h source-data target-size)
+  "Scale decoded RGBA data to TARGET-SIZE x TARGET-SIZE,
+nearest-neighbor. Returns (width height data)."
+  (let ((out (make-array (* target-size target-size 4)
+                         :element-type '(unsigned-byte 8)
+                         :initial-element 0)))
+    (loop for ty below target-size
+          for sy = (floor (* ty source-h) target-size)
+          do (loop for tx below target-size
+                   for sx = (floor (* tx source-w) target-size)
+                   for sidx = (* (+ (* sy source-w) sx) 4)
+                   for tidx = (* (+ (* ty target-size) tx) 4)
+                   do (loop for c below 4
+                            do (setf (aref out (+ tidx c))
+                                     (row-major-aref source-data (+ sidx c))))))
+    (list target-size target-size out)))
+
+(defun load-icon (spec)
+  "SPEC's icon, decoded and scaled to the bar size; cached. NIL if
+the icon cannot be found or decoded."
+  (or (gethash spec *bar-icon-cache*)
+      (let ((file (find-icon-file spec)))
+        (when file
+          (setf (gethash spec *bar-icon-cache*)
+                (handler-case
+                    (let ((png (pngload:load-file file :flatten t)))
+                      (scale-icon (pngload:width png)
+                                  (pngload:height png)
+                                  (pngload:data png)
+                                  *bar-icon-size*))
+                  (error ()
+                    (setf (gethash spec *bar-icon-cache*) nil))))))))
+
+(defun bar-draw-icons (ptr width height x y module base-r base-g base-b)
+  "Draw an icons module's entries at (X, Y); one hitbox per entry so
+the existing click/scroll chain runs each entry's :on-click /
+:on-scroll-* commands. Returns the x after the module plus gap."
+  (dolist (entry (bar-icons-entries module))
+    (let* ((icon (load-icon (getf entry :icon)))
+           (start x))
+      (when icon
+        (destructuring-bind (iw ih idata) icon
+          (declare (ignore iw))
+          (loop for iy below ih
+                for py = (+ y iy)
+                while (< py height)
+                do (loop for ix below *bar-icon-size*
+                         for px = (+ x ix)
+                         while (< px width)
+                         do (let* ((idx (* (+ (* iy *bar-icon-size*) ix) 4))
+                                   (a (aref idata (+ idx 3)))
+                                   (r (aref idata idx))
+                                   (g (aref idata (+ idx 1)))
+                                   (b (aref idata (+ idx 2))))
+                              (when (plusp a)
+                                (bar-set-pixel
+                                  ptr width px py
+                                  (floor (/ (+ (* a r) (* (- 255 a) base-r)) 255))
+                                  (floor (/ (+ (* a g) (* (- 255 a) base-g)) 255))
+                                  (floor (/ (+ (* a b) (* (- 255 a) base-b))
+                                            255))))))))
+        (incf x *bar-icon-size*)
+        (push (list entry start x) *bar-hitboxes*)))
+    (incf x 4))
+  (+ x *bar-module-gap*))
 
 ;;; --- Rendering ---
 
@@ -314,6 +428,15 @@ Returns the x after the module plus gap."
         (push (list module start end) *bar-hitboxes*)))
     (+ x *bar-module-gap*)))
 
+(defun bar-draw-segment-item (ptr width height x y module fr fg fb br bg bb)
+  "Draw one module of a bar segment (text or icons); returns the x
+after it."
+  (if (icons-module-p module)
+      (bar-draw-icons ptr width height x y module br bg bb)
+      (bar-draw-module ptr width height x y
+                       (bar-module-parts module)
+                       fr fg fb module)))
+
 (defun bar-render (state)
   "Render the bar content into the shm buffer and commit the surface."
   (let* ((ptr (gethash :shm-ptr state))
@@ -334,25 +457,22 @@ Returns the x after the module plus gap."
           ;; Left segment
           (let ((x padding))
             (dolist (module (bar-segment-modules :left))
-              (setf x (bar-draw-module ptr width height x y
-                                        (bar-module-parts module)
-                                        fr fg fb module))))
+              (setf x (bar-draw-segment-item ptr width height x y module
+                                            fr fg fb br bg bb))))
           ;; Center segment
           (let* ((modules (bar-segment-modules :center))
                  (total (bar-segment-width modules))
                  (x (floor (- width total) 2)))
             (dolist (module modules)
-              (setf x (bar-draw-module ptr width height x y
-                                       (bar-module-parts module)
-                                       fr fg fb module))))
+              (setf x (bar-draw-segment-item ptr width height x y module
+                                            fr fg fb br bg bb))))
           ;; Right segment
           (let* ((modules (bar-segment-modules :right))
                  (total (bar-segment-width modules))
                  (x (- width padding total)))
             (dolist (module modules)
-              (setf x (bar-draw-module ptr width height x y
-                                       (bar-module-parts module)
-                                       fr fg fb module)))))))
+              (setf x (bar-draw-segment-item ptr width height x y module
+                                            fr fg fb br bg bb)))))))
     ;; Attach, damage, commit
     (wl:wl-surface.attach (gethash :surface state) (gethash :wl-buffer state) 0 0)
     (wl:wl-surface.damage (gethash :surface state) 0 0 width height)
@@ -505,8 +625,12 @@ last commit. Re-renders are skipped when nothing changed."
 
 (defun bar-module-action (module key)
   "The configured shell command for MODULE's action KEY
-(:on-click, :on-scroll-up, :on-scroll-down), if any."
-  (config-getf (list :modules module) key :default nil))
+(:on-click, :on-scroll-up, :on-scroll-down), if any. Icons-module
+entries carry their actions inline."
+  (cond (;; an icons entry: (:icon "name" :on-click "command" ...)
+         (and (listp module) (getf module :icon))
+         (getf module key))
+        (t (config-getf (list :modules module) key :default nil))))
 
 (defun bar-handle-click (x)
   "Handle a left click at X: run the module's :on-click command."

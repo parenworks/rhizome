@@ -5,12 +5,14 @@
   :depends-on (#:wayflan-client
                #:cl-ppcre
                #:bordeaux-threads
-               #:cffi)
+               #:cffi
+               #:pngload)
   :components
   ((:file "river-protocol")
    (:file "package" :depends-on ("river-protocol"))
    (:file "config" :depends-on ("package"))
    (:file "hooks" :depends-on ("package"))
+   (:file "session" :depends-on ("package" "config" "hooks"))
    (:file "wm-protocol" :depends-on ("package" "config"))
    (:file "window" :depends-on ("wm-protocol"))
    (:file "output" :depends-on ("wm-protocol"))

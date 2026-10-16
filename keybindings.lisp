@@ -308,6 +308,14 @@ the next manage sequence, like set-user-mod."
   (define-key +xkb-key-R+ (append *mod* *mod-shift*)
     (lambda ()
       (reboot-machine)))
+  ;; MOD+Shift+L - lock the session (see the (:lock ...) config)
+  (define-key 76 (append *mod* *mod-shift*)    ; uppercase L
+    (lambda ()
+      (lock-screen)))
+  ;; MOD+Shift+E - log out to the display manager (press twice)
+  (define-key 69 (append *mod* *mod-shift*)    ; uppercase E
+    (lambda ()
+      (logout-confirm)))
 
   ;; MOD+; - live eval prompt (type a Lisp expression, Enter evaluates
   ;; it in the running WM image; Escape cancels)

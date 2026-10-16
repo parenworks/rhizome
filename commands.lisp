@@ -366,6 +366,18 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
   (uiop:launch-program '("systemctl" "hibernate"))
   "hibernating")
 
+(define-command :lock (output args)
+  "Lock the session with the configured locker
+((:lock :command \"swaylock\" :args ...) — sudo pacman -S swaylock)."
+  (declare (ignore output args))
+  (lock-screen)
+  "locking")
+
+(define-command :logout (output args)
+  "End the river session; the display manager's greeter returns."
+  (declare (ignore output args))
+  (logout-confirm))
+
 ;;; --- IPC-facing commands (see ipc.lisp) ---
 
 (define-command :switch-workspace (output args)

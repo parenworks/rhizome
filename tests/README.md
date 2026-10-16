@@ -35,6 +35,9 @@ stubbed river requests. Run with:
   stacking order, enable/disable), WSE expressions (and/or/not/any,
   float/marked/number selectors, :wse window rules), and fuzzy
   matching (subsequence + substring-first ranking).
+- `session-icons.lisp` — session management (lock command building,
+  swayidle arming, logout confirm flow) and the bar icons module
+  (icon discovery, 16x16 scaling, caching, per-entry actions).
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip

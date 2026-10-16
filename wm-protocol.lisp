@@ -388,6 +388,9 @@ window management updates."
       ;; Start the status bar if configured
       (bar-apply-config)
 
+      ;; Idle locker (swayidle) if (:lock :idle-seconds) is set
+      (start-idle-locker)
+
       ;; IPC command socket (stumpish equivalent) and SLIME server
       (when (config-getf '(:ipc) :enabled :default t)
         (start-ipc-server))
