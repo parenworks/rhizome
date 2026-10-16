@@ -60,6 +60,8 @@
    #:workspace-list
    #:command-palette
    #:run-shell-command-prompt
+   #:select-from-menu
+   #:menu
    ;; Prefix key engine
    #:define-prefix-key
    #:define-keymap-key

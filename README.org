@@ -316,7 +316,15 @@ selection, powering three interactive clients:
 - =MOD+X= — command palette (run any command from the command table)
 
 Type to filter, Up/Down or Tab to select, Enter to complete, Escape to
-cancel. The same engine is available for extensions:
+cancel. The same engine is available for extensions — most directly
+through the scripting menu (StumpWM's select-from-menu):
+
+#+begin_src lisp
+;; from config.lisp or the REPL: pop a menu, act on the choice
+(stumpway:select-from-menu "Workspace?"
+  (list (cons "Web"  (lambda () (stumpway:switch-workspace 2)))
+        (cons "Code" (lambda () (stumpway:switch-workspace 3)))))
+#+end_src
 =(stumpway:prompt-open "Title:" :candidates '(...) :on-complete #'f)=.
 
 ** Workspaces
@@ -615,7 +623,10 @@ manual, 180 commands). Where stumpway stands:
 - [X] set-prefix-key: (stumpway:set-prefix-key "C-z") swaps the
       prefix chord live, reinstalling the grab in the next manage
       sequence; parse-key-spec speaks C/M/s/S-t style specs
-- [ ] Menus for scripting (StumpWM menu-definitions)
+- [X] Menus for scripting: select-from-menu (alias menu) pops a
+      type-to-filter menu of (LABEL . ACTION) entries — function
+      actions run on selection, data payloads go to :on-select; the
+      scripting primitive behind windowlist and the palette
 
 *** Bigger
 

@@ -73,3 +73,36 @@ focus it."
                (lambda (command)
                  (message "running: ~A" command)
                  (uiop:launch-program (list "bash" "-c" command)))))
+
+(defun select-from-menu (title items &key on-select)
+  "Pop a type-to-filter selection menu and act on the choice —
+StumpWM's scripting menu (select-from-menu).
+
+ITEMS is a list of labels or (LABEL . ACTION) entries:
+- a cons with a FUNCTION cdr runs the action on selection
+- any other entry (including data payloads) is passed to ON-SELECT
+  if given, otherwise the label is echoed
+
+  (stumpway:select-from-menu \"Workspace?\"
+    (list (cons \"Web\"  (lambda () (switch-workspace 2)))
+          (cons \"Code\" (lambda () (switch-workspace 3)))))"
+  (let* ((labels (mapcar (lambda (item)
+                          (if (consp item)
+                              (string (car item))
+                              (string item)))
+                        items)))
+    (prompt-open title
+                 :candidates labels
+                 :on-complete
+                 (lambda (choice)
+                   (let ((pos (position choice labels :test #'string=)))
+                     (when pos
+                       (let* ((item (nth pos items))
+                              (action (and (consp item) (cdr item))))
+                         (cond ((functionp action) (funcall action))
+                               (on-select (funcall on-select item))
+                               (t (message "~A" choice))))))))))
+
+(defun menu (title items)
+  "Alias for select-from-menu (StumpWM's menu macro flavor)."
+  (select-from-menu title items))

@@ -206,7 +206,36 @@
         *prefix-key-binding* '(122 . (:ctrl)))
     (set-prefix-key "C-banana")
     (ok "bad spec leaves the binding alone"
-        *prefix-key-binding* '(122 . (:ctrl))))
+        *prefix-key-binding* '(122 . (:ctrl)))
+
+    ;; --- Menus for scripting (select-from-menu) ---
+
+    (let ((ran nil)
+          (selected-item nil))
+      ;; Drive the menu by stubbing prompt-open: simulate the user
+      ;; picking the SECOND candidate
+      (setf (symbol-function 'prompt-open)
+            (lambda (title &key candidates on-complete
+                           &allow-other-keys)
+              (declare (ignore title candidates))
+              (funcall on-complete "Code")))
+      ;; (LABEL . function) entries run their action on selection
+      (select-from-menu "Workspace?"
+        (list (cons "Web"  (lambda () (setf ran :web)))
+              (cons "Code" (lambda () (setf ran :code)))))
+      (ok "menu runs the selected action"
+          ran :code)
+      ;; data entries (non-function cdrs) go to on-select
+      (select-from-menu "Pick data"
+        '(("Web" . 2) ("Code" . 3))
+        :on-select (lambda (item) (setf selected-item item)))
+      (ok "menu passes data entries to on-select"
+          selected-item '("Code" . 3))
+      ;; plain strings with no action echo the choice (no crash)
+      (setf selected-item nil)
+      (select-from-menu "Plain" '("one" "two"))
+      (ok "plain-string menus fall back to echoing"
+          selected-item nil)))
 
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
   (unless (zerop fail) (uiop:quit 1)))
