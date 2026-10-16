@@ -510,12 +510,25 @@ last commit. Re-renders are skipped when nothing changed."
 
 (defun bar-handle-click (x)
   "Handle a left click at X: run the module's :on-click command."
-  (let ((module (bar-module-at x)))
+  (let* ((hit (find-if (lambda (hb)
+                         (and (<= (second hb) x)
+                              (< x (third hb))))
+                       *bar-hitboxes*))
+         (module (first hit)))
     (when module
-      (format t "~&; Stumpway: bar: click on ~A~%" module)
-      (let ((command (bar-module-action module :on-click)))
-        (when command
-          (bar-run-command command))))))
+      (cond
+        ;; Workspace numbers: switch to the clicked workspace via IPC
+        ((eq module :workspaces)
+         (let ((workspace (1+ (floor (- x (second hit)) 8))))
+           (when (<= 1 workspace (getf (bar-snapshot) :workspace-count 9))
+             (format t "~&; Stumpway: bar: click workspace ~D~%" workspace)
+             (bar-run-command
+               (format nil "stumpway-cmd switch-workspace ~D" workspace)))))
+        (t
+         (format t "~&; Stumpway: bar: click on ~A~%" module)
+         (let ((command (bar-module-action module :on-click)))
+           (when command
+             (bar-run-command command))))))))
 
 (defun bar-handle-scroll (amount)
   "Handle a vertical scroll gesture over a module."

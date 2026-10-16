@@ -302,6 +302,7 @@ window management updates."
         *window-workspace* (make-hash-table)
         *minimized-windows* (make-hash-table)
         *pending-autofocus* nil
+        *ipc-queue* nil
         *input-manager* nil
         *libinput-config* nil
         *river-input-devices* (make-hash-table)
@@ -368,18 +369,46 @@ window management updates."
       ;; Start the status bar if configured
       (bar-apply-config)
 
-      ;; Main event loop
+      ;; IPC command socket (stumpish equivalent) and SLIME server
+      (when (config-getf '(:ipc) :enabled :default t)
+        (start-ipc-server))
+      (start-swank)
+
+      ;; Main event loop: poll the compositor socket and drain the IPC
+      ;; queue so IPC commands execute on this (main) thread
       (unwind-protect
            (loop while *running* do
              (handler-case
-                 (wl:wl-display-dispatch-event display)
+                 (when (wl:wl-display-listen display)
+                   (wl:wl-display-dispatch-event display))
                (error (e)
-                 (format t "~&; Stumpway: error in event dispatch: ~A~%" e))))
+                 (format t "~&; Stumpway: error in event dispatch: ~A~%" e)))
+             (ipc-drain)
+             (unless (wl:wl-display-listen display)
+               (sleep 0.05)))
         (format t "~&; Stumpway: shutting down~%")
-        (stop-bar))))
+        (stop-bar)
+        (stop-ipc-server))))
 
   (setf *display* nil
         *wm-proxy* nil))
+
+(defun start-swank ()
+  "Start a swank (SLIME) server so the running WM can be driven from
+Emacs. Gated by (:swank :enabled t) in the config; runs in a thread so
+loading swank never delays WM startup."
+  (when (config-getf '(:swank) :enabled :default t)
+    (bt:make-thread
+      (lambda ()
+        (handler-case
+            (let ((port (config-getf '(:swank) :port :default 4005)))
+              (ql:quickload :swank :silent t)
+              (funcall (find-symbol "CREATE-SERVER" "SWANK")
+                       :port port :dont-close t)
+              (format t "~&; Stumpway: swank (SLIME) server on port ~A~%" port))
+          (error (e)
+            (format t "~&; Stumpway: swank failed to start: ~A~%" e))))
+      :name "stumpway-swank")))
 
 (defun stop ()
   "Stop the stumpway event loop."

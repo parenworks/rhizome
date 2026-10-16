@@ -23,4 +23,5 @@
    (:file "eval-prompt" :depends-on ("keybindings" "bar"))
    (:file "bar" :depends-on ("launcher" "config" "wm-protocol"))
    (:file "commands" :depends-on ("keybindings" "launcher"))
-   (:file "main" :depends-on ("commands" "bar"))))
+   (:file "ipc" :depends-on ("commands"))
+   (:file "main" :depends-on ("commands" "bar" "ipc"))))

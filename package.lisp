@@ -45,6 +45,12 @@
    ;; Power
    #:shutdown-machine
    #:reboot-machine
+   ;; IPC (stumpish equivalent) and SLIME
+   #:start-ipc-server
+   #:stop-ipc-server
+   #:ipc-socket-path
+   #:ipc-send-command
+   #:start-swank
    ;; Sequence control
    #:request-manage-dirty
    ;; Window access

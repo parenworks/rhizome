@@ -91,7 +91,10 @@ Returns (values value found-p)."
                        :on-scroll-down "wpctl set-volume @DEFAULT_AUDIO_SINK@ 5%-")
               :network (:interval 10
                         :on-click "nm-connection-editor"))
-    :window-rules ()))
+    :window-rules ()
+    :ipc (:enabled t)
+    :swank (:enabled t
+            :port 4005)))
 
 (defvar *config* (default-config)
   "The current stumpway configuration.")

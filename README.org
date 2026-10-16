@@ -210,6 +210,36 @@ Available hooks: =:window-created= (win), =:window-closed= (win),
 =:workspace-changed= (workspace output), =:output-created= (output).
 Also: =remove-hook=, =clear-hook=, =list-hooks=, =run-hook=.
 
+** IPC — the stumpish equivalent
+
+A Unix domain socket (=$XDG_RUNTIME_DIR/stumpway.sock=) accepts one
+command per line and replies with the result. The =stumpway-cmd= helper
+(in ~~/.local/bin/~) sends commands from the shell or scripts:
+
+#+begin_src bash
+stumpway-cmd current-workspace
+stumpway-cmd switch-workspace 3
+stumpway-cmd "(* 6 7)"          # Lisp forms evaluate in the live image
+stumpway-cmd list-windows
+stumpway-cmd toggle-bar
+stumpway-cmd quit               # stops the WM; river keeps running
+#+end_src
+
+Commands run on the WM's main thread (the socket thread only moves
+bytes), so no Wayland request is ever made from a foreign thread.
+Available commands include everything in the command table
+(switch-workspace, current-workspace, toggle-bar, screenshot,
+list-windows, quit, focus-next/previous, switch-layout) plus arbitrary
+Lisp forms. The bar's workspace numbers use this socket to switch
+workspaces on click.
+
+** SLIME integration
+
+The WM starts a swank server on =127.0.0.1:4005= (configurable via
+=(:swank (:port 4005))=) — =M-x slime-connect= from Emacs gives a REPL
+into the live window manager: redefine layouts, inspect windows, hot-patch
+anything, while it runs. Disable with =(:swank (:enabled nil))=.
+
 ** Workspaces
 
 Nine StumpWM-style workspaces per output. Windows open on the current
@@ -305,6 +335,7 @@ stumpway/
   river-protocol.lisp                 — Wayflan scanner for all protocol XMLs
   package.lisp                        — Package definition and exports
   config.lisp                         — Configuration system (defaults, user file, live overrides)
+  ipc.lisp                            — IPC command socket (stumpish equivalent, stumpway-cmd)
   hooks.lisp                          — Event hooks (add-hook / run-hook)
   eval-prompt.lisp                    — Live eval prompt (Alt+;)
   bar.lisp                            — Configurable status bar / mode-line (own process)

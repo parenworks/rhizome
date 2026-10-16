@@ -78,6 +78,44 @@
              (format t "~&;   ~A~%" name))
            *command-table*))
 
+;;; --- IPC-facing commands (see ipc.lisp) ---
+
+(define-command :switch-workspace (output args)
+  "Switch to workspace N. Usage: switch-workspace <n>"
+  (when args
+    (switch-workspace (first args) output)
+    (format nil "workspace ~A" (first args))))
+
+(define-command :current-workspace (output args)
+  "Report the current workspace number."
+  (declare (ignore args))
+  (format nil "~A" (current-workspace (or output (first (all-outputs))))))
+
+(define-command :toggle-bar (output args)
+  "Toggle the status bar."
+  (declare (ignore output args))
+  (toggle-bar)
+  "ok")
+
+(define-command :screenshot (output args)
+  "Take a screenshot; use arg REGION for a region capture."
+  (declare (ignore output))
+  (take-screenshot :region (and args (string-equal (first args) "region")))
+  "ok")
+
+(define-command :list-windows (output args)
+  "List window titles."
+  (declare (ignore output args))
+  (format nil "~{~A~^, ~}"
+          (mapcar (lambda (win) (or (window-title win) (window-app-id win) "?"))
+                  (all-windows))))
+
+(define-command :quit (output args)
+  "Stop the window manager (the river session keeps running)."
+  (declare (ignore output args))
+  (stop)
+  "stopping")
+
 ;;; --- Power management ---
 
 (defun shutdown-machine ()
