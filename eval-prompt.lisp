@@ -147,6 +147,8 @@ Errors are caught and shown instead of killing the WM."
         *eval-prompt-result-visible* nil
         *eval-prompt-state* (make-hash-table))
   (let ((state *eval-prompt-state*))
+    ;; The render helpers expect the global wl_shm in the state hash
+    (setf (gethash :shm state) *shm*)
     (let ((surface (wl:wl-compositor.create-surface *compositor*)))
       (setf (gethash :surface state) surface)
       (let ((layer-surface

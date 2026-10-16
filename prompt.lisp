@@ -29,6 +29,18 @@ width, height.")
 
 ;;; --- Filtering ---
 
+(defparameter *prompt-expiry* 0
+  "Universal time after which an unattended prompt auto-closes.")
+
+(defun prompt-drain ()
+  "Auto-close an unattended prompt after 30 seconds, so a keyboard-
+exclusive surface can never trap input. Called from the main loop."
+  (when (and *prompt-active*
+             (plusp *prompt-expiry*)
+             (>= (get-universal-time) *prompt-expiry*))
+    (format t "~&; Stumpway: prompt timed out~%")
+    (prompt-close)))
+
 (defun prompt-filtered ()
   "Candidates matching the current query (case-insensitive substring)."
   (let ((query *prompt-query*))
@@ -55,11 +67,13 @@ width, height.")
        (prompt-close))
       ;; Enter — complete with the selection
       ((= keysym 65293)
-       (let ((choice (prompt-selected)))
+       ;; Capture the callback before closing: prompt-close clears it
+       (let* ((choice (prompt-selected))
+              (on-complete *prompt-on-complete*))
          (prompt-close)
-         (when (and choice *prompt-on-complete*)
+         (when (and choice on-complete)
            (handler-case
-               (funcall *prompt-on-complete* choice)
+               (funcall on-complete choice)
              (error (e)
                (format t "~&; Stumpway: prompt complete error: ~A~%" e))))))
       ;; Up / Down / Tab — cycle selection
@@ -169,8 +183,11 @@ ON-COMPLETE is called with the selected string on Enter."
         *prompt-candidates* candidates
         *prompt-selection* 0
         *prompt-on-complete* on-complete
-        *prompt-state* (make-hash-table))
+        *prompt-state* (make-hash-table)
+        *prompt-expiry* (+ (get-universal-time) 30))
   (let ((state *prompt-state*))
+    ;; The render helpers expect the global wl_shm in the state hash
+    (setf (gethash :shm state) *shm*)
     (let ((surface (wl:wl-compositor.create-surface *compositor*)))
       (setf (gethash :surface state) surface)
       (let ((layer-surface
@@ -199,7 +216,8 @@ ON-COMPLETE is called with the selected string on Enter."
   "Close the interactive prompt."
   (unless *prompt-active*
     (return-from prompt-close))
-  (setf *prompt-active* nil)
+  (setf *prompt-active* nil
+        *prompt-expiry* 0)
   (let ((state *prompt-state*))
     (handler-case
         (progn

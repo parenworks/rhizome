@@ -129,12 +129,17 @@
   (push (lambda (event-name &rest args)
           (case event-name
             (:keymap nil)
-            (:enter nil)
-            (:leave nil)
+            (:enter
+             (format t "~&; Stumpway [debug]: keyboard enter surface~%"))
+            (:leave
+             (format t "~&; Stumpway [debug]: keyboard leave surface~%"))
             (:key
              (destructuring-bind (serial time key state) args
                (declare (ignore serial time))
                (let ((keysym (evdev-to-xkb key *keyboard-shift-p*)))
+                 (when *prompt-active*
+                   (format t "~&; Stumpway [debug]: prompt key keysym=~A state=~A~%"
+                           keysym state))
                  (cond
                    ((eq state :pressed)
                     (keyboard-stop-repeat)

@@ -25,6 +25,8 @@ already showing, replace it."
       (message-render text)
       (let ((state (make-hash-table)))
         (setf *message-state* state)
+        ;; The render helpers expect the global wl_shm in the state hash
+        (setf (gethash :shm state) *shm*)
         (let ((surface (wl:wl-compositor.create-surface *compositor*)))
           (setf (gethash :surface state) surface)
           (let ((layer-surface

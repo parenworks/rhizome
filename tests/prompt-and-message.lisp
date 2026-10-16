@@ -15,8 +15,10 @@
                       (format t "~&FAIL: ~A (got ~S, wanted ~S)~%"
                               name actual expected)))))
 
-    ;; Stub the surface-touching functions
-    (dolist (fn '(prompt-redraw prompt-close))
+    ;; Stub only the rendering; prompt-close is safe against a nil
+    ;; state and must run for real — stubbing it once hid a bug where
+    ;; the completion callback was cleared before it could run.
+    (dolist (fn '(prompt-redraw))
       (setf (symbol-function fn)
             (lambda (&rest args) (declare (ignore args)) nil)))
     (setf (symbol-function 'message-hide)
@@ -53,17 +55,23 @@
     (prompt-handle-key 65289)                 ; Tab: wraps to 0
     (ok "tab cycles with wrap" *prompt-selection* 0)
 
-    ;; Enter completes with the selection
+    ;; Enter completes with the selection (real prompt-close runs, so
+    ;; the state hash must exist like it does when a prompt is open)
     (let ((completed :none))
       (setf *prompt-active* t
+            *prompt-state* (make-hash-table)
+            *prompt-expiry* (+ (get-universal-time) 30)
             *prompt-on-complete* (lambda (choice) (setf completed choice)))
       (prompt-handle-key 65364)               ; Down -> "beta"
       (prompt-handle-key 65293)               ; Enter
-      (ok "enter completes with selection" completed "beta"))
+      (ok "enter completes with selection" completed "beta")
+      (ok "enter clears the active flag" *prompt-active* nil)
+      (ok "enter clears the callback" *prompt-on-complete* nil))
 
     ;; Typing filters and resets selection
     (setf *prompt-candidates* '("foo" "bar" "baz") *prompt-query* ""
           *prompt-selection* 2 *prompt-active* t
+          *prompt-state* (make-hash-table)
           *prompt-on-complete* nil)
     (prompt-handle-key 98)                    ; 'b'
     (ok "typing filters candidates"
