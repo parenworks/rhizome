@@ -116,9 +116,12 @@ Restarting running components (e.g. the bar) is handled automatically."
   *config*)
 
 (defun apply-config ()
-  "Apply the current configuration to running components."
-  (when (fboundp 'bar-apply-config)
-    (funcall (symbol-function 'bar-apply-config))))
+  "Apply the current configuration to running components. Never
+runs component restarts inside the bar process (the bar loading the
+user config would otherwise spawn bars — see *bar-process-mode*)."
+  (unless (and (boundp '*bar-process-mode*) *bar-process-mode*)
+    (when (fboundp 'bar-apply-config)
+      (funcall (symbol-function 'bar-apply-config)))))
 
 (defun config-pathname ()
   "Pathname of the user config file."

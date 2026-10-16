@@ -788,9 +788,20 @@ entries carry their actions inline."
         (format t "~&; Stumpway: bar thread error: ~A~%" e)))))
 
 
+(defparameter *bar-process-mode* nil
+  "T in the bar process itself (set by run-bar BEFORE anything else).
+Guards all bar process spawning: the bar loads the user config at
+startup, and any (stumpway:configure ...) in it must never reach
+bar-apply-config — the bar applying config used to spawn another bar,
+which loaded the config and spawned another: exponential bars on
+screen. Only the WM process ever manages bar processes.")
+
 (defun run-bar ()
   "Entry point for the standalone bar process. Loads the user config,
-then runs the bar's connection loop on this process's main thread."
+then runs the bar's connection loop on this process's main thread.
+Runs in *bar-process-mode*: this process never spawns or stops bars,
+no matter what the user config asks for."
+  (setf *bar-process-mode* t)
   (setf *bar-running* t)
   (load-user-config)
   (let ((state (make-hash-table)))
@@ -816,9 +827,18 @@ then runs the bar's connection loop on this process's main thread."
                    (user-homedir-pathname)))
 
 (defun start-bar ()
-  "Start the bar as its own process (no-op if already running)."
+  "Start the bar as its own process (no-op if already running). The
+WM process only — and it first reaps any orphan bars left behind by
+past incidents (they would stack on screen)."
+  (when *bar-process-mode*
+    (return-from start-bar))
   (when (bar-alive-p)
     (return-from start-bar))
+  ;; Reap orphan bar processes: exact-match the run-bar eval, never
+  ;; the WM (its arg is (stumpway:run))
+  (ignore-errors
+    (uiop:run-program '("pkill" "-f" "stumpway:run-bar")
+                      :ignore-error-status t))
   (ensure-directories-exist (bar-log-path))
   (with-open-file (s (bar-log-path) :direction :output
                      :if-exists :supersede))
@@ -833,7 +853,10 @@ then runs the bar's connection loop on this process's main thread."
   (format t "~&; Stumpway: bar started~%"))
 
 (defun stop-bar ()
-  "Stop the bar process."
+  "Stop the bar process. Kills tracked AND orphan bars (the latter
+left by past incidents); WM process only."
+  (when *bar-process-mode*
+    (return-from stop-bar))
   (when (and *bar-process* (uiop:process-alive-p *bar-process*))
     (handler-case
         (uiop:terminate-process *bar-process*)
@@ -841,6 +864,10 @@ then runs the bar's connection loop on this process's main thread."
         (format t "~&; Stumpway: error stopping bar: ~A~%" e))))
   (when *bar-process*
     (ignore-errors (uiop:wait-process *bar-process*)))
+  ;; Reap orphans too (exact-match, never the WM)
+  (ignore-errors
+    (uiop:run-program '("pkill" "-f" "stumpway:run-bar")
+                      :ignore-error-status t))
   (setf *bar-process* nil)
   (format t "~&; Stumpway: bar stopped~%"))
 
@@ -859,6 +886,8 @@ under the bar, their menus hidden behind it)."
 
 (defun toggle-bar ()
   "Toggle the status bar on/off."
+  (when *bar-process-mode*
+    (return-from toggle-bar))
   (if (bar-alive-p)
       (stop-bar)
       (start-bar))
@@ -870,7 +899,12 @@ under the bar, their menus hidden behind it)."
     (request-manage-dirty)))
 
 (defun bar-apply-config ()
-  "Apply the current config to the bar: start, stop or restart as needed."
+  "Apply the current config to the bar: start, stop or restart as
+needed. WM-process only — the bar process itself never manages bar
+processes (see *bar-process-mode*): its config load must not spawn
+bars."
+  (when *bar-process-mode*
+    (return-from bar-apply-config))
   (let ((before (bar-reserved-height)))
     (cond
       ((not (config-getf '(:bar) :enabled :default t))

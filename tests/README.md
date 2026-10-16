@@ -35,6 +35,10 @@ stubbed river requests. Run with:
   stacking order, enable/disable), WSE expressions (and/or/not/any,
   float/marked/number selectors, :wse window rules), and fuzzy
   matching (subsequence + substring-first ranking).
+- `bar-guard.lisp` — the bar fork-bomb regression: the bar process
+  (*bar-process-mode*) must never spawn or stop bars, no matter what
+  the user config asks for; bar-apply-config / toggle-bar / start /
+  stop all refuse there, and start/stop-bar now reap orphan bars.
 - `session-icons.lisp` — session management (lock command building,
   swayidle arming, logout confirm flow) and the bar icons module
   (icon discovery, 16x16 scaling, caching, per-entry actions).
