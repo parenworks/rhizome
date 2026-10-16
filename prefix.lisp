@@ -31,6 +31,10 @@ Escape (StumpWM's command-mode / push-top-map).")
 (defparameter *iresize-active* nil
   "Interactive resize mode (StumpWM's iresize): arrows move the
 current split's dividing line until Enter commits or Escape aborts.")
+(defparameter *expose-active* nil
+  "Expose mode (StumpWM's C-t Return): the workspace's windows float
+into a grid; pick with digits, arrows+Enter, a click, or Escape.
+Layout restoration lives in expose.lisp (stub-redefined here).")
 
 ;;; --- Keymaps ---
 
@@ -125,12 +129,14 @@ the surface maps and receives keyboard focus."
 
 (defun exit-prefix-mode ()
   "End the prefix chain and destroy the capture surface. Clears all
-prefix modes (command mode, iresize)."
+prefix modes (command mode, iresize, expose)."
+  (expose-restore-if-active)
   (setf *prefix-mode-active* nil
         *prefix-current-map* nil
         *prefix-expiry* 0
         *prefix-command-mode* nil
-        *iresize-active* nil)
+        *iresize-active* nil
+        *expose-active* nil)
   (message-hide)
   (let ((state *prefix-state*))
     (when state
@@ -166,6 +172,9 @@ prefix modes (command mode, iresize)."
     ;; iresize: arrows adjust the split until Enter/Esc
     (*iresize-active*
      (iresize-handle-key keysym))
+    ;; expose: digits/arrows pick a window, Enter picks the focused
+    (*expose-active*
+     (expose-handle-key keysym))
     ;; describe-key pending: describe, don't run
     (*prefix-describe-key-pending*
      (setf *prefix-describe-key-pending* nil)
@@ -493,6 +502,22 @@ current split's dividing line until Enter commits or Escape aborts."
   (setf *prefix-expiry* (+ (get-universal-time) 60))
   t)
 
+;;; --- Expose stubs (redefined by expose.lisp, which loads later) ---
+
+(defun enter-expose ()
+  "Float every window on the workspace into a pick grid (StumpWM's
+expose, C-t Return). Placeholder: redefined by expose.lisp."
+  (message "expose unavailable"))
+
+(defun expose-handle-key (keysym)
+  "Placeholder: redefined by expose.lisp."
+  (declare (ignore keysym))
+  nil)
+
+(defun expose-restore-if-active ()
+  "Placeholder: redefined by expose.lisp."
+  nil)
+
 (defun setup-default-prefix-bindings ()
   "The default C-t keymap, mapped onto stumpway's features."
   ;; C-t w — windowlist (StumpWM: windowlist)
@@ -619,6 +644,9 @@ current split's dividing line until Enter commits or Escape aborts."
   ;; C-t C — command mode: sticky prefix until Escape
   (define-prefix-key 67 (lambda () (enter-command-mode))
                          "command mode (sticky prefix)")
+  ;; C-t Return — expose: float everything into a pick grid
+  (define-prefix-key 65293 (lambda () (enter-expose))
+                         "expose window grid (pick: digits/arrows/click)") ; Return
   ;; C-t q — quit, with confirm (StumpWM's quit-confirm)
   (define-prefix-key 113 (lambda () (quit-confirm))
                          "quit stumpway (press twice)"))           ; q

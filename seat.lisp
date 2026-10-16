@@ -70,6 +70,12 @@ a hot reload added the feature."
   (declare (ignore seat type))
   nil)
 
+(defun expose-clicked (win)
+  "A window was clicked (placeholder: redefined by expose.lisp —
+during the expose overview a click picks the window)."
+  (declare (ignore win))
+  nil)
+
 (defclass stumpway-seat ()
   ((proxy          :initarg :proxy          :accessor seat-proxy)
    (wl-seat-name   :initarg :wl-seat-name   :accessor seat-wl-seat-name :initform nil)
@@ -146,6 +152,9 @@ a hot reload added the feature."
            ;; Actually send the focus request (previously only the
            ;; internal slot was updated, so clicks never moved focus).
            (focus-window win seat)
+           ;; Expose: a click during the overview picks the window
+           ;; (redefined by expose.lisp, which loads later)
+           (expose-clicked win)
            (request-manage-dirty)))))
 
     (:op-delta

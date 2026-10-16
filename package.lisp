@@ -90,6 +90,8 @@
    #:enter-command-mode
    #:enter-iresize-mode
    #:which-key-text
+   #:enter-expose
+   #:expose-restore
    #:set-prefix-key
    ;; Window marks
    #:window-marked-p

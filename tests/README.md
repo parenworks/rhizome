@@ -35,6 +35,10 @@ stubbed river requests. Run with:
   stacking order, enable/disable), WSE expressions (and/or/not/any,
   float/marked/number selectors, :wse window rules), and fuzzy
   matching (subsequence + substring-first ranking).
+- `expose.lisp` — the C-t Return window overview: grid geometry
+  (aspect-fit, bar offset), layout round-trip (floats, frame
+  membership, per-frame order, focus), digit/arrow/Return/click
+  picking, and refusal with too few windows.
 - `bar-guard.lisp` — the bar fork-bomb regression: the bar process
   (*bar-process-mode*) must never spawn or stop bars, no matter what
   the user config asks for; bar-apply-config / toggle-bar / start /

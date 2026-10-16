@@ -293,6 +293,7 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 | C-t r   | Interactive resize: arrows until Enter/Esc (iresize) |
 | C-t C   | Command mode: sticky prefix until Escape |
 | C-t #   | Mark/unmark the focused window |
+| C-t RET | Expose: window grid; pick with digits/arrows/click |
 | C-t F11 | Toggle fullscreen      |
 | C-t h … | Help: b bindings, c command, f function, v variable, k key, w window |
 | C-t q   | Quit (press twice to confirm) |
@@ -683,7 +684,13 @@ manual, 180 commands). Where stumpway stands:
 - [ ] Multiple workspace types: StumpWM has tile, floating AND dynamic
       (dwm-style) group types per workspace; stumpway workspaces are
       uniform
-- [ ] Expose-style window overview (C-t RET)
+- [X] Expose-style window overview (C-t Return): every window on the
+      workspace — including ones hidden in monocle frames — floats
+      into an aspect-fitted grid; pick with 1-9/0, arrows + Return,
+      or a click; Escape restores the layout exactly (float geometry,
+      frame membership, per-frame order, focus)
+- [ ] System tray (StatusNotifier/watcher): tray icons for apps like
+      Variety and flameshot in the bar — no tray support today
 - [X] Window selection expressions (WSE, wse.lisp):
       (:and (:app-id \"emacs\") (:title \"docs\")) over app-id,
       title, number, workspace, float, marked, focused; wse-windows /
