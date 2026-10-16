@@ -92,6 +92,7 @@ get its own frame.
   [#cb], [On an empty workspace press MOD+Return twice], [First terminal fills the screen; the second splits it side-by-side],
   [#cb], [MOD+Return again (3rd, 4th, 5th window)], [Each arrival splits the frame you are in along its longer axis; the pointer follows the newest window],
   [#cb], [C-t R (remove split) after several arrivals], [Frames merge pairwise into their sibling; windows stack one-per-frame again],
+  [#cb], [Close windows one by one with several open], [The empty frame is reclaimed: neighbors grow automatically — no manual C-t R needed],
   [#cb], [C-t Q (only) with several frames], [Whole workspace collapses to one frame; all windows in it, cycle with C-t n],
   [#cb], [C-t B (balance) after manual resizing], [Every split returns to 50/50],
   [#cb], [Open 8+ windows], [Splits stop below twice the minimum frame size (no sliver frames); still stable],

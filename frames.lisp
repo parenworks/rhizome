@@ -775,10 +775,55 @@ back into strict StumpWM (one window per frame, hidden behind)."
                 second))
         (frame-push-window win frame))))
 
+(defun frames-preserve-empty-p ()
+  "T when empty frames must be kept for a pending restore: expose
+floats every window off its frame and puts them back afterwards, so
+pruning mid-expose would collapse the tree under the restore."
+  (and (boundp '*expose-active*) (symbol-value '*expose-active*)))
+
+(defun prune-empty-frames (output workspace)
+  "Absorb empty leaf frames into their siblings, dwm-style: when a
+window closes, floats away, or moves workspaces, its neighbors grow
+to fill the vacated space. Leaves merge pairwise — the survivor
+(internal nodes rescaled to keep their split ratios) takes over the
+parent's rectangle and slot. The root frame always survives, so new
+windows always have a place to land."
+  (let ((key (frame-key output workspace)))
+    (loop
+      (let* ((root (gethash key *frame-trees*))
+             (empty (when (and root (frame-first-child root))
+                      (find-if (lambda (leaf)
+                                 (and (null (frame-windows leaf))
+                                      (frame-parent leaf)))
+                               (frame-leaves root)))))
+        (unless empty
+          (return))
+        (let* ((parent (frame-parent empty))
+               (sibling (if (eq (frame-first-child parent) empty)
+                            (frame-second-child parent)
+                            (frame-first-child parent)))
+               (grand (frame-parent parent)))
+          ;; The survivor takes over the parent's rectangle (children
+          ;; rescaled, split ratios preserved) and the parent's slot
+          (frame-set-rect sibling
+                          (frame-x parent) (frame-y parent)
+                          (frame-width parent) (frame-height parent))
+          (setf (frame-parent sibling) grand)
+          (cond (grand
+                 (if (eq (frame-first-child grand) parent)
+                     (setf (frame-first-child grand) sibling)
+                     (setf (frame-second-child grand) sibling)))
+                (t
+                 (setf (gethash key *frame-trees*) sibling)))
+          ;; The current-frame pointer survives: aim it at the survivor
+          (when (eq (gethash key *current-frames*) empty)
+            (setf (gethash key *current-frames*) sibling)))))))
+
 (defun frames-manage-decisions (output workspace wins)
   "Manage-sequence decisions for the workspace's frame tree: clean up
-windows that died or moved, adopt frameless windows into the current
-frame, and propose each leaf's visible window its rectangle."
+windows that died or moved, prune frames emptied by closes (their
+neighbors grow), adopt frameless windows into the current frame, and
+propose each leaf's visible window its rectangle."
   (let* ((root (frame-tree-for output workspace))
          (leaves (frame-leaves root)))
     ;; Drop dead windows and windows whose frame moved elsewhere
@@ -788,6 +833,10 @@ frame, and propose each leaf's visible window its rectangle."
                              (and (gethash (window-proxy win) *windows*)
                                   (eq (window-frame win) leaf)))
                            (frame-windows leaf))))
+    ;; Empty frames reclaim: neighbors absorb them (dwm-style) — but
+    ;; not while expose is mid-flight with everything floated off
+    (unless (frames-preserve-empty-p)
+      (prune-empty-frames output workspace))
     ;; New windows (and frameless ones after a hot reload) open into
     ;; the current frame — splitting it when occupied (dynamic tiling)
     (dolist (win wins)

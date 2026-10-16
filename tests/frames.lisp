@@ -315,13 +315,18 @@
         (ok "window y includes the bar offset"
             (window-y t1) (frame-y (frame-first-child root))))
 
-      ;; A dead window disappears from its frame during manage
+      ;; A dead window disappears from its frame during manage — and
+      ;; now the emptied sibling frame is reclaimed too (dwm-style:
+      ;; neighbors grow), so the tree collapses back to one frame
       (remhash :t2 *windows*)
       (apply-layout-for-output out4)
+      (ok "empty sibling frame reclaimed"
+          (length (frame-leaves (frame-tree-for out4 1))) 1)
       (ok "dead windows pruned from frames"
           (sort (mapcar #'window-proxy
-                        (frame-windows
-                          (frame-first-child (frame-tree-for out4 1))))
+                        (reduce #'append
+                                (frame-leaves (frame-tree-for out4 1))
+                                :key #'frame-windows))
                 #'string<)
           '(:t1 :t3)))
 
@@ -408,6 +413,74 @@
                   (reduce #'+ (frame-leaves (frame-tree-for dyn 6))
                           :key (lambda (f) (length (frame-windows f)))))
             (list 1 3))))
+
+    ;; --- Close reclaim: empty frames absorb into siblings ---
+
+    (let* ((pr (make-instance 'stumpway-output :proxy :pr-out
+                             :width 1920 :height 1080))
+           (p1 (make-instance 'stumpway-window :proxy :pr1))
+           (p2 (make-instance 'stumpway-window :proxy :pr2))
+           (p3 (make-instance 'stumpway-window :proxy :pr3))
+           (p4 (make-instance 'stumpway-window :proxy :pr4)))
+      (setf (gethash :pr1 *windows*) p1
+            (gethash :pr2 *windows*) p2
+            (gethash :pr3 *windows*) p3
+            (gethash :pr4 *windows*) p4)
+      (dolist (win (list p1 p2 p3 p4))
+        (setf (window-output win) pr))
+      (assign-window-workspace p1 9)
+      (assign-window-workspace p2 9)
+      (assign-window-workspace p3 9)
+      (assign-window-workspace p4 9)
+      (setf (gethash pr *output-workspace*) 9)
+      (dolist (win (list p1 p2 p3 p4))
+        (frames-manage-decisions pr 9 (list win)))
+      (ok "four dynamic windows, four frames"
+          (length (frame-leaves (frame-tree-for pr 9))) 4)
+
+      ;; close the newest window: its frame absorbs into its sibling
+      (remhash :pr4 *windows*)
+      (frames-manage-decisions pr 9 '())
+      (ok "closed window's frame is reclaimed"
+          (length (frame-leaves (frame-tree-for pr 9))) 3)
+      (ok "survivors keep their windows"
+          (sort (mapcar #'window-proxy
+                        (reduce #'append
+                                (frame-leaves (frame-tree-for pr 9))
+                                :key #'frame-windows))
+                #'string<)
+          '(:PR1 :PR2 :PR3))
+
+      ;; close a leaf whose sibling is INTERNAL: the internal node
+      ;; takes over, its subtree rescaled with ratios preserved
+      (remhash :pr1 *windows*)
+      (frames-manage-decisions pr 9 '())
+      (ok "internal sibling takes over the parent's rect"
+          (list (length (frame-leaves (frame-tree-for pr 9)))
+                (frame-width (frame-tree-for pr 9)))
+          '(2 1920))
+
+      ;; close everything: the tree collapses but the root survives
+      (remhash :pr2 *windows*)
+      (remhash :pr3 *windows*)
+      (frames-manage-decisions pr 9 '())
+      (ok "empty workspace keeps its root frame"
+          (list (length (frame-leaves (frame-tree-for pr 9)))
+                (frame-windows (frame-tree-for pr 9)))
+          '(1 nil))
+
+      ;; a NEW window (fresh object, like river delivers) lands in
+      ;; the reclaimed root and fills it
+      (let ((p5 (make-instance 'stumpway-window :proxy :pr5)))
+        (setf (gethash :pr5 *windows*) p5
+              (window-output p5) pr)
+        (assign-window-workspace p5 9)
+        (frames-manage-decisions pr 9 (list p5))
+        (ok "new window fills the reclaimed root"
+            (list (length (frame-leaves (frame-tree-for pr 9)))
+                  (frame-width (frame-tree-for pr 9))
+                  (eq (window-frame p5) (frame-tree-for pr 9)))
+            '(1 1920 t))))
 
     ;; --- Bar reservation and tree refitting ---
 

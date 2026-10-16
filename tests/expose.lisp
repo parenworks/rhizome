@@ -195,6 +195,24 @@
 
       ;; --- Too few windows ---
 
+      ;; --- Expose guards the frame tree against pruning ---
+      ;; A manage pass can arrive mid-expose (request-manage-dirty
+      ;; from expose-begin): every window is floated off its frame,
+      ;; and pruning the now-empty tree would destroy the layout
+      ;; expose-restore is about to put back.
+      (expose-begin out 3)
+      (setf *expose-active* t)
+      (frames-manage-decisions out 3 '())
+      (ok "manage pass mid-expose does not collapse the tree"
+          (>= (length (frame-leaves (frame-tree-for out 3))) 2)
+          t)
+      (expose-restore (first wins))
+      (ok "layout survives an interleaved manage pass"
+          (mapcar #'window-proxy
+                  (sort (copy-list (all-windows)) #'string<
+                        :key #'window-proxy))
+          '(:E0 :E1 :E2 :E3))
+
       (remhash :E1 *windows*)
       (remhash :E2 *windows*)
       (remhash :E3 *windows*)
