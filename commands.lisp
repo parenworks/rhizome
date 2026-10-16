@@ -14,11 +14,18 @@
 (defvar *command-table* (make-hash-table)
   "Maps command keywords to handler functions.")
 
+(defvar *command-docs* (make-hash-table)
+  "Maps command keywords to their docstrings (describe-command).")
+
 (defmacro define-command (name (output args) &body body)
-  "Define a user command handler."
-  `(setf (gethash ,name *command-table*)
-         (lambda (,output ,args)
-           ,@body)))
+  "Define a user command handler. A leading docstring is captured for
+describe-command."
+  `(progn
+     (setf (gethash ,name *command-table*)
+           (lambda (,output ,args)
+             ,@body))
+     (when (and (first ',body) (stringp (first ',body)))
+       (setf (gethash ,name *command-docs*) (first ',body)))))
 
 (defun execute-command (output command args)
   "Execute a user command on OUTPUT."
@@ -26,6 +33,21 @@
     (if handler
         (funcall handler output args)
         (format t "~&; Stumpway: unknown command ~A~%" command))))
+
+(defun describe-command-prompt ()
+  "Prompt for a command name and show its documentation."
+  (prompt-open "Describe command"
+              :candidates
+              (sort (loop for k being the hash-keys of *command-table*
+                          collect (string-downcase (string k)))
+                    #'string<)
+              :on-complete
+              (lambda (name)
+                (let* ((k (find-symbol (string-upcase name) :keyword))
+                       (doc (and k (gethash k *command-docs*))))
+                  (if doc
+                      (message "~A: ~A" name doc)
+                      (message "~A: no documentation" name))))))
 
 ;;; --- Built-in commands --
 

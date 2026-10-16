@@ -265,9 +265,12 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 | C-t s   | Split frame side-by-side |
 | C-t S   | Split frame stacked (top/bottom) |
 | C-t R   | Remove split (merge into sibling) |
+| C-t +/- | Grow/shrink the current split |
 | C-t n/p | Cycle windows in the current frame |
 | C-t N/P | Next/previous workspace|
 | C-t ←↑↓→| Move focus between frames |
+| C-t m ←↑↓→ | Move the focused window to that frame |
+| C-t h … | Help: b bindings, c command, f function, v variable, k key, w window |
 | C-t q   | Quit stumpway          |
 
 Escape aborts, an unbound key aborts with a message, and chains
@@ -425,6 +428,8 @@ be moved around freely. Stumpway handles these StumpWM-style as floats
   resizes are clamped to the window's own min/max size hints, and a
   float can never be dragged fully off-screen (a ~30px strip stays
   reachable).
+- Alt+Left-drag moves any window — a dragged tiled window floats
+  first, StumpWM-style; Alt+Right-drag resizes from the bottom-right.
 - Floats live on workspaces like everything else: switching hides and
   restores them with the rest.
 
@@ -503,10 +508,19 @@ stumpway/
       can float apps by regex, titlebar drag moves floats, resizes
       clamp to the window's min/max size hints
 - [X] Frame trees (the StumpWM layout model): per-workspace recursive
-      frame trees with user splits (C-t s/S), merge (C-t R),
-      directional frame focus (C-t arrows), window cycling within
-      frames (C-t n/p), and layout names as one-shot tree templates;
+      frame trees with user splits (C-t s/S), merge (C-t R), resize
+      (C-t +/-), directional frame focus (C-t arrows), moving windows
+      between frames (C-t m + arrows), window cycling within frames
+      (C-t n/p), and layout names as one-shot tree templates;
       focus cycling (Alt+J/K) cycles the current frame's windows
+- [X] WM-side pointer bindings: Alt+Left-drag moves the window under
+      the pointer (a dragged tiled window floats first, StumpWM-style),
+      Alt+Right-drag resizes from the bottom-right corner
+- [X] Help system (C-t h): describe-bindings, describe-command,
+      describe-function, describe-variable, describe-key (C-t h k,
+      waits for the next key), and the focused window's details
+- [X] Window rules can place apps on a specific output (:output 1-based
+      index) in addition to workspaces/layouts/floats
 - [X] wl_compositor, wl_shm, zwlr_layer_shell_v1 binding
 - [X] wl_seat binding with wl_keyboard for raw key events
 - [X] river_layer_shell_v1 protocol binding and output/seat registration
@@ -523,12 +537,7 @@ stumpway/
 
 ** Not started
 
-- [ ] Interactive split resize (C-t +/- style; resize-split command works today)
-- [ ] Move/copy window to the frame in a direction (C-t m style)
-- [ ] Window rules (programmatically place specific apps on specific outputs)
 - [ ] Niri-style scrollable tiling
-- [ ] WM-side pointer bindings (Alt+drag to move any window; client-requested titlebar drags already work for floats)
-- [ ] Inspectable everything (describe window, inspect output, eval expressions)
 - [ ] Fuzzy search in launcher (currently substring match)
 - [ ] Switch modifier from Alt to Super on real hardware
 

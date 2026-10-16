@@ -229,6 +229,10 @@ handlers should make window management requests here."
   ;; Install keybindings if not yet installed
   (install-keybindings-if-needed)
 
+  ;; Enable the Alt+drag pointer bindings (defined in seat.lisp,
+  ;; which loads later — same forward reference as keybindings)
+  (enable-pointer-bindings-if-needed)
+
   (maphash (lambda (output-proxy output)
              (declare (ignore output-proxy))
              (format t "~&; Stumpway [debug]: output ~A dims ~Ax~A~%"

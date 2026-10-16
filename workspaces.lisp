@@ -110,7 +110,8 @@ because they are on another workspace.")
 ;;;   (stumpway:configure
 ;;;     '(:window-rules ((:match "vivaldi" :workspace 2 :follow t)
 ;;;                      (:match "emacs" :workspace 3 :layout :monocle)
-;;;                      (:match "gimp" :float t))))
+;;;                      (:match "gimp" :float t)
+;;;                      (:match "steam" :output 2))))
 
 (defun window-rule-matches-p (win rule)
   "Whether WIN matches RULE's :match regex."
@@ -130,19 +131,31 @@ because they are on another workspace.")
                                      candidate)))
                candidates))))
 
+(defun all-outputs-sorted ()
+  "Outputs in stable left-to-right, top-to-bottom order."
+  (sort (all-outputs)
+        #'<
+        :key (lambda (o) (+ (* (output-y o) 65536) (output-x o)))))
+
 (defun apply-window-rules (win)
-  "Apply the first matching window rule to WIN: assign its workspace,
-optionally switch the output's layout and/or follow the window.
-Returns the matched rule, if any."
+  "Apply the first matching window rule to WIN: assign its workspace
+or output, optionally switch the output's layout and/or follow the
+window. Returns the matched rule, if any."
   (dolist (rule (config-get '(:window-rules)))
     (when (window-rule-matches-p win rule)
       (let ((workspace (getf rule :workspace))
             (layout (getf rule :layout))
             (follow (getf rule :follow))
-            (float (getf rule :float)))
+            (float (getf rule :float))
+            (output-index (getf rule :output)))
         (when float
           ;; GIMP-style: never in the tiling (see floating.lisp)
           (float-window win))
+        (when (and output-index
+                   (nth (1- output-index) (all-outputs-sorted)))
+          ;; Place on a specific output (1-based index)
+          (setf (window-output win)
+                (nth (1- output-index) (all-outputs-sorted))))
         (when workspace
           (assign-window-workspace win workspace)
           (setf (window-minimized-p win) nil))

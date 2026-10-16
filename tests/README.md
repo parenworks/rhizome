@@ -18,6 +18,9 @@ stubbed river requests. Run with:
 - `frames.lisp` — frame tree operations: splits, merges, resizes,
   directional focus, cycling, tree construction from rectangles,
   layout templates, and manage/render integration.
+- `parity.lisp` — Alt+drag pointer bindings (drag floats tiled
+  windows), the C-t h help system, describe-key, move-window-to-frame,
+  and `:output` window rules.
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip

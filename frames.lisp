@@ -277,6 +277,26 @@ windows, the nearest one takes keyboard focus."
             (focus-window win seat))))
       (request-manage-dirty))))
 
+(defun move-window-to-frame-direction (output workspace direction)
+  "Move the focused window to the frame in DIRECTION (StumpWM's
+move-window): it becomes the target frame's visible window and keeps
+keyboard focus. Floats stay put (they are not in the tiling)."
+  (let* ((root (frame-tree-for output workspace))
+         (leaves (frame-leaves root))
+         (target (frame-at-direction (current-frame-for output workspace)
+                                     direction leaves))
+         (win (find-if #'window-focused-p (all-windows))))
+    (cond ((null win) (message "no focused window"))
+          ((window-floating-p win) (message "floats are not in the tiling"))
+          ((null target) (message "no frame ~A" direction))
+          ((eq (window-frame win) target) (message "already in that frame"))
+          (t
+           (frame-remove-window win)
+           (frame-push-window win target)
+           (dolist (seat (all-seats))
+             (focus-window win seat))
+           (request-manage-dirty)))))
+
 (defun cycle-frame-window (output workspace &optional (delta 1))
   "Cycle the visible window of the current frame by DELTA (+1/-1).
 With a single window this is a no-op."
@@ -365,28 +385,31 @@ Falls back to a single frame when RECTS aren't a valid partition."
          (width (output-width output))
          (height (max 0 (- (output-height output)
                           (bar-reserved-height)))))
+    ;; Floats are not part of the tiling: take everyone out of the
+    ;; old tree, then distribute the tiled windows across the new one
     (dolist (win windows) (frame-remove-window win))
-    (cond (tree
-           (let ((leaves (frame-leaves tree)))
-             (let ((rest windows))
-               (dolist (leaf leaves)
+    (let ((tiled (remove-if #'window-floating-p windows)))
+      (cond (tree
+             (let ((leaves (frame-leaves tree)))
+               (let ((rest tiled))
+                 (dolist (leaf leaves)
+                   (when rest
+                     (frame-push-window (pop rest) leaf)))
                  (when rest
-                   (frame-push-window (pop rest) leaf)))
-               (when rest
-                 (let ((last (first (last leaves))))
-                   (setf (frame-windows last)
-                         (append (frame-windows last) rest))
-                   (dolist (win rest) (setf (window-frame win) last)))))
-             (setf (gethash key *frame-trees*) tree
-                   (gethash key *current-frames*) (first leaves))))
-          (t
-           ;; Not a guillotine partition (gaps/overlaps in a custom
-           ;; layout): one frame holding everything.
-           (let ((root (make-frame :width width :height height)))
-             (dolist (win windows)
-               (frame-push-window win root))
-             (setf (gethash key *frame-trees*) root
-                   (gethash key *current-frames*) root))))))
+                   (let ((last (first (last leaves))))
+                     (setf (frame-windows last)
+                           (append (frame-windows last) rest))
+                     (dolist (win rest) (setf (window-frame win) last)))))
+               (setf (gethash key *frame-trees*) tree
+                     (gethash key *current-frames*) (first leaves))))
+            (t
+             ;; Not a guillotine partition (gaps/overlaps in a custom
+             ;; layout): one frame holding everything.
+             (let ((root (make-frame :width width :height height)))
+               (dolist (win tiled)
+                 (frame-push-window win root))
+               (setf (gethash key *frame-trees*) root
+                     (gethash key *current-frames*) root)))))))
 
 ;;; --- Manage/render sequence integration ---
 

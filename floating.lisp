@@ -41,6 +41,11 @@ floated from its tiling position must not jump). Explicit :x :y
         (window-float-height win) (or height
                                       (when (plusp (window-height win))
                                         (window-height win))))
+  ;; Leave the frame tree: a float must not be laid out as tiled
+  (let ((frame (window-frame win)))
+    (when frame
+      (setf (frame-windows frame) (remove win (frame-windows frame))
+            (window-frame win) nil)))
   (message "floated: ~A" (or (window-title win) (window-app-id win) "window"))
   (request-manage-dirty))
 
@@ -196,13 +201,46 @@ exclude them from its hide logic."
 ;;; --- Interactive move/resize (river pointer ops) ---
 
 (defun float-op-request (win seat type &optional edges)
-  "A client asked to move/resize WIN interactively (titlebar drag).
-op-start-pointer is a manage-sequence request, so record the request
-here and start the op in the next manage pass. Floating windows only:
-dragging the tiling is a no-op."
+  "A client asked to move/resize WIN interactively (titlebar drag, or
+an Alt+drag binding). op-start-pointer is a manage-sequence request,
+so record the request here and start the op in the next manage pass.
+Floating windows only: dragging the tiling is a no-op."
   (when (and (window-floating-p win) (gethash (window-proxy win) *windows*))
     (setf (seat-op-pending seat)
           (list :win win :type type :edges edges))))
+
+(defun window-at-pointer (seat)
+  "The window under the pointer: the focused window if the pointer is
+inside it, else the topmost float, else any window containing the
+point."
+  (let ((px (seat-pointer-x seat)) (py (seat-pointer-y seat)))
+    (flet ((inside-p (win)
+             (and (gethash (window-proxy win) *windows*)
+                  (not (window-minimized-p win))
+                  (>= px (window-x win))
+                  (< px (+ (window-x win) (window-width win)))
+                  (>= py (window-y win))
+                  (< py (+ (window-y win) (window-height win))))))
+      (let ((focused (find-if #'window-focused-p (all-windows))))
+        (or (and focused (inside-p focused) focused)
+            (find-if (lambda (w) (and (window-floating-p w) (inside-p w)))
+                     (all-windows))
+            (find-if #'inside-p (all-windows)))))))
+
+(defun pointer-drag-start (seat type)
+  "An Alt+drag began on SEAT: StumpWM behavior — dragging a tiled
+window floats it first — then an interactive move/resize op starts
+(the river pointer-op protocol; see float-op-manage-pass). Alt+Right
+resizes from the classic bottom-right corner."
+  (let ((win (window-at-pointer seat)))
+    (when win
+      (dolist (s (all-seats))
+        (focus-window win s))
+      (unless (window-floating-p win)
+        (float-window win))
+      (float-op-request win seat type
+                        (if (eq type :resize) '(:bottom :right) nil))
+      (request-manage-dirty))))
 
 (defun float-op-manage-pass ()
   "Advance interactive float ops during a manage sequence: start

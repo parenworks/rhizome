@@ -86,6 +86,7 @@
    #:resize-current-split
    #:focus-frame-direction
    #:cycle-frame-window
+   #:move-window-to-frame-direction
    #:set-workspace-tree
    ;; Sequence control
    #:request-manage-dirty
