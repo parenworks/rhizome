@@ -240,6 +240,25 @@ The WM starts a swank server on =127.0.0.1:4005= (configurable via
 into the live window manager: redefine layouts, inspect windows, hot-patch
 anything, while it runs. Disable with =(:swank (:enabled nil))=.
 
+** Message window and interactive prompts
+
+Transient on-screen messages (the StumpWM message-window equivalent):
+workspace switches echo their number, =stumpway-cmd= results appear
+briefly on screen, and =(stumpway:message "fmt" args)= shows anything
+else. Messages auto-hide after 3 seconds.
+
+The generalized input prompt (prompt.lisp) provides filtering and
+selection, powering three interactive clients:
+
+- =Alt+W= — window list: pick by title, jump to the window's
+  workspace and focus it
+- =Alt+G= — workspace picker
+- =Alt+X= — command palette (run any command from the command table)
+
+Type to filter, Up/Down or Tab to select, Enter to complete, Escape to
+cancel. The same engine is available for extensions:
+=(stumpway:prompt-open "Title:" :candidates '(...) :on-complete #'f)=.
+
 ** Workspaces
 
 Nine StumpWM-style workspaces per output. Windows open on the current
@@ -336,6 +355,9 @@ stumpway/
   package.lisp                        — Package definition and exports
   config.lisp                         — Configuration system (defaults, user file, live overrides)
   ipc.lisp                            — IPC command socket (stumpish equivalent, stumpway-cmd)
+  prompt.lisp                         — Generalized input prompt (filtering, selection)
+  prompt-clients.lisp                 — Windowlist, workspace picker, command palette
+  message.lisp                        — Transient on-screen messages
   hooks.lisp                          — Event hooks (add-hook / run-hook)
   eval-prompt.lisp                    — Live eval prompt (Alt+;)
   bar.lisp                            — Configurable status bar / mode-line (own process)

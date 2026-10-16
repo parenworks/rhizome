@@ -40,22 +40,47 @@ drains the command queue — mirroring the WM's poll loop."
     (let ((out (make-instance 'stumpway-output :proxy :test-out)))
       (setf (gethash :test-out *outputs*) out)
 
-      ;; Socket round-trip
-      (cffi:foreign-funcall "unlink" :string (ipc-socket-path) :int)
-      (stop-ipc-server)
-      (setf *ipc-thread* nil *ipc-fd* nil)
-      (start-ipc-server)
-      (sleep 0.2)
+      ;; Socket round-trip on a THROWAWAY path: never touch the real
+      ;; stumpway.sock, which may belong to a running WM!
+      (let ((path "/tmp/stumpway-test.sock"))
+        (cffi:foreign-funcall "unlink" :string path :int)
+        (stop-ipc-server)
+        (setf *ipc-thread* nil *ipc-fd* nil)
+        (start-ipc-server path)
+        (sleep 0.2)
 
-      (ok "socket round-trip eval"
-          (send-and-drain "(+ 40 2)") "42")
-      (ok "socket round-trip command"
-          (send-and-drain "switch-workspace 4") "workspace 4")
-      (ok "socket round-trip state changed"
-          (send-and-drain "current-workspace") "4")
+        (ok "socket round-trip eval"
+            (let ((reply :pending))
+              (bt:make-thread
+                (lambda () (setf reply (ipc-send-command path "(+ 40 2)")))
+                :name "test-ipc-client")
+              (loop while (eq reply :pending)
+                    do (ipc-drain) (sleep 0.01))
+              reply)
+            "42")
+        (ok "socket round-trip command"
+            (let ((reply :pending))
+              (bt:make-thread
+                (lambda ()
+                  (setf reply (ipc-send-command path "switch-workspace 4")))
+                :name "test-ipc-client")
+              (loop while (eq reply :pending)
+                    do (ipc-drain) (sleep 0.01))
+              reply)
+            "workspace 4")
+        (ok "socket round-trip state changed"
+            (let ((reply :pending))
+              (bt:make-thread
+                (lambda ()
+                  (setf reply (ipc-send-command path "current-workspace")))
+                :name "test-ipc-client")
+              (loop while (eq reply :pending)
+                    do (ipc-drain) (sleep 0.01))
+              reply)
+            "4")
 
-      (stop-ipc-server)
-      (cffi:foreign-funcall "unlink" :string (ipc-socket-path) :int)
+        (stop-ipc-server)
+        (cffi:foreign-funcall "unlink" :string path :int))
       (remhash :test-out *outputs*)))
 
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)

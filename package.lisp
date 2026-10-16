@@ -51,6 +51,14 @@
    #:ipc-socket-path
    #:ipc-send-command
    #:start-swank
+   ;; Interactive prompt and message window
+   #:prompt-open
+   #:prompt-close
+   #:show-message
+   #:message
+   #:windowlist
+   #:workspace-list
+   #:command-palette
    ;; Sequence control
    #:request-manage-dirty
    ;; Window access

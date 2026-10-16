@@ -17,6 +17,9 @@
 ;;;   Alt+B        - toggle the status bar
 ;;;   Print        - screenshot of full screen (grim)
 ;;;   Shift+Print  - screenshot of selected region (grim + slurp)
+;;;   Alt+W        - window list (pick, jump to window)
+;;;   Alt+G        - workspace picker
+;;;   Alt+X        - command palette
 ;;;   Alt+Shift+Q  - power off the machine
 ;;;   Alt+Shift+R  - reboot the machine
 ;;;   Alt+;        - live eval prompt (evaluate Lisp in the running WM)
@@ -58,6 +61,9 @@
   (defconstant +xkb-key-Print+   65377)    ; #xff61
   (defconstant +xkb-key-Semicolon+ 59)      ; #x003b
   (defconstant +xkb-key-R+       114)      ; #x0072
+  (defconstant +xkb-key-W+       119)      ; #x0077
+  (defconstant +xkb-key-G+       103)      ; #x0067
+  (defconstant +xkb-key-X+       120)      ; #x0078
   (defconstant +xkb-key-Escape+  65307))   ; #xff1b
 
 ;;; --- Modifier bitfield constants ---
@@ -221,6 +227,16 @@ a manage sequence."
           (toggle-bar)
         (error (e)
           (format t "~&; Stumpway: bar error: ~A~%" e)))))
+
+  ;; Alt+W - window list (pick a window, jump to it)
+  ;; Alt+G - workspace picker
+  ;; Alt+X - command palette
+  (define-key +xkb-key-W+ *mod-alt*
+    (lambda () (windowlist)))
+  (define-key +xkb-key-G+ *mod-alt*
+    (lambda () (workspace-list)))
+  (define-key +xkb-key-X+ *mod-alt*
+    (lambda () (command-palette)))
 
   ;; Alt+Shift+Q - power off the machine
   ;; Alt+Shift+R - reboot the machine

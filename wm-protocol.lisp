@@ -384,6 +384,7 @@ window management updates."
                (error (e)
                  (format t "~&; Stumpway: error in event dispatch: ~A~%" e)))
              (ipc-drain)
+             (message-drain)
              (unless (wl:wl-display-listen display)
                (sleep 0.05)))
         (format t "~&; Stumpway: shutting down~%")

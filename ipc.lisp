@@ -48,12 +48,16 @@ package; otherwise it is NAME ARGS..., looked up in *command-table*."
     (cond
       ((zerop (length line)) "")
       ((char= (char line 0) #\()
-       (handler-case
-           (let ((*package* (find-package "STUMPWAY")))
-             (format nil "~{~A~^ ~}"
-                     (multiple-value-list (eval (read-from-string line)))))
-         (error (e)
-           (format nil "error: ~A" e))))
+       (let ((result
+               (handler-case
+                   (let ((*package* (find-package "STUMPWAY")))
+                     (format nil "~{~A~^ ~}"
+                             (multiple-value-list
+                               (eval (read-from-string line)))))
+                 (error (e)
+                   (format nil "error: ~A" e)))))
+         (show-message result 1)
+         result))
       (t
        (let* ((tokens (cl-ppcre:split "\\s+" line))
               (command (intern (string-upcase (first tokens)) :keyword))
@@ -64,11 +68,15 @@ package; otherwise it is NAME ARGS..., looked up in *command-table*."
               (handler (gethash command *command-table*)))
          (cond
            (handler
-             (handler-case
-                 (let ((result (funcall handler (first (all-outputs)) args)))
-                   (format nil "~A" (or result "")))
-               (error (e)
-                 (format nil "error: ~A" e))))
+             (let ((result
+                     (handler-case
+                         (let ((r (funcall handler (first (all-outputs))
+                                                args)))
+                           (format nil "~A" (or r "")))
+                       (error (e)
+                         (format nil "error: ~A" e)))))
+               (show-message result 1)
+               result))
            (t
              (format nil "unknown command: ~A (try: ~{~A~^ ~})"
                      command (sort (loop for k being the hash-keys of *command-table*
@@ -149,11 +157,11 @@ main thread by the queued thunk."
     (error (e)
       (format t "~&; Stumpway: ipc accept loop ended: ~A~%" e))))
 
-(defun start-ipc-server ()
-  "Start the IPC command socket."
+(defun start-ipc-server (&optional (path (ipc-socket-path)))
+  "Start the IPC command socket on PATH (the default location unless
+given)."
   (when *ipc-thread* (return-from start-ipc-server))
-  (let* ((path (ipc-socket-path))
-         (fd (%ipc-socket)))
+  (let ((fd (%ipc-socket)))
     (when (< fd 0)
       (format t "~&; Stumpway: ipc: cannot create socket~%")
       (return-from start-ipc-server))

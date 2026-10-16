@@ -139,7 +139,10 @@
                    ((eq state :pressed)
                     (keyboard-stop-repeat)
                     (cond
-                      ;; Live eval prompt consumes keys first
+                      ;; Interactive prompt consumes keys first
+                      ((and *prompt-active* keysym)
+                       (prompt-handle-key keysym))
+                      ;; Live eval prompt next
                       ((and *eval-prompt-active* keysym)
                        (eval-prompt-handle-key keysym))
                       ((and *launcher-active* keysym)
