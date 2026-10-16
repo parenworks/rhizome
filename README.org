@@ -175,6 +175,7 @@ On bare metal, river is the primary compositor — no nesting. The WSLg limitati
 | Print          | Screenshot (full screen, grim + wl-copy) |
 | Shift+Print    | Screenshot of selected region (slurp) |
 | Alt+;          | Live eval prompt                       |
+| Ctrl+T         | Prefix key (StumpWM keychains)          |
 | Alt+Shift+Q    | Power off the machine                  |
 | Alt+Shift+R    | Reboot the machine                     |
 
@@ -239,6 +240,34 @@ The WM starts a swank server on =127.0.0.1:4005= (configurable via
 =(:swank (:port 4005))=) — =M-x slime-connect= from Emacs gives a REPL
 into the live window manager: redefine layouts, inspect windows, hot-patch
 anything, while it runs. Disable with =(:swank (:enabled nil))=.
+
+** Prefix key (Ctrl+T) — StumpWM-style keychains
+
+River's keybindings are single-key+modifier registrations, so multi-key
+chains cannot be one binding. Stumpway solves this StumpWM-style: the
+prefix (Ctrl+T) is a normal binding; pressing it opens an invisible
+keyboard-exclusive capture surface, and follow-up keys dispatch through
+a client-side keymap state machine (prefix.lisp) — the same wl_keyboard
+path the interactive prompts use. A transient "C-t -" message shows the
+chain is active.
+
+Default chains (the StumpWM classics, mapped to stumpway features):
+
+| Chain   | Action                 |
+|---------+------------------------|
+| C-t w   | Window list            |
+| C-t g   | Workspace picker       |
+| C-t x   | Command palette        |
+| C-t :   | Live eval prompt       |
+| C-t !   | Shell command prompt   |
+| C-t b   | Toggle the bar         |
+| C-t n/p | Next/previous workspace|
+| C-t q   | Quit stumpway          |
+
+Escape aborts, an unbound key aborts with a message, and chains
+auto-expire after 5 seconds. Extend with
+=(stumpway:define-prefix-key keysym thunk)= or nested keymaps via
+=define-keymap-key= for deeper chains (C-t h k style).
 
 ** Message window and interactive prompts
 
@@ -357,6 +386,7 @@ stumpway/
   ipc.lisp                            — IPC command socket (stumpish equivalent, stumpway-cmd)
   prompt.lisp                         — Generalized input prompt (filtering, selection)
   prompt-clients.lisp                 — Windowlist, workspace picker, command palette
+  prefix.lisp                         — Prefix key engine (Ctrl+T chains)
   message.lisp                        — Transient on-screen messages
   hooks.lisp                          — Event hooks (add-hook / run-hook)
   eval-prompt.lisp                    — Live eval prompt (Alt+;)

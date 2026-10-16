@@ -23,6 +23,7 @@
    (:file "prompt" :depends-on ("bar" "workspaces"))
    (:file "message" :depends-on ("bar"))
    (:file "prompt-clients" :depends-on ("prompt" "message" "ipc"))
+   (:file "prefix" :depends-on ("prompt-clients" "keybindings"))
    (:file "eval-prompt" :depends-on ("keybindings" "bar"))
    (:file "bar" :depends-on ("launcher" "config" "wm-protocol"))
    (:file "commands" :depends-on ("keybindings" "launcher"))

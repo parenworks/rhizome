@@ -59,6 +59,12 @@
    #:windowlist
    #:workspace-list
    #:command-palette
+   #:run-shell-command-prompt
+   ;; Prefix key engine
+   #:define-prefix-key
+   #:define-keymap-key
+   #:enter-prefix-mode
+   #:exit-prefix-mode
    ;; Sequence control
    #:request-manage-dirty
    ;; Window access

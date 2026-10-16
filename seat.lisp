@@ -144,7 +144,10 @@
                    ((eq state :pressed)
                     (keyboard-stop-repeat)
                     (cond
-                      ;; Interactive prompt consumes keys first
+                      ;; Prefix key chains (C-t ...) consume keys first
+                      ((and *prefix-mode-active* keysym)
+                       (prefix-handle-key keysym))
+                      ;; Interactive prompt next
                       ((and *prompt-active* keysym)
                        (prompt-handle-key keysym))
                       ;; Live eval prompt next

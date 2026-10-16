@@ -5,6 +5,7 @@
 ;;; keysyms and modifiers, and trigger callbacks when pressed.
 ;;;
 ;;; Default bindings (StumpWM-style, with Alt as prefix):
+;;;   Ctrl+T       - prefix key (StumpWM-style keychains)
 ;;;   Alt+Return   - launch terminal (foot)
 ;;;   Alt+Q        - close focused window
 ;;;   Alt+J        - focus next window
@@ -62,6 +63,7 @@
   (defconstant +xkb-key-Semicolon+ 59)      ; #x003b
   (defconstant +xkb-key-R+       114)      ; #x0072
   (defconstant +xkb-key-W+       119)      ; #x0077
+  (defconstant +xkb-key-T+       116)      ; #x0074
   (defconstant +xkb-key-G+       103)      ; #x0067
   (defconstant +xkb-key-X+       120)      ; #x0078
   (defconstant +xkb-key-Escape+  65307))   ; #xff1b
@@ -227,6 +229,15 @@ a manage sequence."
           (toggle-bar)
         (error (e)
           (format t "~&; Stumpway: bar error: ~A~%" e)))))
+
+  ;; Ctrl+T - prefix key (StumpWM-style keychains, see prefix.lisp):
+  ;;   C-t w windowlist | C-t g workspace picker | C-t x command palette
+  ;;   C-t : eval       | C-t ! shell command    | C-t b toggle bar
+  ;;   C-t n/p next/prev workspace | C-t q quit stumpway
+  (define-key +xkb-key-T+ *mod-ctrl*
+    (lambda ()
+      (enter-prefix-mode)))
+  (setup-default-prefix-bindings)
 
   ;; Alt+W - window list (pick a window, jump to it)
   ;; Alt+G - workspace picker

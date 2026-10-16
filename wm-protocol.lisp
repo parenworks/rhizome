@@ -386,6 +386,7 @@ window management updates."
              (ipc-drain)
              (message-drain)
              (prompt-drain)
+             (prefix-drain)
              (unless (wl:wl-display-listen display)
                (sleep 0.05)))
         (format t "~&; Stumpway: shutting down~%")

@@ -61,3 +61,13 @@ focus it."
                  (lambda (choice)
                    (message "~A"
                             (ipc-dispatch-line choice))))))
+
+(defun run-shell-command-prompt ()
+  "Prompt for a shell command and run it in the background
+(StumpWM's C-t ! equivalent)."
+  (prompt-open "Shell:"
+               :candidates nil
+               :on-complete
+               (lambda (command)
+                 (message "running: ~A" command)
+                 (uiop:launch-program (list "bash" "-c" command)))))
