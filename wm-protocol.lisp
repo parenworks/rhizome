@@ -49,7 +49,13 @@
                    (user-homedir-pathname)))
 
 (defun bar-write-snapshot (snapshot)
-  "Persist the WM snapshot for the bar process (atomic write)."
+  "Persist the WM snapshot for the bar process (atomic write).
+Rename over the target directly: POSIX rename replaces atomically,
+so the bar can never see a missing or half-written file (the old
+delete-then-rename had a window where the file didn't exist — the
+bar read the empty fallback, re-rendered, and each bar commit
+opened a new river sequence: a render->snapshot->bar->render
+feedback storm)."
   (handler-case
       (let ((tmp (merge-pathnames #P".cache/stumpway/snapshot.sexp.tmp"
                                   (user-homedir-pathname))))
@@ -57,10 +63,7 @@
         (with-open-file (s tmp :direction :output
                            :if-exists :supersede)
           (write snapshot :stream s))
-        (let ((target (snapshot-pathname)))
-          (when (probe-file target)
-            (delete-file target))
-          (rename-file tmp target)))
+        (rename-file tmp (snapshot-pathname) :if-exists :supersede))
     (error (e)
       (declare (ignore e))
       nil)))
@@ -72,17 +75,22 @@ cycle (which would fight the user for focus).")
 
 (defun update-wm-snapshot ()
   "Refresh the snapshot read by the bar thread. Called from the WM
-thread during manage and render sequences."
-  (setf *wm-snapshot*
-        (list :layout (let ((outs (all-outputs)))
-                        (when outs (output-current-layout (first outs))))
-              :windows (hash-table-count *windows*)
-              :workspace (let ((outs (all-outputs)))
-                          (when outs (current-workspace (first outs))))
-              :workspace-count *workspace-count*
-              :focused (let ((focused (find-if #'window-focused-p (all-windows))))
-                         (when focused (window-title focused)))))
-  (bar-write-snapshot *wm-snapshot*))
+thread during manage and render sequences. Writes only when the
+snapshot actually changed: rewriting the file on every render pass
+kept the bar re-reading and re-committing its surface, which river
+answered with another sequence — a self-sustaining churn."
+  (let ((snapshot
+          (list :layout (let ((outs (all-outputs)))
+                          (when outs (output-current-layout (first outs))))
+                :windows (hash-table-count *windows*)
+                :workspace (let ((outs (all-outputs)))
+                             (when outs (current-workspace (first outs))))
+                :workspace-count *workspace-count*
+                :focused (let ((focused (find-if #'window-focused-p (all-windows))))
+                           (when focused (window-title focused))))))
+    (unless (equal snapshot *wm-snapshot*)
+      (setf *wm-snapshot* snapshot)
+      (bar-write-snapshot snapshot))))
 
 ;;; --- Sequence state machine --
 ;;;
@@ -122,8 +130,17 @@ One of :idle, :managing, :waiting-render, :rendering.")
     ((string= interface "wl_compositor")
      (let ((iface-class (wl:find-interface-named interface)))
        (when iface-class
-         (setf *compositor* (wl:wl-registry.bind registry name iface-class version))
-         (format t "~&; Stumpway: bound wl_compositor (version ~D)~%" version))))
+         ;; Cap at version 5: wl_surface v6 added the
+         ;; preferred_buffer_scale / preferred_buffer_transform
+         ;; events, which our wayflan bindings cannot demarshal —
+         ;; river sending them desynchronizes the whole event
+         ;; stream (every layer-surface configure rolled the dice
+         ;; on a desync; the scroll-mode toggle hit the fatal one).
+         ;; Binding at v5 suppresses them: the protocol only sends
+         ;; events the bound version defines.
+         (let ((v (min version 5)))
+           (setf *compositor* (wl:wl-registry.bind registry name iface-class v))
+           (format t "~&; Stumpway: bound wl_compositor (version ~D)~%" v)))))
     ((string= interface "wl_shm")
      (let ((iface-class (wl:find-interface-named interface)))
        (when iface-class

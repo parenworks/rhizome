@@ -172,6 +172,13 @@ arrivals as new columns right after the focused one."
                     (append (subseq columns 0 pos)
                             (list win)
                             (subseq columns pos))))))
+        ;; Propose every column its rectangle: river sizes windows
+        ;; from manage-sequence proposals, so without these the
+        ;; columns keep their old frame-mode size and overlap
+        (let ((ch (scroll-content-height output))
+              (cw (getf state :column-width)))
+          (dolist (win (getf state :columns))
+            (propose-window-dimensions win cw ch)))
         (let ((columns (getf state :columns)))
           (when columns
             ;; Focus recovery: when the focused column closed, its
