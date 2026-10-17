@@ -40,6 +40,11 @@ stubbed river requests. Run with:
   column geometry, viewport clamping, focus-follows-visibility,
   close-pruning with focus recovery, arrivals next to focus, floats
   leaving the ribbon, toggling, and pipeline dispatch routing.
+- `dbus.lisp` — the pure-CL DBus wire layer: marshalling roundtrips
+  for every wire type (including the header a(yv) array), then LIVE
+  integration against the real session bus: SASL auth, Hello,
+  ListNames, RequestName/GetNameOwner round-trip, Properties.Get on
+  the broker, and the reader thread.
 - `expose.lisp` — the C-t Return window overview: grid geometry
   (aspect-fit, bar offset), layout round-trip (floats, frame
   membership, per-frame order, focus), digit/arrow/Return/click

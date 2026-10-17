@@ -694,7 +694,45 @@ manual, 180 commands). Where stumpway stands:
       or a click; Escape restores the layout exactly (float geometry,
       frame membership, per-frame order, focus)
 - [ ] System tray (StatusNotifier/watcher): tray icons for apps like
-      Variety and flameshot in the bar — no tray support today
+      Variety and flameshot in the bar — no tray support today.
+      Status: the DBus foundation is DONE — =dbus.lisp= speaks the
+      DBus wire protocol in PURE CL (see "A note on dependencies"
+      below); 14 tests green including live auth + Hello +
+      RequestName + Properties.Get against the real session bus.
+      Remaining: the StatusNotifierWatcher service (register items,
+      emit signals), the bar tray module (icons + clicks), and menu
+      support (dbusmenu -> our select-from-menu).
+
+* A note on dependencies: why we implement DBus ourselves
+
+Stumpway stays a pure Common Lisp application — the DBus wire
+protocol is implemented locally in =dbus.lisp= (SASL EXTERNAL auth,
+signature parsing, alignment-aware marshalling, message framing,
+reader thread with reply matching), reusing the same minimal CFFI
+socket shims as =ipc.lisp=.
+
+Why not an existing library? Death's =dbus= (the only pure-CL client
+on Quicklisp) was evaluated first and rejected:
+1. *It does not build here* — its iolib dependency fails its CFFI
+   grovel step (=lfp.h= missing) on this system, so it cannot even
+   be loaded.
+2. *It is client-oriented* — hosting a service (owning a well-known
+   name, receiving method calls, emitting signals), which is exactly
+   what a StatusNotifierWatcher needs, is beyond its comfortable
+   envelope.
+3. *Dependency philosophy* — pulling iolib/babel/cxml/ieee-floats
+   for functionality we can implement in ~700 lines contradicts the
+   zero-quicklisp-deps rule =cos=, =filters= and =ipc.lisp= already
+   follow (UTF-8 and IEEE-754 doubles are local too).
+
+The implementation was pinned byte-for-byte against gdbus's actual
+wire traffic (captured via an LD_PRELOAD write interposer) —
+including two real-world subtleties the spec does not make obvious:
+the SASL BEGIN line must end =\r\n= (a bare =\n= leaves
+dbus-broker mid-handshake and it silently drops everything after),
+and an array's declared length must NOT include the final element's
+alignment padding (that padding belongs to the enclosing message;
+dbus-broker rejects the padded form).
 - [X] Window selection expressions (WSE, wse.lisp):
       (:and (:app-id \"emacs\") (:title \"docs\")) over app-id,
       title, number, workspace, float, marked, focused; wse-windows /
