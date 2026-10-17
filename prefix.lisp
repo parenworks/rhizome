@@ -644,6 +644,10 @@ expose, C-t Return). Placeholder: redefined by expose.lisp."
   ;; C-t C — command mode: sticky prefix until Escape
   (define-prefix-key 67 (lambda () (enter-command-mode))
                          "command mode (sticky prefix)")
+  ;; C-t l — cycle the workspace group type (tile/scroll/floating)
+  (define-prefix-key 108
+                     (lambda () (cycle-workspace-type))
+                     "cycle group type (tile/scroll/floating)")  ; l
   ;; C-t v — toggle the niri-style scroll ribbon
   (define-prefix-key 118
                      (lambda () (scroll-toggle (first (all-outputs))))

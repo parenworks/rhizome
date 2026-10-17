@@ -295,6 +295,7 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 | C-t #   | Mark/unmark the focused window |
 | C-t RET | Expose: window grid; pick with digits/arrows/click |
 | C-t v   | Toggle the niri-style scroll ribbon |
+| C-t l   | Cycle group type: tile / scroll / floating |
 | C-t , / . | Focus ribbon column left / right (viewport follows) |
 | MOD+, / . | Scroll the ribbon viewport (half a screen) |
 | C-t F11 | Toggle fullscreen      |

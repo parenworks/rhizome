@@ -304,6 +304,25 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
   (declare (ignore args))
   (scroll-viewport-right output))
 
+(define-command :group-type (output args)
+  "Report the current workspace's group type."
+  (declare (ignore args))
+  (workspace-type output (current-workspace output)))
+
+(define-command :set-group-type (output args)
+  "Set the current workspace's group type: tile, scroll or floating."
+  (let ((type (and args (first args))))
+    (set-workspace-type output (current-workspace output)
+                        (cond ((string= type "tile") :tile)
+                              ((string= type "scroll") :scroll)
+                              ((string= type "floating") :floating)
+                              (t type)))))
+
+(define-command :cycle-group-type (output args)
+  "Cycle the group type: tile -> scroll -> floating -> tile (C-t l)."
+  (declare (ignore args))
+  (cycle-workspace-type output))
+
 (define-command :balance (output args)
   "Equalize every split in the workspace (StumpWM: balance-frames)."
   (declare (ignore args))

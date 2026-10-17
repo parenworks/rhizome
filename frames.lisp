@@ -745,6 +745,26 @@ output dimensions change."
 
 ;;; --- Manage/render sequence integration ---
 
+;;; --- Group-type stubs (redefined by groups.lisp, which loads later) ---
+
+(defun floating-workspace-p (output workspace)
+  "T while the workspace's group type floats every window.
+Placeholder: redefined by groups.lisp."
+  (declare (ignore output workspace))
+  nil)
+
+(defun float-adopt-window (win output workspace)
+  "Placeholder: redefined by groups.lisp."
+  (declare (ignore win output workspace))
+  nil)
+
+;; Keep the compiler from deriving the stubs' NULL return type into
+;; the adoption dispatch (a stub defined earlier in the same file
+;; would otherwise bake an impossible-branch check into the compiled
+;; caller, and the real definition's T return would trip it).
+(declaim (ftype (function (t t) t) floating-workspace-p)
+         (ftype (function (t t t) t) float-adopt-window))
+
 (defun frame-adopt-window (win output workspace)
   "Adopt a frameless WIN into the tiling. Dynamic tiling by default:
 if the current frame is occupied, split it first so every new window
@@ -838,10 +858,13 @@ propose each leaf's visible window its rectangle."
     (unless (frames-preserve-empty-p)
       (prune-empty-frames output workspace))
     ;; New windows (and frameless ones after a hot reload) open into
-    ;; the current frame — splitting it when occupied (dynamic tiling)
+    ;; the current frame — splitting it when occupied (dynamic
+    ;; tiling) — or cascade-float on a floating group-type workspace
     (dolist (win wins)
       (unless (window-frame win)
-        (frame-adopt-window win output workspace)))
+        (if (floating-workspace-p output workspace)
+            (float-adopt-window win output workspace)
+            (frame-adopt-window win output workspace))))
     ;; Each frame proposes its rectangle for its visible window
     (dolist (leaf leaves)
       (let ((win (frame-current-window leaf)))

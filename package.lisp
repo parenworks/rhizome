@@ -100,6 +100,9 @@
    #:scroll-focus-right
    #:scroll-viewport-left
    #:scroll-viewport-right
+   #:workspace-type
+   #:set-workspace-type
+   #:cycle-workspace-type
    #:set-prefix-key
    ;; Window marks
    #:window-marked-p

@@ -204,6 +204,14 @@ Placeholder: redefined by scroll.lisp."
   (declare (ignore output))
   nil)
 
+;; Same guard as frames.lisp's group stubs: a stub's derived NULL
+;; return type must not poison the compiled dispatch sites that the
+;; real definitions (returning T) will execute.
+(declaim (ftype (function (t t) t) scroll-workspace-p)
+         (ftype (function (t t t) t) scroll-manage-decisions
+                                 scroll-render-decisions)
+         (ftype (function (t) t) scroll-exit-if-active scroll-toggle))
+
 (defun scroll-toggle (output)
   "Placeholder: redefined by scroll.lisp."
   (declare (ignore output))

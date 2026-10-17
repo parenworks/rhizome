@@ -72,12 +72,13 @@ done
   [frames (57)], [Tree ops, dynamic tiling, dumps, refits], [#cb],
   [expose (22)], [Grid, pick paths, exact restore], [#cb],
   [scroll (27)], [Ribbon geometry, clamping, focus recovery], [#cb],
+  [groups (11)], [Group types, floating adoption, cycling], [#cb],
   [bigger1 (27)], [Minor modes, WSE, fuzzy], [#cb],
   [session-icons (25)], [Lock/logout commands, bar icons], [#cb],
   [the rest (152)], [Everything else, per README], [#cb],
 )
 
-Total: 376 checks. If any fail, stop — manual testing is pointless
+Total: 387 checks. If any fail, stop — manual testing is pointless
 on a broken base.
 
 = Feature circuits
@@ -141,6 +142,18 @@ get its own frame.
   [#cb], [Float a column window (C-t f)], [It leaves the ribbon (column count drops); the float renders and drags normally],
   [#cb], [C-t v again], [Back to the dynamic tiler; windows re-split into frames as if the ribbon never happened],
   [#cb], [C-t Return (expose) while scrolled], [The overview works over columns; restore returns to the ribbon exactly],
+)
+
+== D3. Group types (C-t l)
+
+#table(
+  columns: (auto, 1fr, 1fr),
+  [ ], [Action], [Expected],
+  [#cb], [C-t l with tiled windows], [The ribbon appears (tile -> scroll); message names the type],
+  [#cb], [C-t l again], [Everything floats in a cascade (scroll -> floating); message names the type],
+  [#cb], [Open a new window while floating], [It arrives floated, cascaded below the existing floats — not tiled],
+  [#cb], [C-t l a third time], [Back to dynamic tiling (floating -> tile); windows re-split into frames],
+  [#cb], [`stumpway-cmd set-group-type floating` then back with `tile`], [Direct type sets behave like the cycle legs],
 )
 
 == E. Floats and pointer operations
