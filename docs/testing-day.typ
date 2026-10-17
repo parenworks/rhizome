@@ -71,12 +71,13 @@ done
   [Suite], [What it covers], [Result],
   [frames (57)], [Tree ops, dynamic tiling, dumps, refits], [#cb],
   [expose (22)], [Grid, pick paths, exact restore], [#cb],
+  [scroll (27)], [Ribbon geometry, clamping, focus recovery], [#cb],
   [bigger1 (27)], [Minor modes, WSE, fuzzy], [#cb],
   [session-icons (25)], [Lock/logout commands, bar icons], [#cb],
-  [the rest (179)], [Everything else, per README], [#cb],
+  [the rest (152)], [Everything else, per README], [#cb],
 )
 
-Total: 335 checks. If any fail, stop — manual testing is pointless
+Total: 376 checks. If any fail, stop — manual testing is pointless
 on a broken base.
 
 = Feature circuits
@@ -125,6 +126,21 @@ get its own frame.
   [#cb], [Escape], [Layout and focus restore to pre-expose state exactly — float positions, frame order, focus],
   [#cb], [Wait 60s mid-expose], [Timeout restores safely on its own],
   [#cb], [One window only: C-t Return], ["nothing to expose" message, no state change],
+)
+
+== D2. The scroll ribbon (C-t v, niri-style)
+
+#table(
+  columns: (auto, 1fr, 1fr),
+  [ ], [Action], [Expected],
+  [#cb], [C-t v with 2-3 windows open], [Windows become full-height columns in their tiling order; the bar's layout module reads "scroll"; a message reports the column count],
+  [#cb], [C-t . / C-t , (period/comma)], [Focus moves one column over; the viewport scrolls the minimum distance to keep the focused column fully visible],
+  [#cb], [MOD+. / MOD+,], [Viewport scrolls alone in half-screen steps, clamped at both ribbon ends; focus unchanged; the scroll-x message appears],
+  [#cb], [Open a new window while scrolled], [It enters as a new column immediately right of the focused one and gets focus],
+  [#cb], [Close the focused window while scrolled], [Its column is pruned; focus falls to the vacated slot's successor, not the first column],
+  [#cb], [Float a column window (C-t f)], [It leaves the ribbon (column count drops); the float renders and drags normally],
+  [#cb], [C-t v again], [Back to the dynamic tiler; windows re-split into frames as if the ribbon never happened],
+  [#cb], [C-t Return (expose) while scrolled], [The overview works over columns; restore returns to the ribbon exactly],
 )
 
 == E. Floats and pointer operations
@@ -244,6 +260,23 @@ Exercise expose, splits, and workspace switches while the video plays.
 
 = Advanced circuits (if the morning goes well)
 
+- *Stability — protocol stream (the freeze fix):* open and close the
+  launcher, show messages (C-t m), open prompts (MOD+W) repeatedly —
+  10+ popups. Then check the log:
+  `grep -c "Malformed" ~/.cache/stumpway/stumpway.log` — reads 0
+  after the v5 compositor cap (any non-zero number means the
+  desync is back; stop and report).
+- *Stability — the snapshot storm (the freeze fix):* with the bar
+  running and windows open, run
+  `ls -l --time-style=+%s ~/.cache/stumpway/snapshot.sexp` twice,
+  10 seconds apart — the mtime must be IDENTICAL while nothing
+  changes (a bumping mtime at idle = the bar feedback storm).
+  Also: `tail -f ~/.cache/stumpway/stumpway.log` should be quiet
+  at idle — a stream of MANAGE-START lines at idle is the storm.
+- *Stability — scroll gauntlet:* toggle C-t v, wait 10s (the
+  message expiry), toggle back, wait 10s. The laptop must stay
+  responsive and the log quiet; this exact sequence froze the
+  machine before commit b1e7996.
 - *Hot-reload resilience:* `(stumpway:configure '(:bar (:height 26)))`
   from `stumpway-cmd`, then `ql:quickload` a changed file via the eval
   prompt (C-t :). The WM should survive; note any stuck mode or lost
