@@ -67,7 +67,9 @@
   (defconstant +xkb-key-T+       116)      ; #x0074
   (defconstant +xkb-key-G+       103)      ; #x0067
   (defconstant +xkb-key-X+       120)      ; #x0078
-  (defconstant +xkb-key-Escape+  65307))   ; #xff1b
+  (defconstant +xkb-key-Escape+  65307)   ; #xff1b
+  (defconstant +xkb-key-Comma+   44)       ; #x002c
+  (defconstant +xkb-key-Period+  46))      ; #x002e
 
 ;;; --- Modifier bitfield constants ---
 ;;; Wayflan expects bitfield enums as lists of keywords. The
@@ -203,6 +205,12 @@ the next manage sequence, like set-user-mod."
     (lambda ()
       (format t "~&; Stumpway: launching terminal~%")
       (uiop:launch-program '("foot"))))
+
+  ;; MOD+, / MOD+. - scroll the ribbon viewport (niri-style)
+  (define-key +xkb-key-Comma+ *mod*
+    (lambda () (scroll-viewport-left)))
+  (define-key +xkb-key-Period+ *mod*
+    (lambda () (scroll-viewport-right)))
 
   ;; MOD+Q - close focused window
   (define-key +xkb-key-Q+ *mod*

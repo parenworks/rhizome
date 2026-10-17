@@ -35,6 +35,11 @@ stubbed river requests. Run with:
   stacking order, enable/disable), WSE expressions (and/or/not/any,
   float/marked/number selectors, :wse window rules), and fuzzy
   matching (subsequence + substring-first ranking).
+- `scroll.lisp` — the niri-style ribbon: enter/exit transitions
+  (frame order becomes column order, dynamic re-adoption on exit),
+  column geometry, viewport clamping, focus-follows-visibility,
+  close-pruning with focus recovery, arrivals next to focus, floats
+  leaving the ribbon, toggling, and pipeline dispatch routing.
 - `expose.lisp` — the C-t Return window overview: grid geometry
   (aspect-fit, bar offset), layout round-trip (floats, frame
   membership, per-frame order, focus), digit/arrow/Return/click

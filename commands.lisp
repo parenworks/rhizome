@@ -279,6 +279,31 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
   (declare (ignore args))
   (frame-only output (current-workspace output)))
 
+(define-command :scroll-toggle (output args)
+  "Toggle the niri-style scroll ribbon on the current workspace."
+  (declare (ignore args))
+  (scroll-toggle output))
+
+(define-command :scroll-focus-left (output args)
+  "Focus the ribbon column to the left; the viewport follows."
+  (declare (ignore args))
+  (scroll-focus-left output))
+
+(define-command :scroll-focus-right (output args)
+  "Focus the ribbon column to the right; the viewport follows."
+  (declare (ignore args))
+  (scroll-focus-right output))
+
+(define-command :scroll-viewport-left (output args)
+  "Scroll the ribbon viewport left (half a screen)."
+  (declare (ignore args))
+  (scroll-viewport-left output))
+
+(define-command :scroll-viewport-right (output args)
+  "Scroll the ribbon viewport right (half a screen)."
+  (declare (ignore args))
+  (scroll-viewport-right output))
+
 (define-command :balance (output args)
   "Equalize every split in the workspace (StumpWM: balance-frames)."
   (declare (ignore args))

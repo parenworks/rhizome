@@ -108,6 +108,7 @@ as placement functions and their placements become the rectangles."
   "Switch OUTPUT's current workspace to LAYOUT-NAME by rebuilding its
 frame tree from the layout's template (windows distributed one per
 frame, extras onto the last)."
+  (scroll-exit-if-active output)
   (setf (output-current-layout output) layout-name)
   (let* ((workspace (current-workspace output))
          (width (output-width output))
@@ -175,8 +176,58 @@ floats manage themselves."
     (dolist (win wins)
       (setf (window-output win) output)
       (assign-window-workspace win workspace))
-    (frames-manage-decisions output workspace wins)
+    (if (scroll-workspace-p output workspace)
+        (scroll-manage-decisions output workspace wins)
+        (frames-manage-decisions output workspace wins))
     (float-manage-decisions output)))
+
+;;; --- Scroll-layout stubs (redefined by scroll.lisp, which loads later) ---
+
+(defun scroll-workspace-p (output workspace)
+  "T while the workspace shows the niri-style scroll ribbon.
+Placeholder: redefined by scroll.lisp."
+  (declare (ignore output workspace))
+  nil)
+
+(defun scroll-manage-decisions (output workspace wins)
+  "Placeholder: redefined by scroll.lisp."
+  (declare (ignore output workspace wins))
+  nil)
+
+(defun scroll-render-decisions (output workspace wins)
+  "Placeholder: redefined by scroll.lisp."
+  (declare (ignore output workspace wins))
+  nil)
+
+(defun scroll-exit-if-active (output)
+  "Placeholder: redefined by scroll.lisp."
+  (declare (ignore output))
+  nil)
+
+(defun scroll-toggle (output)
+  "Placeholder: redefined by scroll.lisp."
+  (declare (ignore output))
+  nil)
+
+(defun scroll-focus-left (&optional output)
+  "Placeholder: redefined by scroll.lisp."
+  (declare (ignore output))
+  nil)
+
+(defun scroll-focus-right (&optional output)
+  "Placeholder: redefined by scroll.lisp."
+  (declare (ignore output))
+  nil)
+
+(defun scroll-viewport-left (&optional output)
+  "Placeholder: redefined by scroll.lisp."
+  (declare (ignore output))
+  nil)
+
+(defun scroll-viewport-right (&optional output)
+  "Placeholder: redefined by scroll.lisp."
+  (declare (ignore output))
+  nil)
 
 (defun render-layout-for-output (output)
   "Render-sequence pass for OUTPUT: the frame tree places and shows
@@ -187,7 +238,9 @@ inside frames) hides."
          (wins (remove-if #'window-minimized-p
                           (windows-on-workspace output workspace)))
          (tiled (remove-if #'window-floating-p wins))
-         (rendered (frames-render-decisions output workspace tiled))
+         (rendered (if (scroll-workspace-p output workspace)
+                       (scroll-render-decisions output workspace tiled)
+                       (frames-render-decisions output workspace tiled)))
          (floats (float-render-decisions output rendered)))
     ;; Only send show/hide on actual state transitions: river treats
     ;; every show/hide request as a state change and starts a new

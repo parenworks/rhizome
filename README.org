@@ -294,6 +294,9 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 | C-t C   | Command mode: sticky prefix until Escape |
 | C-t #   | Mark/unmark the focused window |
 | C-t RET | Expose: window grid; pick with digits/arrows/click |
+| C-t v   | Toggle the niri-style scroll ribbon |
+| C-t , / . | Focus ribbon column left / right (viewport follows) |
+| MOD+, / . | Scroll the ribbon viewport (half a screen) |
 | C-t F11 | Toggle fullscreen      |
 | C-t h … | Help: b bindings, c command, f function, v variable, k key, w window |
 | C-t q   | Quit (press twice to confirm) |
@@ -696,7 +699,13 @@ manual, 180 commands). Where stumpway stands:
       title, number, workspace, float, marked, focused; wse-windows /
       wse-map / wse-count for scripting, window rules accept :wse in
       place of :match, stumpway-cmd wse <expr> reports matches
-- [ ] Niri-style scrollable tiling
+- [X] Niri-style scrollable tiling (C-t v): a horizontal ribbon
+      where every window owns a full-height column; C-t , / . move
+      focus between columns with the viewport following (niri keeps
+      focus visible), MOD+, / . scroll the viewport alone, new
+      windows enter next to the focused column, and closing prunes
+      the column with focus falling to the vacated slot's successor;
+      C-t v again hands every window back to the dynamic tiler
 - [X] Fuzzy search: prompts and the launcher match query characters
       in order (case-insensitive subsequence), with substring matches
       ranked ahead of scattered ones

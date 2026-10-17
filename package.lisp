@@ -92,6 +92,14 @@
    #:which-key-text
    #:enter-expose
    #:expose-restore
+   #:scroll-toggle
+   #:scroll-enter
+   #:scroll-exit
+   #:scroll-workspace-p
+   #:scroll-focus-left
+   #:scroll-focus-right
+   #:scroll-viewport-left
+   #:scroll-viewport-right
    #:set-prefix-key
    ;; Window marks
    #:window-marked-p

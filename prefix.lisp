@@ -644,6 +644,15 @@ expose, C-t Return). Placeholder: redefined by expose.lisp."
   ;; C-t C — command mode: sticky prefix until Escape
   (define-prefix-key 67 (lambda () (enter-command-mode))
                          "command mode (sticky prefix)")
+  ;; C-t v — toggle the niri-style scroll ribbon
+  (define-prefix-key 118
+                     (lambda () (scroll-toggle (first (all-outputs))))
+                     "toggle scroll layout (niri ribbon)")     ; v
+  ;; C-t , / C-t . — focus column left / right (viewport follows)
+  (define-prefix-key 44 (lambda () (scroll-focus-left))
+                     "focus column left")                      ; ,
+  (define-prefix-key 46 (lambda () (scroll-focus-right))
+                     "focus column right")                      ; .
   ;; C-t Return — expose: float everything into a pick grid
   (define-prefix-key 65293 (lambda () (enter-expose))
                          "expose window grid (pick: digits/arrows/click)") ; Return
