@@ -73,12 +73,14 @@ done
   [expose (22)], [Grid, pick paths, exact restore], [#cb],
   [scroll (27)], [Ribbon geometry, clamping, focus recovery], [#cb],
   [groups (11)], [Group types, floating adoption, cycling], [#cb],
+  [dbus (14)], [Wire protocol + live broker integration], [#cb],
+  [tray (13)], [Watcher service, item registry, click routing], [#cb],
   [bigger1 (27)], [Minor modes, WSE, fuzzy], [#cb],
   [session-icons (25)], [Lock/logout commands, bar icons], [#cb],
   [the rest (152)], [Everything else, per README], [#cb],
 )
 
-Total: 387 checks. If any fail, stop — manual testing is pointless
+Total: 414 checks. If any fail, stop — manual testing is pointless
 on a broken base.
 
 = Feature circuits
@@ -142,6 +144,19 @@ get its own frame.
   [#cb], [Float a column window (C-t f)], [It leaves the ribbon (column count drops); the float renders and drags normally],
   [#cb], [C-t v again], [Back to the dynamic tiler; windows re-split into frames as if the ribbon never happened],
   [#cb], [C-t Return (expose) while scrolled], [The overview works over columns; restore returns to the ribbon exactly],
+)
+
+== D2b. The tray (StatusNotifier icons)
+
+#table(
+  columns: (auto, 1fr, 1fr),
+  [ ], [Action], [Expected],
+  [#cb], [Bar with Variety running], [A tray icon appears in the right segment next to the clock; the bar log shows the item registered],
+  [#cb], [Left-click a tray icon], [The item's Activate runs (Variety opens its preferences, flameshot its overlay)],
+  [#cb], [Scroll over a tray icon], [Scroll(delta, vertical) reaches the item without errors in the log],
+  [#cb], [Close an app with a tray item], [Its icon disappears within a second (NameOwnerChanged fires and the item is pruned)],
+  [#cb], [`busctl --user status org.kde.StatusNotifierWatcher`], [PID points at the bar's sbcl process],
+  [#cb], [`stumpway-cmd toggle-bar` twice], [The watcher name follows the bar (released on stop, re-acquired on start); icons return],
 )
 
 == D3. Group types (C-t l)
