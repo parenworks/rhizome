@@ -154,12 +154,12 @@ On bare metal, river is the primary compositor — no nesting. The WSLg limitati
 
 ** Session integration (REQUIRED for a daily driver)
 
-Three session-level pieces make rhizome behave like a first-class
+Five session-level pieces make rhizome behave like a first-class
 desktop. Without them everything *looks* fine until you touch the
 parts that talk to the session bus:
 
 1. *Session environment* (~/.local/bin/rhizome-session, exported
-   before =exec river=): =XDG_CURRENT_DESKTOP=river=,
+   before river starts): =XDG_CURRENT_DESKTOP=river=,
    =XDG_SESSION_TYPE=wayland=, and — mirroring Omarchy's Hyprland
    envs.lua — =QT_QPA_PLATFORMTHEME=gtk3= (Qt apps follow the GTK
    theme: without it qBittorrent and every Qt app render light no
@@ -179,12 +179,38 @@ parts that talk to the session bus:
    portal dialog silently never appears. The import must NOT run
    in a nested test river (it would poison the outer session's
    activation environment); the XDG_CURRENT_DESKTOP guard prevents
-   exactly that.
+   exactly that. The import list also carries =OMARCHY_PATH=
+   (omarchy-sleep-lock's ConditionEnvironment gates on it), and is
+   followed by =systemctl --user start rhizome-session.target= (see 4).
 
 3. *Portal backends* (~/.config/xdg-desktop-portal/river-portals.conf):
    =FileChooser=omanta=, =default=gtk=, =Secret=gnome-keyring= —
    the same backends the Hyprland session pins, so pickers and
    secrets behave identically across sessions.
+
+4. *Systemd graphical session* (~/.config/systemd/user/
+   rhizome-session.target, started by river init after the
+   environment import): the stock =graphical-session.target= refuses
+   manual starts (dependency-only by design; the Hyprland session
+   gets it via uwsm), so the anchor target simply =Wants= it.
+   Starting the anchor brings up every service enabled for
+   =graphical-session.target= — fcitx5, sleep-lock, crash-watch,
+   migrate-notify, tailscale-receive, bt-agent, owed, voxtype —
+   none of which run in a plain river session otherwise. On
+   compositor exit, rhizome-session stops the anchor;
+   =graphical-session.target='s =StopWhenUnneeded=yes= then tears it
+   and its =PartOf= services down (mirroring uwsm's cleanup).
+
+5. *Polkit agent* (~/.config/river/init session-apps block):
+   =lxqt-policykit-agent=, pgrep-guarded so river restarts never
+   spawn duplicates. Without a registered agent, polkit falls back
+   to a textual prompt that cannot appear under Wayland, so every
+   GUI privilege prompt (pkexec, power actions) fails silently.
+   Note: hyprpolkitagent does NOT work here — its embedded Hyprland
+   toolkit binds =xdg_wm_base= at v5 max while river advertises v6,
+   a fatal registry error. And pgrep -x cannot match its 19-char
+   name (the kernel truncates comm at 15), hence the =pgrep -f=
+   guard.
 
 The omarchy-sddm-rhizome/ directory carries the SDDM session
 entry that launches rhizome-session.
@@ -522,7 +548,9 @@ MOD+Shift+E (or =rhizome-cmd logout=) ends the river session and
 returns to the display manager's greeter — press twice within three
 seconds to confirm. River 0.4.x ships no riverctl, so rhizome
 SIGTERMs the compositor, which triggers its clean shutdown path (the
-WM receives the finished event and exits with it).
+WM receives the finished event and exits with it). The session
+script then stops rhizome-session.target, releasing the systemd
+graphical session (piece 4) before the greeter returns.
 
 * Floating windows
 

@@ -315,6 +315,20 @@ Exercise expose, splits, and workspace switches while the video plays.
   backends). Any app's file chooser counts: Firefox uploads,
   Chromium saves — if a picker never appears, the activation
   environment went stale again.
+- *Session — systemd services (the anchor):* after login,
+  `systemctl --user is-active graphical-session.target` must read
+  `active`, and the session set must be running
+  (`systemctl --user list-units | grep -cE 'fcitx5|sleep-lock|crash-watch|owed|voxtype'`
+  — at least 5). Before the rhizome-session.target anchor, none of
+  these omarchy services ran in a river session at all. After a
+  MOD+Shift+E logout and re-login, the services must come up exactly
+  once — no duplicates.
+- *Session — polkit prompt (the agent):* run `pkexec true` — the
+  lxqt-policykit dialog must appear and, after entering the
+  password, exit 0. Without a registered agent polkit falls back to
+  a textual prompt that cannot render under Wayland, and pkexec
+  fails with "Error creating textual authentication agent". This
+  is also what the MOD+Shift+Q / R power rows exercise.
 - *Hot-reload resilience:* `(rhizome:configure '(:bar (:height 26)))`
   from `rhizome-cmd`, then `ql:quickload` a changed file via the eval
   prompt (C-t :). The WM should survive; note any stuck mode or lost
