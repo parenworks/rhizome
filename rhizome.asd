@@ -1,4 +1,5 @@
 (asdf:defsystem #:rhizome
+  :version "0.1.0"
   :description "StumpWM-style window manager for the River Wayland compositor"
   :author "Glenn Thompson"
   :license "AGPL-3.0"
