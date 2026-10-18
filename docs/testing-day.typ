@@ -305,6 +305,16 @@ Exercise expose, splits, and workspace switches while the video plays.
   message expiry), toggle back, wait 10s. The laptop must stay
   responsive and the log quiet; this exact sequence froze the
   machine before commit b1e7996.
+- *Session — portal dialogs (the chooser fix):* in Steam, open
+  Settings → Storage → add a library folder — the omanta file
+  picker must appear. This exercises D-Bus-activated portal
+  backends, which died silently before the session imported its
+  environment (river/init now mirrors Omarchy's
+  dbus-update-activation-environment and
+  ~/.config/xdg-desktop-portal/river-portals.conf pins the
+  backends). Any app's file chooser counts: Firefox uploads,
+  Chromium saves — if a picker never appears, the activation
+  environment went stale again.
 - *Hot-reload resilience:* `(stumpway:configure '(:bar (:height 26)))`
   from `stumpway-cmd`, then `ql:quickload` a changed file via the eval
   prompt (C-t :). The WM should survive; note any stuck mode or lost
