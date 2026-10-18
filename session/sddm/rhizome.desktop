@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Rhizome (river)
+Comment=StumpWM-style window management on the river Wayland compositor
+Exec=__HOME__/.local/bin/rhizome-session
+TryExec=/usr/bin/river
+Type=Application
+DesktopNames=river;Rhizome

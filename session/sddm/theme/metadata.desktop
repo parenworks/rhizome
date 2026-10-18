@@ -1,0 +1,7 @@
+[SddmGreeterTheme]
+Name=Omarchy Sessions
+Description=Omarchy terminal-style login theme with a session picker dropdown
+Author=Omarchy
+Type=sddm-theme
+Version=1.0
+QtVersion=6

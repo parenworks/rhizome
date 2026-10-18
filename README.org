@@ -212,8 +212,83 @@ parts that talk to the session bus:
    name (the kernel truncates comm at 15), hence the =pgrep -f=
    guard.
 
-The omarchy-sddm-rhizome/ directory carries the SDDM session
-entry that launches rhizome-session.
+All five pieces live in =session/= in this repo — =river-init=,
+=rhizome-session=, =rhizome-cmd=, =rhizome-session.target=,
+=river-portals.conf= — and =session/sddm/= carries the SDDM session
+entry that launches rhizome-session (an Omarchy-specific installer;
+see the next section for everyone else).
+
+** Installing without Omarchy
+
+Everything above is plain shell and systemd user units — none of it
+is Omarchy magic. Run =bash session/install.sh= to install the
+whole set into =$HOME=; re-running it is safe. The greeter entry is
+separate: Omarchy+SDDM users run =session/sddm/install-root.sh=
+with sudo, everyone else points their display manager (or a TTY)
+at =~/.local/bin/rhizome-session=.
+
+*** Hard requirements, every distro
+
+- *river* 0.4.x/0.5.x — rhizome speaks =river-window-management-v1=
+  (protocol XMLs vendored in =protocol/=)
+- *SBCL + Quicklisp* — all five Quicklisp deps are in the official
+  dist (=wayflan-client=, =cl-ppcre=, =bordeaux-threads=, =cffi=
+  (needs =libffi= at runtime), =pngload=). Quicklisp itself is a
+  manual bootstrap everywhere:
+  #+begin_src bash
+  curl -L https://beta.quicklisp.org/quicklisp.lisp -o /tmp/ql.lisp
+  sbcl --load /tmp/ql.lisp --eval '(quicklisp-quickstart:install)' \
+       --eval '(ql:add-to-init-file)' --quit
+  #+end_src
+- *python3* — =rhizome-cmd= (the IPC helper) is a bash+python shim
+- *Runtime tools* — =bash=, =wl-clipboard= (wl-copy/wl-paste),
+  =grim= + =slurp= (screenshots); =swayidle= only if you set
+  =:idle-seconds=; =foot=, =emacs=, =mpv= are what the default
+  keybinds launch — install them or rebind
+- *A session D-Bus* — the tray (StatusNotifier), portals, and most
+  launchers need =DBUS_SESSION_BUS_ADDRESS=; display managers set
+  this up, TTY logins need =dbus-run-session= or a user service
+
+*** By-distro notes
+
+| Distro        | river                                        | Notes                                                        |
+|----------------+----------------------------------------------+--------------------------------------------------------------|
+| Arch / Omarchy | [extra], current                             | everything in the repos; =session/sddm/install-root.sh=       |
+| Fedora         | official (0.4.8 since F44, 0.5 in rawhide)    | F43's 0.3.14 is the OLD architecture — use F44+               |
+| NixOS          | =pkgs.river= (newer in unstable)             | Quicklisp must be bootstrapped manually inside sbcl; river is NOT at =/usr/bin= — fix the desktop =TryExec= |
+| Debian/Ubuntu  | not in official repos                        | Ubuntu: unofficial PPA; otherwise source build (zig + wlroots 0.20 + wayland-protocols) — substantial |
+| Void           | ships 0.3.7 — the OLD river-classic          | unusable for rhizome; build the new river from source         |
+| Artix          | Arch-based                                   | take Arch's [extra] river or AUR; non-systemd caveats below    |
+
+*** What breaks without Omarchy, and the fix
+
+1. *Portal file chooser*: =river-portals.conf= pins
+   =FileChooser=omanta= (Omarchy's picker) — elsewhere the file
+   picker breaks. Point it at a backend you actually have (=gtk=
+   or your flatpak portal), and install =xdg-desktop-portal= plus
+   that backend. =Secret=gnome-keyring= likewise needs
+   gnome-keyring installed and unlocked.
+2. *Greeter*: =session/sddm/= is Omarchy-specific (the greeter
+   theme, =omarchy pkg add=, SDDM autologin parking). Skip it and
+   register the session with your own DM: greetd, ly, lightdm, or
+   GDM all accept the same =Exec=.
+3. *Session services*: on a non-Omarchy machine the
+   =rhizome-session.target= anchor starts an empty
+   =graphical-session.target= — harmless. The =OMARCHY_PATH=
+   import and the =systemctl= lines in river-init are guarded and
+   no-op cleanly on non-systemd distros too.
+4. *Session apps* (river-init's session-apps block): =variety=
+   (wallpaper), =flameshot= (bar screenshot button),
+   =lxqt-policykit-agent= (GUI auth prompts). Missing ones just
+   fail to spawn — install them or trim the block.
+5. *Power actions*: MOD+Shift+Q/R and suspend/hibernate shell out
+   to =systemctl=. On systemd distros that works (polkit prompts
+   via the agent above); on non-systemd distros (Void, Artix/runit,
+   Guix) it fails — patch =commands.lisp= for =poweroff=/=reboot=
+   or elogind's =loginctl=.
+6. *Qt theming*: =QT_QPA_PLATFORMTHEME=gtk3= needs your distro's
+   Qt-gtk platformtheme plugin; without it Qt apps merely fall
+   back to their default theme.
 
 ** WSLg-specific notes
 

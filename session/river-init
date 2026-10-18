@@ -1,0 +1,62 @@
+#!/bin/sh
+# river runs this at compositor startup with WAYLAND_DISPLAY already set.
+# Start rhizome (Common Lisp window manager) in the background.
+export PATH="/usr/local/bin:$PATH"
+mkdir -p "$HOME/.cache/rhizome"
+
+# Import the session environment into systemd and the D-Bus
+# activation environment, the same way Omarchy's Hyprland session
+# does. Without this, D-Bus-ACTIVATED processes (portal backends —
+# file choosers, app launchers, flatpak helpers) inherit a stale
+# activation environment from the previous session and die trying
+# to connect to a dead display: Steam's file chooser and other
+# portal dialogs never appear. Guarded on XDG_CURRENT_DESKTOP so a
+# nested river test (which inherits the outer session's desktop)
+# can never poison the outer activation environment.
+if [ "$XDG_CURRENT_DESKTOP" = "river" ]; then
+  # OMARCHY_PATH comes from /etc/profile.d/omarchy.sh and gates several
+  # omarchy session services (sleep-lock checks ConditionEnvironment).
+  systemctl --user import-environment \
+    WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE \
+    XDG_SESSION_DESKTOP XDG_RUNTIME_DIR OMARCHY_PATH 2>/dev/null
+  dbus-update-activation-environment --systemd \
+    WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP \
+    XDG_SESSION_TYPE XDG_SESSION_DESKTOP 2>/dev/null
+  # Activate the standard systemd graphical session so every enabled
+  # session service starts (fcitx5, sleep-lock, crash-watch, bt-agent,
+  # tailscale-receive, owed, voxtype...). Hyprland gets this via uwsm;
+  # a plain river session must request it itself. The stock target
+  # refuses direct starts (dependency-only by design), so we start our
+  # rhizome-session.target, which Wants it. Stopped again by
+  # rhizome-session when the compositor exits.
+  systemctl --user start rhizome-session.target 2>/dev/null
+  # The portal daemon caches the desktop name at start: restart it
+  # so it re-detects river and re-reads river-portals.conf
+  systemctl --user restart xdg-desktop-portal 2>/dev/null
+fi
+
+# A failed compile can leave empty/corrupt FASL files that make every
+# subsequent load fail. Purge them so a bad build never blocks startup.
+find "$HOME/.cache/common-lisp" -name '*.fasl' -size 0 -delete 2>/dev/null
+
+# --non-interactive makes sbcl exit instead of sitting in the debugger
+# if rhizome hits an unhandled error, so the session fails cleanly.
+sbcl --non-interactive \
+     --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)' \
+  >> "$HOME/.cache/rhizome/rhizome.log" 2>&1 &
+
+# Session apps (rhizome session only; guards survive river restarts).
+# variety: rotates the wallpaper (swaybg paints it; see
+#   ~/.config/variety/scripts/set_wallpaper for the river branch).
+# flameshot: screenshot daemon — "flameshot gui" from the bar icon.
+# lxqt-policykit-agent: GUI password prompts for privileged actions
+#   (pkexec, installers, partition tools). Without a registered agent,
+#   polkit falls back to a textual prompt that cannot appear in Wayland
+#   and privileged GUI actions silently fail. Note: hyprpolkitagent
+#   does NOT work here — its embedded Hyprland toolkit only speaks
+#   xdg_wm_base v5 and river advertises v6, a fatal registry error.
+# NOTE: pgrep -x can't match names >15 chars (kernel truncates comm),
+#   so this guard matches the full command line instead.
+pgrep -x variety   >/dev/null || variety   >/dev/null 2>&1 &
+pgrep -x flameshot >/dev/null || flameshot >/dev/null 2>&1 &
+pgrep -f '[l]xqt-policykit-agent' >/dev/null || lxqt-policykit-agent >/dev/null 2>&1 &

@@ -1,0 +1,34 @@
+#!/bin/bash
+# rhizome-cmd — send a command to the running rhizome WM via its
+# IPC socket and print the reply.
+#
+#   rhizome-cmd switch-workspace 3
+#   rhizome-cmd current-workspace
+#   rhizome-cmd "(* 2 21)"
+
+SOCK="${XDG_RUNTIME_DIR:-/tmp}/rhizome.sock"
+
+if [[ ! -S "$SOCK" ]]; then
+  echo "rhizome-cmd: no socket at $SOCK (is rhizome running?)" >&2
+  exit 1
+fi
+
+exec python3 - "$SOCK" "$*" <<'EOF'
+import socket, sys
+path, line = sys.argv[1], sys.argv[2]
+s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+s.settimeout(10)
+try:
+    s.connect(path)
+    s.sendall((line + "\n").encode())
+    data = b""
+    while b"\n" not in data:
+        chunk = s.recv(4096)
+        if not chunk:
+            break
+        data += chunk
+    sys.stdout.write(data.decode(errors="replace").strip() + "\n")
+except (ConnectionRefusedError, FileNotFoundError):
+    print("rhizome-cmd: cannot connect to rhizome", file=sys.stderr)
+    sys.exit(1)
+EOF

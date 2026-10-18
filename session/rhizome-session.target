@@ -1,0 +1,10 @@
+[Unit]
+# Rhizome's session anchor: starting this target pulls in the standard
+# graphical-session.target (which refuses manual starts by design and must
+# be requested by dependency). Every service enabled for
+# graphical-session.target (fcitx5, sleep-lock, crash-watch, owed, ...)
+# starts with it; stopping this target releases it, and its
+# StopWhenUnneeded=yes tears it and its PartOf services back down.
+Description=Rhizome graphical session (river compositor)
+Wants=graphical-session.target
+After=graphical-session.target

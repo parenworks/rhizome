@@ -1,0 +1,33 @@
+#!/bin/bash
+# Rhizome SDDM session: river compositor as the primary compositor.
+# rhizome (the WM) is launched by river via ~/.config/river/init.
+#
+# Session environment: mirrors Omarchy's Hyprland envs.lua so apps
+# behave identically in both sessions — Qt theming (gtk3 platform
+# theme → Adwaita-dark), native Wayland backends (GTK/Qt/Firefox/
+# Electron), and the desktop identity the portal system reads.
+export XDG_CURRENT_DESKTOP=river
+export XDG_SESSION_TYPE=wayland
+export XDG_SESSION_DESKTOP="river:Rhizome"
+
+# App theming: Qt apps follow the GTK theme (qBittorrent, KeepassXC…)
+export QT_QPA_PLATFORMTHEME=gtk3
+
+# Force native Wayland everywhere (same as Omarchy)
+export GDK_BACKEND="wayland,x11,*"
+export QT_QPA_PLATFORM="wayland;xcb"
+export MOZ_ENABLE_WAYLAND=1
+export ELECTRON_OZONE_PLATFORM_HINT=wayland
+export OZONE_PLATFORM=wayland
+
+# Cursor size, matching the Hyprland session
+export XCURSOR_SIZE=24
+
+# Run river in the foreground: when it exits (logout or crash) the
+# graphical session ends here, so tear down the systemd target to stop
+# every service that river init started with it (mirrors uwsm's
+# compositor-scope cleanup in the Hyprland session).
+river -log-level info
+# Releasing our session anchor stops the standard graphical-session.target
+# (StopWhenUnneeded) and every PartOf service bound to it.
+systemctl --user stop rhizome-session.target 2>/dev/null
