@@ -26,6 +26,7 @@
    (:file "scroll" :depends-on ("tiling" "bar"))
    (:file "groups" :depends-on ("scroll" "workspaces" "floating" "frames"))
    (:file "dbus" :depends-on ("wm-protocol" "config"))
+   (:file "tray" :depends-on ("dbus"))
    (:file "keybindings" :depends-on ("tiling"))
    (:file "launcher" :depends-on ("keybindings"))
    (:file "prompt" :depends-on ("bar" "workspaces"))

@@ -693,15 +693,16 @@ manual, 180 commands). Where stumpway stands:
       into an aspect-fitted grid; pick with 1-9/0, arrows + Return,
       or a click; Escape restores the layout exactly (float geometry,
       frame membership, per-frame order, focus)
-- [ ] System tray (StatusNotifier/watcher): tray icons for apps like
-      Variety and flameshot in the bar — no tray support today.
-      Status: the DBus foundation is DONE — =dbus.lisp= speaks the
-      DBus wire protocol in PURE CL (see "A note on dependencies"
-      below); 14 tests green including live auth + Hello +
-      RequestName + Properties.Get against the real session bus.
-      Remaining: the StatusNotifierWatcher service (register items,
-      emit signals), the bar tray module (icons + clicks), and menu
-      support (dbusmenu -> our select-from-menu).
+- [X] System tray (StatusNotifier/watcher): DONE and live. The bar
+      process owns =org.kde.StatusNotifierWatcher= (tray.lisp), serves
+      RegisterStatusNotifierItem and Properties, watches
+      NameOwnerChanged for item loss, and renders every item's icon
+      in a =:tray= bar module (IconPixmap ARGB32 drawn straight into
+      the shm buffer, IconThemePath+IconName through the existing
+      icon resolution). Clicks Activate / SecondaryActivate the item;
+      scrolls Scroll it; dbusmenu right-click menus remain future
+      polish (they map onto select-from-menu). Variety and flameshot
+      dock on a real session.
 
 * A note on dependencies: why we implement DBus ourselves
 

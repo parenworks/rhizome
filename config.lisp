@@ -82,7 +82,7 @@ Returns (values value found-p)."
           :muted "#565f89"
           :modules (:left (:workspaces :layout :windows)
                     :center (:clock)
-                    :right (:network :volume :battery)))
+                    :right (:tray :network :volume :battery)))
     :modules (:clock (:format "%a %d %b %H:%M")
               :battery (:interval 5)
               :volume (:interval 5

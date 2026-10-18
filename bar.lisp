@@ -54,6 +54,9 @@ read from the snapshot file. Refreshed at most once per tick."
   "Pointer x position on the bar surface, NIL when outside.")
 (defparameter *bar-axis-accumulator* 0
   "Accumulated vertical scroll axis values since the last axis-stop.")
+(defparameter *tray-render-stamp* 0
+  "The *tray-changed* value at the last render; a mismatch forces a
+bar re-render even when text modules are unchanged.")
 (defparameter *bar-hitboxes* nil
   "Module click regions: list of (module-name start-x end-x),
 recorded during rendering.")
@@ -94,6 +97,52 @@ once per INTERVAL seconds."
 ;;; Each module is a function of no arguments returning either a
 ;;; string, or a list of (text . color) parts where color is a hex
 ;;; string ("#7aa2f7") or NIL for the segment's base color.
+
+(defun bar-module-tray ()
+  "The tray module's text part: none (icons only)."
+  nil)
+
+(defun tray-item-icon (item)
+  "An item's drawable icon: (w h data) from IconPixmap (ARGB32
+words), or the theme icon resolved through load-icon from
+IconName. NIL when the item has nothing drawable."
+  (or (getf item :icon)
+      (and (getf item :icon-name)
+           (load-icon (getf item :icon-name)))
+      (and (getf item :icon-name)
+           (load-icon (pathname-name (getf item :icon-name))))))
+
+(defun bar-draw-tray (ptr width height x y base-r base-g base-b)
+  "Draw every tray item's icon at (X, Y); one hitbox per item so
+clicks/scrolls route to tray-click / tray-scroll. Returns the x
+after the module plus gap. Structure mirrors bar-draw-icons."
+  (dolist (item *tray-items*)
+    (let* ((icon (tray-item-icon item))
+           (start x))
+      (when icon
+        (destructuring-bind (iw ih idata) icon
+          (loop for iy below ih
+                for py = (+ y iy)
+                while (< py height)
+                do (loop for ix below *bar-icon-size*
+                         for px = (+ x ix)
+                         while (< px width)
+                         do (let* ((idx (* (+ (* iy *bar-icon-size*) ix) 4))
+                                   (a (aref idata (+ idx 3)))
+                                   (r (aref idata idx))
+                                   (g (aref idata (+ idx 1)))
+                                   (b (aref idata (+ idx 2))))
+                              (when (plusp a)
+                                (bar-set-pixel
+                                  ptr width px py
+                                  (floor (/ (+ (* a r) (* (- 255 a) base-r)) 255))
+                                  (floor (/ (+ (* a g) (* (- 255 a) base-g)) 255))
+                                  (floor (/ (+ (* a b) (* (- 255 a) base-b))
+                                            255)))))))
+        (incf x *bar-icon-size*)
+        (push (list item start x) *bar-hitboxes*)))
+    (incf x 4))
+  (+ x *bar-module-gap*)))
 
 (defun bar-module-layout ()
   (let ((layout (getf (bar-snapshot) :layout)))
@@ -250,12 +299,16 @@ the segment's base color). Unknown or failing modules render empty."
   "Total pixel width of a module list, including inter-module gaps."
   (+ (reduce #'+
              (mapcar (lambda (module)
-                       (if (icons-module-p module)
-                           (bar-icons-width module)
-                           (* 8 (reduce #'+
+                       (cond
+                         ((icons-module-p module)
+                          (bar-icons-width module))
+                         ((tray-module-p module)
+                          (bar-tray-width))
+                         (t
+                          (* 8 (reduce #'+
                                         (mapcar (lambda (part)
                                                   (length (first part)))
-                                                (bar-module-parts module))))))
+                                                (bar-module-parts module)))))))
                      modules)
              :initial-value 0)
      (* *bar-module-gap* (length modules))))
@@ -286,6 +339,15 @@ the segment's base color). Unknown or failing modules render empty."
 (defun icons-module-p (module)
   "Whether MODULE is an icons module spec: (:icons (entry ...))."
   (and (listp module) (eq (first module) :icons)))
+
+(defun tray-module-p (module)
+  "Whether MODULE is the tray module (:tray)."
+  (eq module :tray))
+
+(defun bar-tray-width ()
+  "Pixel width of the tray module: every item's icon plus spacing."
+  (+ (* (length *tray-items*) (+ *bar-icon-size* 4))
+     (if *tray-items* *bar-module-gap* 0)))
 
 (defun bar-icons-entries (module)
   "The icon entries of an icons module."
@@ -431,11 +493,14 @@ Returns the x after the module plus gap."
 (defun bar-draw-segment-item (ptr width height x y module fr fg fb br bg bb)
   "Draw one module of a bar segment (text or icons); returns the x
 after it."
-  (if (icons-module-p module)
-      (bar-draw-icons ptr width height x y module br bg bb)
-      (bar-draw-module ptr width height x y
-                       (bar-module-parts module)
-                       fr fg fb module)))
+  (cond
+    ((tray-module-p module)
+     (bar-draw-tray ptr width height x y br bg bb))
+    ((icons-module-p module)
+     (bar-draw-icons ptr width height x y module br bg bb))
+    (t (bar-draw-module ptr width height x y
+                         (bar-module-parts module)
+                         fr fg fb module))))
 
 (defun bar-render (state)
   "Render the bar content into the shm buffer and commit the surface."
@@ -641,6 +706,10 @@ entries carry their actions inline."
          (module (first hit)))
     (when module
       (cond
+        ;; Tray item: Activate / SecondaryActivate on the item
+        ((and (listp module) (getf module :name))
+         (format t "~&; Stumpway: bar: tray click ~A~%" (getf module :name))
+         (tray-click module))
         ;; Workspace numbers: switch to the clicked workspace via IPC
         ((eq module :workspaces)
          (let ((workspace (1+ (floor (- x (second hit)) 8))))
@@ -659,8 +728,12 @@ entries carry their actions inline."
   (let* ((module (and *bar-pointer-x* (bar-module-at *bar-pointer-x*)))
          (key (if (plusp amount) :on-scroll-up :on-scroll-down))
          (command (and module (bar-module-action module key))))
-    (when command
-      (bar-run-command command))))
+    (cond
+      ;; Tray item: Scroll(delta, vertical) on the item
+      ((and (listp module) (getf module :name))
+       (tray-scroll module (if (plusp amount) 1 -1)))
+      (command
+       (bar-run-command command)))))
 
 (defun bar-pointer-event (event-name args)
   "Handle wl_pointer events on the bar surface."
@@ -776,8 +849,16 @@ entries carry their actions inline."
                       do (safe-roundtrip display)
                          (sleep 0.05))
                 (loop while *bar-running*
-                      do (when (and (gethash :mapped state)
-                                    (bar-content-changed-p))
+                      do (let ((tray-was *tray-changed*))
+                           (tray-drain)
+                           (when (/= tray-was *tray-changed*)
+                             ;; new/removed items: invalidate content
+                             (setf *bar-last-content* nil)))
+                         (when (and (gethash :mapped state)
+                                    (or (bar-content-changed-p)
+                                        (/= *tray-render-stamp*
+                                            *tray-changed*)))
+                           (setf *tray-render-stamp* *tray-changed*)
                            (bar-render state))
                          (loop while (and *bar-running*
                                           (wl:wl-display-listen display))
@@ -804,6 +885,11 @@ no matter what the user config asks for."
   (setf *bar-process-mode* t)
   (setf *bar-running* t)
   (load-user-config)
+  ;; The tray lives here: this process owns the StatusNotifierWatcher
+  ;; bus name, serves registrations, and renders the items.
+  (handler-case (tray-start)
+    (error (e)
+      (format t "~&; Stumpway: tray: startup failed: ~A~%" e)))
   (let ((state (make-hash-table)))
     (setf *bar-state* state)
     (bar-run-loop state)

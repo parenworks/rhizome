@@ -747,3 +747,127 @@ socket closes, marking the connection down and waking the drain."
 default drops nothing: the tray (the first consumer) redefines
 this with real method-call and signal dispatch."
   nil)
+
+;;; --- Service side: replies, signals, handler dispatch ---
+
+(defun dbus-reply (conn msg &key (signature "") values)
+  "Reply to an incoming METHOD_CALL message with VALUES."
+  (when (message-field msg 7)               ; sender
+    (dbus-send-outgoing
+      conn
+      (make-outgoing-message
+        :type +dbus-msg-return+
+        :destination (message-field msg 7)
+        :reply-serial (dbus-message-serial msg)
+        :signature signature
+        :values values))))
+
+(defun dbus-error-reply (conn msg error-name text)
+  "Reply to an incoming METHOD_CALL with a DBus error."
+  (when (message-field msg 7)
+    (dbus-send-outgoing
+      conn
+      (make-outgoing-message
+        :type +dbus-msg-error+
+        :destination (message-field msg 7)
+        :error-name error-name
+        :reply-serial (dbus-message-serial msg)
+        :signature "s"
+        :values (list text)))))
+
+(defun dbus-emit-signal (conn path interface member &key (signature "")
+                                                  values)
+  "Emit a broadcast SIGNAL (every subscriber with a match rule
+hears it)."
+  (dbus-send-outgoing
+    conn
+    (make-outgoing-message
+      :type +dbus-msg-signal+
+      :path path :interface interface :member member
+      :signature signature :values values)))
+
+(defparameter *dbus-handlers* (make-hash-table :test 'equal)
+  "Service-side method-call handlers: (INTERFACE . MEMBER) ->
+function (MESSAGE CONN) returning (values signature values), or
+:ERROR (NAME TEXT). Populated by the service (the tray watcher)
+at startup.")
+
+(defparameter *dbus-property-getters* (make-hash-table :test 'equal)
+  "Interface name -> function returning an alist of
+(PROPERTY-NAME . (cons signature value)) for Properties.GetAll.")
+
+(defun (setf dbus-handler) (fn interface member)
+  (setf (gethash (cons interface member) *dbus-handlers*) fn))
+
+(defun dispatch-method-call (msg conn)
+  "Handle one incoming METHOD_CALL: the org.freedesktop.DBus
+standard interfaces (Properties) plus the registered handlers."
+  (let ((interface (message-field msg 2))
+        (member (message-field msg 3)))
+    (cond
+      ((and (string= interface "org.freedesktop.DBus.Properties")
+            (string= member "GetAll"))
+       (let ((getter (gethash (first (dbus-message-body msg))
+                              *dbus-property-getters*)))
+         (if getter
+             (dbus-reply conn msg
+                         :signature "a{sv}"
+                         :values (list
+                                   (loop for (name . (sig . value))
+                                           in (funcall getter)
+                                         collect (list name
+                                                       (cons sig value)))))
+             (dbus-error-reply conn msg
+                               "org.freedesktop.DBus.Error.UnknownInterface"
+                               (format nil "unknown interface ~A"
+                                       (first (dbus-message-body msg)))))))
+      ((and (string= interface "org.freedesktop.DBus.Properties")
+            (string= member "Get"))
+       ;; single-property Get: serve it from the GetAll collection
+       (let ((getter (gethash (first (dbus-message-body msg))
+                              *dbus-property-getters*)))
+         (if getter
+             (let* ((want (second (dbus-message-body msg)))
+                    (entry (assoc want (funcall getter)
+                                  :test #'string=)))
+               (if entry
+                   (destructuring-bind (name . (sig . value)) entry
+                     (declare (ignore name))
+                     (dbus-reply conn msg
+                                 :signature "v"
+                                 :values (list (cons sig value))))
+                   (dbus-error-reply
+                     conn msg
+                     "org.freedesktop.DBus.Error.InvalidArgs"
+                     (format nil "no such property ~A" want))))
+             (dbus-error-reply conn msg
+                               "org.freedesktop.DBus.Error.UnknownInterface"
+                               "unknown interface"))))
+      (t
+       (let ((handler (gethash (cons interface member)
+                               *dbus-handlers*)))
+         (if handler
+             (multiple-value-bind (signature values)
+                 (funcall handler msg conn)
+               (dbus-reply conn msg :signature signature
+                           :values values))
+             (dbus-error-reply
+               conn msg
+               "org.freedesktop.DBus.Error.UnknownMethod"
+               (format nil "no handler for ~A.~A"
+                       interface member))))))))
+
+(defun dbus-pump (conn)
+  "Drain every queued incoming message: method calls dispatch to
+handlers (which reply themselves), signals go to the
+signal-handler table. Runs on a tick; safe on an empty queue."
+  (loop
+    (let ((msg (bt:with-lock-held ((dbus-connection-queue-lock conn))
+                 (pop (dbus-connection-queue conn)))))
+      (unless msg (return))
+      (when (eq msg :closed) (return))
+      (when (eq (dbus-message-type msg) +dbus-msg-call+)
+        (handler-case
+            (dispatch-method-call msg conn)
+          (error (e)
+            (format t "~&; Stumpway: dbus: dispatch error: ~A~%" e)))))))
