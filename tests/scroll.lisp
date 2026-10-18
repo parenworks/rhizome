@@ -1,9 +1,9 @@
 ;;; Tests for the niri-style scroll ribbon: enter/exit transitions,
 ;;; column geometry, viewport clamping, focus-follows-visibility,
 ;;; close-pruning, arrivals, floats, and the toggle.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (configure '(:bar (:enabled nil)))
 
@@ -42,7 +42,7 @@
     ;; Fresh state (and one seat, so focus takes effect)
     (setf *seats* (make-hash-table)
           (gethash :scroll-seat *seats*)
-          (make-instance 'stumpway-seat :proxy :scroll-seat))
+          (make-instance 'rhizome-seat :proxy :scroll-seat))
     (setf *windows* (make-hash-table)
           *output-workspace* (make-hash-table)
           *window-workspace* (make-hash-table)
@@ -51,12 +51,12 @@
           *current-frames* (make-hash-table :test 'equal)
           *scroll-states* (make-hash-table :test 'equal))
 
-    (let* ((out (make-instance 'stumpway-output :proxy :sc-out
+    (let* ((out (make-instance 'rhizome-output :proxy :sc-out
                               :width 1920 :height 1080))
-           (w0 (make-instance 'stumpway-window :proxy :sc0))
-           (w1 (make-instance 'stumpway-window :proxy :sc1))
-           (w2 (make-instance 'stumpway-window :proxy :sc2))
-           (w3 (make-instance 'stumpway-window :proxy :sc3)))
+           (w0 (make-instance 'rhizome-window :proxy :sc0))
+           (w1 (make-instance 'rhizome-window :proxy :sc1))
+           (w2 (make-instance 'rhizome-window :proxy :sc2))
+           (w3 (make-instance 'rhizome-window :proxy :sc3)))
       (setf (gethash :sc0 *windows*) w0
             (gethash :sc1 *windows*) w1
             (gethash :sc2 *windows*) w2

@@ -1,9 +1,9 @@
 ;;; Tests for the StumpWM quick-wins batch: window numbering,
 ;;; pull/exchange/only/balance/fclear, lastmsg/time, quit-confirm,
 ;;; fullscreen requests, F-keys.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -29,7 +29,7 @@
       (let ((fn-sym fn))
         (setf (symbol-function fn)
               (lambda (&rest args)
-                (if (and args (typep (first args) 'stumpway-window))
+                (if (and args (typep (first args) 'rhizome-window))
                     (progn
                       (push (list (intern (string fn-sym) :keyword)
                                   (first args))
@@ -57,11 +57,11 @@
 
     ;; --- Window numbering ---
 
-    (let* ((out (make-instance 'stumpway-output :proxy :out-proxy
+    (let* ((out (make-instance 'rhizome-output :proxy :out-proxy
                               :width 1920 :height 1080))
            (wins (loop for i below 11
                        for proxy = (intern (format nil "W~D" i) :keyword)
-                       collect (make-instance 'stumpway-window
+                       collect (make-instance 'rhizome-window
                                                :proxy proxy))))
       (setf (gethash out *output-workspace*) 1)
       (dolist (win wins)
@@ -79,7 +79,7 @@
 
       ;; Closing a window frees its number for reuse
       (release-window-number (first wins))
-      (let ((fresh (make-instance 'stumpway-window :proxy :fresh)))
+      (let ((fresh (make-instance 'rhizome-window :proxy :fresh)))
         (assign-window-number fresh)
         (ok "freed number is reused"
             (window-number fresh) 1)

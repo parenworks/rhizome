@@ -1,4 +1,4 @@
-;;; Window Selection Expressions (WSE) for Stumpway
+;;; Window Selection Expressions (WSE) for Rhizome
 ;;;
 ;;; A tiny Lisp DSL for selecting sets of windows, ported from
 ;;; StumpWM's wse.lisp. Expressions are evaluated against windows:
@@ -16,13 +16,13 @@
 ;;; ask for, e.g. "(?i)firefox"). Use from the REPL, hooks, or window
 ;;; rules:
 ;;;
-;;;   (stumpway:wse-windows '(:and (:app-id "emacs") (:title "main")))
-;;;   (stumpway:wse-map '(:workspace 2 :float nil) #'window-number)
-;;;   (stumpway:configure
+;;;   (rhizome:wse-windows '(:and (:app-id "emacs") (:title "main")))
+;;;   (rhizome:wse-map '(:workspace 2 :float nil) #'window-number)
+;;;   (rhizome:configure
 ;;;     '(:window-rules ((:wse (:and (:app-id "gimp") (:float nil))
 ;;;                            :float t))))
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defun wse-matches-p (win expr)
   "Whether WIN matches the window selection expression EXPR."

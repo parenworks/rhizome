@@ -1,9 +1,9 @@
-;;; Seat (input) management for Stumpway
+;;; Seat (input) management for Rhizome
 ;;;
-;;; Each river_seat_v1 is wrapped in a stumpway-seat CLOS instance
+;;; Each river_seat_v1 is wrapped in a rhizome-seat CLOS instance
 ;;; that tracks keyboard focus, pointer state, and pointer bindings.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defvar *keyboard-repeat-rate* 25
   "Key repeat rate in keys per second (from compositor repeat-info).")
@@ -56,13 +56,13 @@ a hot reload added the feature."
             (setup-pointer-bindings seat)
             (setf (gethash seat *seats-with-pointer-bindings*) t))
         (error (e)
-          (format t "~&; Stumpway: error creating pointer bindings: ~A~%" e)))))
+          (format t "~&; Rhizome: error creating pointer bindings: ~A~%" e)))))
   (unless *pointer-bindings-enabled*
     (dolist (binding *pointer-bindings*)
       (handler-case
           (rwm:river-pointer-binding-v1.enable binding)
         (error (e)
-          (format t "~&; Stumpway: error enabling pointer binding: ~A~%" e))))
+          (format t "~&; Rhizome: error enabling pointer binding: ~A~%" e))))
     (setf *pointer-bindings-enabled* t)))
 
 (defun pointer-drag-start (seat type)
@@ -76,7 +76,7 @@ during the expose overview a click picks the window)."
   (declare (ignore win))
   nil)
 
-(defclass stumpway-seat ()
+(defclass rhizome-seat ()
   ((proxy          :initarg :proxy          :accessor seat-proxy)
    (wl-seat-name   :initarg :wl-seat-name   :accessor seat-wl-seat-name :initform nil)
    (wl-seat-proxy  :initarg :wl-seat-proxy  :accessor seat-wl-seat-proxy :initform nil)
@@ -86,23 +86,23 @@ during the expose overview a click picks the window)."
    (pointer-y      :initarg :pointer-y      :accessor seat-pointer-y :initform 0)
    (op-pending     :initarg :op-pending     :accessor seat-op-pending :initform nil)
    (op-state       :initarg :op-state       :accessor seat-op-state :initform nil))
-  (:documentation "Represents an input seat managed by stumpway."))
+  (:documentation "Represents an input seat managed by rhizome."))
 
 (defun register-seat (proxy)
   "Register a new river_seat_v1 proxy and set up event handlers."
-  (let ((seat (make-instance 'stumpway-seat :proxy proxy)))
+  (let ((seat (make-instance 'rhizome-seat :proxy proxy)))
     (setf (gethash proxy *seats*) seat)
     (push (lambda (event-name &rest args)
             (apply #'handle-seat-event seat event-name args))
           (wl:wl-proxy-hooks proxy))
-    (format t "~&; Stumpway: new seat registered~%")
+    (format t "~&; Rhizome: new seat registered~%")
     ;; MOD+drag move/resize bindings (enabled during manage sequences)
     (handler-case
         (progn
           (setup-pointer-bindings seat)
           (setf (gethash seat *seats-with-pointer-bindings*) t))
       (error (e)
-        (format t "~&; Stumpway: error creating pointer bindings: ~A~%" e)))
+        (format t "~&; Rhizome: error creating pointer bindings: ~A~%" e)))
     ;; Register with river_layer_shell_v1 if available
     (when *river-layer-shell*
       (handler-case
@@ -111,15 +111,15 @@ during the expose overview a click picks the window)."
             (push (lambda (event-name &rest args)
                     (case event-name
                       (:focus_exclusive
-                       (format t "~&; Stumpway: layer shell exclusive focus~%"))
+                       (format t "~&; Rhizome: layer shell exclusive focus~%"))
                       (:focus_non_exclusive
-                       (format t "~&; Stumpway: layer shell non-exclusive focus~%"))
+                       (format t "~&; Rhizome: layer shell non-exclusive focus~%"))
                       (:focus_none
-                       (format t "~&; Stumpway: layer shell focus none~%"))))
+                       (format t "~&; Rhizome: layer shell focus none~%"))))
                   (wl:wl-proxy-hooks ls-seat))
-            (format t "~&; Stumpway: registered seat with river_layer_shell_v1~%"))
+            (format t "~&; Rhizome: registered seat with river_layer_shell_v1~%"))
         (error (e)
-          (format t "~&; Stumpway: failed to register seat with layer shell: ~A~%" e))))))
+          (format t "~&; Rhizome: failed to register seat with layer shell: ~A~%" e))))))
 
 (defun handle-seat-event (seat event-name &rest args)
   "Dispatch river_seat_v1 events for SEAT."
@@ -172,20 +172,20 @@ during the expose overview a click picks the window)."
        (setf (getf (seat-op-state seat) :released) t)))
 
     (:removed
-     (format t "~&; Stumpway: seat removed~%")
+     (format t "~&; Rhizome: seat removed~%")
      (remhash (seat-proxy seat) *seats*))
 
     (t
-     (format t "~&; Stumpway: unhandled seat event ~A~%" event-name))))
+     (format t "~&; Rhizome: unhandled seat event ~A~%" event-name))))
 
 (defun setup-wl-keyboard (seat wl-seat-name)
   "Bind to wl_seat global and get a wl_keyboard for keyboard events."
   (let ((iface-class (wl:find-interface-named "wl_seat")))
     (unless iface-class
-      (format t "~&; Stumpway: wl_seat interface not found~%")
+      (format t "~&; Rhizome: wl_seat interface not found~%")
       (return-from setup-wl-keyboard))
     (unless *registry*
-      (format t "~&; Stumpway: no registry, cannot bind wl_seat~%")
+      (format t "~&; Rhizome: no registry, cannot bind wl_seat~%")
       (return-from setup-wl-keyboard))
     (let ((wl-seat (wl:wl-registry.bind *registry* wl-seat-name iface-class 7)))
       (setf (seat-wl-seat-proxy seat) wl-seat)
@@ -214,15 +214,15 @@ during the expose overview a click picks the window)."
           (case event-name
             (:keymap nil)
             (:enter
-             (format t "~&; Stumpway [debug]: keyboard enter surface~%"))
+             (format t "~&; Rhizome [debug]: keyboard enter surface~%"))
             (:leave
-             (format t "~&; Stumpway [debug]: keyboard leave surface~%"))
+             (format t "~&; Rhizome [debug]: keyboard leave surface~%"))
             (:key
              (destructuring-bind (serial time key state) args
                (declare (ignore serial time))
                (let ((keysym (evdev-to-xkb key *keyboard-shift-p*)))
                  (when *prompt-active*
-                   (format t "~&; Stumpway [debug]: prompt key keysym=~A state=~A~%"
+                   (format t "~&; Rhizome [debug]: prompt key keysym=~A state=~A~%"
                            keysym state))
                  (cond
                    ((eq state :pressed)
@@ -252,7 +252,7 @@ during the expose overview a click picks the window)."
              (destructuring-bind (rate delay) args
                (setf *keyboard-repeat-rate* rate
                      *keyboard-repeat-delay* delay)
-               (format t "~&; Stumpway: keyboard repeat rate=~A delay=~A~%"
+               (format t "~&; Rhizome: keyboard repeat rate=~A delay=~A~%"
                        rate delay)))))
         (wl:wl-proxy-hooks keyboard)))
 
@@ -269,7 +269,7 @@ during the expose overview a click picks the window)."
               (when *launcher-active*
                 (launcher-handle-key *keyboard-repeat-key* nil))
               (sleep (/ 1.0 *keyboard-repeat-rate*))))
-          :name "stumpway-key-repeat")))
+          :name "rhizome-key-repeat")))
 
 (defun keyboard-stop-repeat ()
   "Stop the current repeat thread."

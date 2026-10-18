@@ -1,7 +1,7 @@
 ;;; Tests for the prefix key engine (C-t chains).
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))

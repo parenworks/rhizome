@@ -5,44 +5,44 @@
 
 (in-package #:cl-user)
 
-(defpackage #:stumpway.river-wm
+(defpackage #:rhizome.river-wm
   (:use #:cl #:xyz.shunter.wayflan.client))
 
-(in-package #:stumpway.river-wm)
+(in-package #:rhizome.river-wm)
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (xyz.shunter.wayflan.client.scanner:wl-include
     (merge-pathnames
       #P"protocol/river-window-management-v1.xml"
-      (asdf:system-source-directory :stumpway))
+      (asdf:system-source-directory :rhizome))
     :export t)
 
   (xyz.shunter.wayflan.client.scanner:wl-include
     (merge-pathnames
       #P"protocol/river-xkb-bindings-v1.xml"
-      (asdf:system-source-directory :stumpway))
+      (asdf:system-source-directory :rhizome))
     :export t)
 
   (xyz.shunter.wayflan.client.scanner:wl-include
     (merge-pathnames
       #P"protocol/wlr-layer-shell-unstable-v1.xml"
-      (asdf:system-source-directory :stumpway))
+      (asdf:system-source-directory :rhizome))
     :export t)
 
   (xyz.shunter.wayflan.client.scanner:wl-include
     (merge-pathnames
       #P"protocol/river-layer-shell-v1.xml"
-      (asdf:system-source-directory :stumpway))
+      (asdf:system-source-directory :rhizome))
     :export t)
 
   (xyz.shunter.wayflan.client.scanner:wl-include
     (merge-pathnames
       #P"protocol/river-input-management-v1.xml"
-      (asdf:system-source-directory :stumpway))
+      (asdf:system-source-directory :rhizome))
     :export t)
 
   (xyz.shunter.wayflan.client.scanner:wl-include
     (merge-pathnames
       #P"protocol/river-libinput-config-v1.xml"
-      (asdf:system-source-directory :stumpway))
+      (asdf:system-source-directory :rhizome))
     :export t))

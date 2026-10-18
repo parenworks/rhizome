@@ -2,9 +2,9 @@
 ;;; GetLayout wire shape (Variety's actual menu), flattening to
 ;;; selectable entries, accelerator stripping, the Event call, and
 ;;; the tray-show-menu prompt flow.
-(ql:quickload :stumpway :silent t)
+(ql:quickload :rhizome :silent t)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (let ((pass 0) (fail 0))
   (flet ((ok (name actual expected)

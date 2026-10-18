@@ -1,4 +1,4 @@
-;;; Prefix key engine for Stumpway — the C-t StumpWM experience
+;;; Prefix key engine for Rhizome — the C-t StumpWM experience
 ;;;
 ;;; River's xkb bindings are single-key+modifier registrations, so a
 ;;; keychain (prefix then follow-up key) cannot be one binding. The
@@ -13,7 +13,7 @@
 ;;; Escape aborts, an unmapped key aborts (with a message), and the
 ;;; mode auto-expires after 5 seconds.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *prefix-mode-active* nil
   "Whether a prefix chain is in progress.")
@@ -91,7 +91,7 @@ the surface maps and receives keyboard focus."
     ;; Double prefix: treat as abort-and-restart
     (exit-prefix-mode))
   (unless (and *compositor* *shm* *layer-shell*)
-    (format t "~&; Stumpway: cannot enter prefix mode (missing globals)~%")
+    (format t "~&; Rhizome: cannot enter prefix mode (missing globals)~%")
     (return-from enter-prefix-mode))
   (setf *prefix-current-map* *prefix-map*
         *prefix-expiry* (+ (get-universal-time) 5)
@@ -103,7 +103,7 @@ the surface maps and receives keyboard focus."
       (setf (gethash :surface state) surface)
       (let ((layer-surface
               (rwm:zwlr-layer-shell-v1.get-layer-surface
-                *layer-shell* surface nil :top "stumpway-prefix")))
+                *layer-shell* surface nil :top "rhizome-prefix")))
         (setf (gethash :layer-surface state) layer-surface)
         (push (lambda (event-name &rest args)
                 (case event-name
@@ -149,7 +149,7 @@ prefix modes (command mode, iresize, expose)."
               (wl:wl-surface.destroy (gethash :surface state)))
             (bar-destroy-shm state))
         (error (e)
-          (format t "~&; Stumpway: error exiting prefix mode: ~A~%" e))))
+          (format t "~&; Rhizome: error exiting prefix mode: ~A~%" e))))
     (setf *prefix-state* nil)))
 
 (defun prefix-drain ()
@@ -157,7 +157,7 @@ prefix modes (command mode, iresize, expose)."
   (when (and *prefix-mode-active*
              (plusp *prefix-expiry*)
              (>= (get-universal-time) *prefix-expiry*))
-    (format t "~&; Stumpway: prefix mode timed out~%")
+    (format t "~&; Rhizome: prefix mode timed out~%")
     (exit-prefix-mode)))
 
 ;;; --- Key dispatch ---
@@ -202,7 +202,7 @@ prefix modes (command mode, iresize, expose)."
                 (handler-case
                     (funcall entry)
                   (error (e)
-                    (format t "~&; Stumpway: prefix action error: ~A~%" e)
+                    (format t "~&; Rhizome: prefix action error: ~A~%" e)
                     (message "error: ~A" e)))
                 (setf *prefix-current-map* *prefix-map*
                       *prefix-expiry* (+ (get-universal-time) 60))
@@ -212,7 +212,7 @@ prefix modes (command mode, iresize, expose)."
                 (handler-case
                     (funcall entry)
                   (error (e)
-                    (format t "~&; Stumpway: prefix action error: ~A~%" e)
+                    (format t "~&; Rhizome: prefix action error: ~A~%" e)
                     (message "error: ~A" e))))))
          ;; Unmapped key: abort with feedback
          (t
@@ -224,7 +224,7 @@ prefix modes (command mode, iresize, expose)."
 ;;;
 ;;; StumpWM minor modes bind keys globally and re-send the unclaimed
 ;;; ones to the focused window. Wayland forbids key injection, so
-;;; stumpway's minor modes scope to the prefix chain instead: while a
+;;; rhizome's minor modes scope to the prefix chain instead: while a
 ;;; mode is enabled, ITS keymap is consulted before the prefix map
 ;;; (most recently enabled mode first). Everything else about C-t
 ;;; chains is unchanged.
@@ -332,7 +332,7 @@ quit-confirm)."
     (if (> *quit-armed-at* (- now 3))
         (progn
           (setf *quit-armed-at* 0)
-          (message "stopping stumpway")
+          (message "stopping rhizome")
           (stop))
         (progn
           (setf *quit-armed-at* now)
@@ -383,34 +383,34 @@ quit-confirm)."
                  #'string<)))
 
 (defun describe-function-prompt ()
-  "Prompt for a stumpway function name and show its docstring."
+  "Prompt for a rhizome function name and show its docstring."
   (prompt-open "Describe function"
               :candidates
               (sort (loop for sym being the external-symbols
-                              of (find-package '#:stumpway)
+                              of (find-package '#:rhizome)
                           when (fboundp sym)
                           collect (string-downcase (string sym)))
                     #'string<)
               :on-complete
               (lambda (name)
-                (let ((sym (find-symbol (string-upcase name) '#:stumpway)))
+                (let ((sym (find-symbol (string-upcase name) '#:rhizome)))
                   (cond ((null sym) (message "no such function: ~A" name))
                         ((documentation sym 'function)
                          (message "~A: ~A" sym (documentation sym 'function)))
                         (t (message "~A: no documentation" sym)))))))
 
 (defun describe-variable-prompt ()
-  "Prompt for a stumpway variable name and show its docstring."
+  "Prompt for a rhizome variable name and show its docstring."
   (prompt-open "Describe variable"
               :candidates
               (sort (loop for sym being the external-symbols
-                              of (find-package '#:stumpway)
+                              of (find-package '#:rhizome)
                           when (boundp sym)
                           collect (string-downcase (string sym)))
                     #'string<)
               :on-complete
               (lambda (name)
-                (let ((sym (find-symbol (string-upcase name) '#:stumpway)))
+                (let ((sym (find-symbol (string-upcase name) '#:rhizome)))
                   (cond ((null sym) (message "no such variable: ~A" name))
                         ((documentation sym 'variable)
                          (message "~A: ~A" sym (documentation sym 'variable)))
@@ -519,7 +519,7 @@ expose, C-t Return). Placeholder: redefined by expose.lisp."
   nil)
 
 (defun setup-default-prefix-bindings ()
-  "The default C-t keymap, mapped onto stumpway's features."
+  "The default C-t keymap, mapped onto rhizome's features."
   ;; C-t w — windowlist (StumpWM: windowlist)
   (define-prefix-key 119 (lambda () (windowlist)) "windowlist")   ; w
   ;; C-t g — workspace picker (StumpWM: group commands)
@@ -592,7 +592,7 @@ expose, C-t Return). Placeholder: redefined by expose.lisp."
     (define-prefix-key 77 move-map "move window to frame (then arrows)")) ; M
   ;; C-t e <arrow> — swap the current frame's window with the frame
   ;; in that direction (StumpWM: exchange-direction, C-t x there;
-  ;; stumpway keeps C-t x for the command palette)
+  ;; rhizome keeps C-t x for the command palette)
   (let ((exchange-map (make-keymap)))
     (define-keymap-key exchange-map 65361
                        (lambda () (with-frame-context
@@ -662,4 +662,4 @@ expose, C-t Return). Placeholder: redefined by expose.lisp."
                          "expose window grid (pick: digits/arrows/click)") ; Return
   ;; C-t q — quit, with confirm (StumpWM's quit-confirm)
   (define-prefix-key 113 (lambda () (quit-confirm))
-                         "quit stumpway (press twice)"))           ; q
+                         "quit rhizome (press twice)"))           ; q

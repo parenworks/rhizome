@@ -1,9 +1,9 @@
 ;;; Inverse regression test: current workspace is 2.
 ;;; The visible workspace-1 IDE must be hidden, the workspace-2
 ;;; browser must be shown (no-op if already visible).
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (let ((calls '()))
   (dolist (spec '((show-window      :show)
@@ -22,9 +22,9 @@
               (when (eq fn 'hide-window)
                 (setf (window-hidden-p win) t))))))
 
-  (let ((ide    (make-instance 'stumpway-window :proxy :ide-proxy))
-        (browser (make-instance 'stumpway-window :proxy :browser-proxy))
-        (out     (make-instance 'stumpway-output :proxy :out-proxy
+  (let ((ide    (make-instance 'rhizome-window :proxy :ide-proxy))
+        (browser (make-instance 'rhizome-window :proxy :browser-proxy))
+        (out     (make-instance 'rhizome-output :proxy :out-proxy
                                 :width 1920 :height 1080)))
     (setf (gethash :ide-proxy *windows*) ide
           (window-hidden-p ide) nil

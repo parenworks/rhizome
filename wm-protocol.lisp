@@ -1,4 +1,4 @@
-;;; Core river-window-management-v1 protocol handling for Stumpway
+;;; Core river-window-management-v1 protocol handling for Rhizome
 ;;;
 ;;; This module implements the manage/render sequence loop that is the
 ;;; heart of river's window management protocol. The flow is:
@@ -13,7 +13,7 @@
 ;;;   8. Client sends render_finish
 ;;;   9. Loop back to 1 or 5 as needed
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;;; --- State --
 
@@ -32,20 +32,20 @@
   "river_layer_shell_v1 proxy - river's WM-side layer shell support.")
 
 (defvar *windows* (make-hash-table)
-  "Maps river_window_v1 proxy objects to stumpway-window instances.")
+  "Maps river_window_v1 proxy objects to rhizome-window instances.")
 
 (defvar *outputs* (make-hash-table)
-  "Maps river_output_v1 proxy objects to stumpway-output instances.")
+  "Maps river_output_v1 proxy objects to rhizome-output instances.")
 
 (defvar *seats* (make-hash-table)
-  "Maps river_seat_v1 proxy objects to stumpway-seat instances.")
+  "Maps river_seat_v1 proxy objects to rhizome-seat instances.")
 
 (defvar *wm-snapshot* '(:layout nil :windows 0 :focused nil)
   "Cached WM state for the bar thread, refreshed by update-wm-snapshot.")
 
 (defun snapshot-pathname ()
   "Pathname of the WM snapshot file read by the bar process."
-  (merge-pathnames #P".cache/stumpway/snapshot.sexp"
+  (merge-pathnames #P".cache/rhizome/snapshot.sexp"
                    (user-homedir-pathname)))
 
 (defun bar-write-snapshot (snapshot)
@@ -57,7 +57,7 @@ bar read the empty fallback, re-rendered, and each bar commit
 opened a new river sequence: a render->snapshot->bar->render
 feedback storm)."
   (handler-case
-      (let ((tmp (merge-pathnames #P".cache/stumpway/snapshot.sexp.tmp"
+      (let ((tmp (merge-pathnames #P".cache/rhizome/snapshot.sexp.tmp"
                                   (user-homedir-pathname))))
         (ensure-directories-exist tmp)
         (with-open-file (s tmp :direction :output
@@ -115,11 +115,11 @@ One of :idle, :managing, :waiting-render, :rendering.")
     ((string= interface "river_window_manager_v1")
      (let ((iface-class (wl:find-interface-named interface)))
        (unless iface-class
-         (format t "~&; Stumpway: interface ~A not found!~%" interface)
+         (format t "~&; Rhizome: interface ~A not found!~%" interface)
          (return-from handle-registry-global))
        (setf *wm-proxy*
              (wl:wl-registry.bind registry name iface-class version))
-       (format t "~&; Stumpway: bound river_window_manager_v1 (version ~D)~%" version)
+       (format t "~&; Rhizome: bound river_window_manager_v1 (version ~D)~%" version)
        (setup-wm-hooks *wm-proxy*)))
     ((string= interface "river_xkb_bindings_v1")
      (setup-xkb-bindings registry name interface version))
@@ -140,22 +140,22 @@ One of :idle, :managing, :waiting-render, :rendering.")
          ;; events the bound version defines.
          (let ((v (min version 5)))
            (setf *compositor* (wl:wl-registry.bind registry name iface-class v))
-           (format t "~&; Stumpway: bound wl_compositor (version ~D)~%" v)))))
+           (format t "~&; Rhizome: bound wl_compositor (version ~D)~%" v)))))
     ((string= interface "wl_shm")
      (let ((iface-class (wl:find-interface-named interface)))
        (when iface-class
          (setf *shm* (wl:wl-registry.bind registry name iface-class version))
-         (format t "~&; Stumpway: bound wl_shm (version ~D)~%" version))))
+         (format t "~&; Rhizome: bound wl_shm (version ~D)~%" version))))
     ((string= interface "zwlr_layer_shell_v1")
      (let ((iface-class (wl:find-interface-named interface)))
        (when iface-class
          (setf *layer-shell* (wl:wl-registry.bind registry name iface-class version))
-         (format t "~&; Stumpway: bound zwlr_layer_shell_v1 (version ~D)~%" version))))
+         (format t "~&; Rhizome: bound zwlr_layer_shell_v1 (version ~D)~%" version))))
     ((string= interface "river_layer_shell_v1")
      (let ((iface-class (wl:find-interface-named interface)))
        (when iface-class
          (setf *river-layer-shell* (wl:wl-registry.bind registry name iface-class version))
-         (format t "~&; Stumpway: bound river_layer_shell_v1 (version ~D)~%" version))))
+         (format t "~&; Rhizome: bound river_layer_shell_v1 (version ~D)~%" version))))
     (t
      ;; We don't bind wl_output/wl_seat directly - river_output_v1 and
      ;; river_seat_v1 provide the corresponding wl_output/wl_seat names
@@ -172,14 +172,14 @@ One of :idle, :managing, :waiting-render, :rendering.")
 
 (defun handle-wm-event (event-name &rest args)
   "Dispatch river_window_manager_v1 events."
-  (format t "~&; Stumpway [debug]: WM event ~A ~S~%" event-name args)
+  (format t "~&; Rhizome [debug]: WM event ~A ~S~%" event-name args)
   (case event-name
     (:unavailable
-     (format t "~&; Stumpway: window management unavailable (another WM is running?)~%")
+     (format t "~&; Rhizome: window management unavailable (another WM is running?)~%")
      (stop))
 
     (:finished
-     (format t "~&; Stumpway: server finished~%")
+     (format t "~&; Rhizome: server finished~%")
      (setf *running* nil))
 
     (:manage-start
@@ -201,13 +201,13 @@ One of :idle, :managing, :waiting-render, :rendering.")
        (register-seat seat-proxy)))
 
     (:session-locked
-     (format t "~&; Stumpway: session locked~%"))
+     (format t "~&; Rhizome: session locked~%"))
 
     (:session-unlocked
-     (format t "~&; Stumpway: session unlocked~%"))
+     (format t "~&; Rhizome: session unlocked~%"))
 
     (t
-     (format t "~&; Stumpway: unhandled WM event ~A~%" event-name))))
+     (format t "~&; Rhizome: unhandled WM event ~A~%" event-name))))
 
 ;;; --- Manage sequence --
 
@@ -237,7 +237,7 @@ window management decisions to the compositor."
 (defun on-manage-sequence ()
   "Hook called during a manage sequence. The tiling engine and command
 handlers should make window management requests here."
-  (format t "~&; Stumpway [debug]: on-manage-sequence - ~D outputs, ~D windows~%"
+  (format t "~&; Rhizome [debug]: on-manage-sequence - ~D outputs, ~D windows~%"
           (hash-table-count *outputs*) (hash-table-count *windows*))
 
   ;; Set up default keybindings on first manage sequence
@@ -252,7 +252,7 @@ handlers should make window management requests here."
 
   (maphash (lambda (output-proxy output)
              (declare (ignore output-proxy))
-             (format t "~&; Stumpway [debug]: output ~A dims ~Ax~A~%"
+             (format t "~&; Rhizome [debug]: output ~A dims ~Ax~A~%"
                      output (output-width output) (output-height output))
              (apply-layout-for-output output))
            *outputs*)
@@ -276,7 +276,7 @@ handlers should make window management requests here."
                      (eql (window-workspace win) (current-workspace out)))))
       (setf *pending-autofocus* nil)
       (dolist (seat (all-seats))
-        (format t "~&; Stumpway [debug]: auto-focusing window ~A on seat ~A~%" win seat)
+        (format t "~&; Rhizome [debug]: auto-focusing window ~A on seat ~A~%" win seat)
         (focus-window win seat)))))
 
 ;;; --- Render sequence --
@@ -309,7 +309,7 @@ manage sequence. Placeholder: redefined by floating.lisp."
 (defun on-render-sequence ()
   "Hook called during a render sequence. The tiling engine should set
 window positions, borders, and z-ordering here."
-  (format t "~&; Stumpway [debug]: on-render-sequence - ~D outputs, ~D windows~%"
+  (format t "~&; Rhizome [debug]: on-render-sequence - ~D outputs, ~D windows~%"
           (hash-table-count *outputs*) (hash-table-count *windows*))
   (maphash (lambda (output-proxy output)
              (declare (ignore output-proxy))
@@ -329,7 +329,7 @@ window management updates."
 ;;; --- Main event loop --
 
 (defun run ()
-  "Start the stumpway window manager. Connects to the running river compositor."
+  "Start the rhizome window manager. Connects to the running river compositor."
   (setf *running* t
         *windows* (make-hash-table)
         *outputs* (make-hash-table)
@@ -349,10 +349,10 @@ window management updates."
         *launcher-layer-surface* nil
         *launcher-scroll-offset* 0)
 
-  (format t "~&; Stumpway: starting window manager~%")
-  (format t "~&; Stumpway: connecting to river compositor...~%")
+  (format t "~&; Rhizome: starting window manager~%")
+  (format t "~&; Rhizome: connecting to river compositor...~%")
 
-  ;; Load user configuration (~/.config/stumpway/config.lisp)
+  ;; Load user configuration (~/.config/rhizome/config.lisp)
   (load-user-config)
 
   (wl:with-open-display (display)
@@ -370,7 +370,7 @@ window management updates."
       (wl:wl-display-roundtrip display)
 
       (unless *wm-proxy*
-        (format t "~&; Stumpway: river_window_manager_v1 not found! Is river running?~%")
+        (format t "~&; Rhizome: river_window_manager_v1 not found! Is river running?~%")
         (return-from run))
 
       ;; Retroactively register outputs/seats with river_layer_shell_v1
@@ -384,7 +384,7 @@ window management updates."
                         (declare (ignore event-name args)))
                       (wl:wl-proxy-hooks ls-output)))
             (error (e)
-              (format t "~&; Stumpway: retroactive output layer shell registration failed: ~A~%" e))))
+              (format t "~&; Rhizome: retroactive output layer shell registration failed: ~A~%" e))))
         (loop for seat being the hash-values of *seats* do
           (handler-case
               (let ((ls-seat (rwm:river-layer-shell-v1.get-seat
@@ -393,11 +393,11 @@ window management updates."
                         (declare (ignore event-name args)))
                       (wl:wl-proxy-hooks ls-seat)))
             (error (e)
-              (format t "~&; Stumpway: retroactive seat layer shell registration failed: ~A~%" e))))
-        (format t "~&; Stumpway: registered ~D output(s) and ~D seat(s) with river_layer_shell_v1~%"
+              (format t "~&; Rhizome: retroactive seat layer shell registration failed: ~A~%" e))))
+        (format t "~&; Rhizome: registered ~D output(s) and ~D seat(s) with river_layer_shell_v1~%"
                 (hash-table-count *outputs*) (hash-table-count *seats*)))
 
-      (format t "~&; Stumpway: connected, managing ~D window(s), ~D output(s), ~D seat(s)~%"
+      (format t "~&; Rhizome: connected, managing ~D window(s), ~D output(s), ~D seat(s)~%"
               (hash-table-count *windows*)
               (hash-table-count *outputs*)
               (hash-table-count *seats*))
@@ -421,14 +421,14 @@ window management updates."
                  (when (wl:wl-display-listen display)
                    (wl:wl-display-dispatch-event display))
                (error (e)
-                 (format t "~&; Stumpway: error in event dispatch: ~A~%" e)))
+                 (format t "~&; Rhizome: error in event dispatch: ~A~%" e)))
              (ipc-drain)
              (message-drain)
              (prompt-drain)
              (prefix-drain)
              (unless (wl:wl-display-listen display)
                (sleep 0.05)))
-        (format t "~&; Stumpway: shutting down~%")
+        (format t "~&; Rhizome: shutting down~%")
         (stop-bar)
         (stop-ipc-server))))
 
@@ -447,11 +447,11 @@ loading swank never delays WM startup."
               (ql:quickload :swank :silent t)
               (funcall (find-symbol "CREATE-SERVER" "SWANK")
                        :port port :dont-close t)
-              (format t "~&; Stumpway: swank (SLIME) server on port ~A~%" port))
+              (format t "~&; Rhizome: swank (SLIME) server on port ~A~%" port))
           (error (e)
-            (format t "~&; Stumpway: swank failed to start: ~A~%" e))))
-      :name "stumpway-swank")))
+            (format t "~&; Rhizome: swank failed to start: ~A~%" e))))
+      :name "rhizome-swank")))
 
 (defun stop ()
-  "Stop the stumpway event loop."
+  "Stop the rhizome event loop."
   (setf *running* nil))

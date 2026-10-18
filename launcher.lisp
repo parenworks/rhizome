@@ -1,11 +1,11 @@
-;;; Native Wayland application launcher for Stumpway
+;;; Native Wayland application launcher for Rhizome
 ;;;
 ;;; Uses wlr-layer-shell to create an overlay popup, renders text
 ;;; to a shared memory buffer, and handles keyboard input directly.
 ;;;
 ;;; Inspired by fuzzel and the Lisp Machines' prompt interface.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defvar *launcher-active* nil
   "Whether the launcher popup is currently shown.")
@@ -137,7 +137,7 @@ De-duplicates by display name (first occurrence wins)."
 (defun launcher-refresh-app-list ()
   "Refresh the app list from .desktop files."
   (setf *launcher-app-list* (launcher-scan-desktop-files))
-  (format t "~&; Stumpway: loaded ~A desktop entries~%" (length *launcher-app-list*)))
+  (format t "~&; Rhizome: loaded ~A desktop entries~%" (length *launcher-app-list*)))
 
 (defun launcher-filter-entries ()
   "Filter *launcher-app-list* by the current query string (fuzzy:
@@ -671,7 +671,7 @@ Uses the 8x16 bitmap font. Each char is 8px wide, 16px tall."
 Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
 *launcher-wl-buffer*. Returns the Lisp buffer vector."
   (let* ((size (* width height 4))
-         (filename (format nil "stumpway-launcher-~A-~A"
+         (filename (format nil "rhizome-launcher-~A-~A"
                            (get-universal-time) (random 100000)))
          (path (concatenate 'string "/dev/shm/" filename))
          (fd (cffi:foreign-funcall "open"
@@ -681,7 +681,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
                :int)))
     (when (< fd 0)
       (let ((errno (cffi:foreign-funcall "__errno_location" :pointer)))
-        (format t "~&; Stumpway: failed to create shm file, errno=~A path=~A~%"
+        (format t "~&; Rhizome: failed to create shm file, errno=~A path=~A~%"
                 (cffi:mem-aref errno :int) path))
       (return-from launcher-create-shm nil))
     ;; Unlink the file (it persists as shared memory until munmap)
@@ -698,7 +698,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
                   :long 0
                   :pointer)))
       (when (cffi:null-pointer-p ptr)
-        (format t "~&; Stumpway: mmap failed~%")
+        (format t "~&; Rhizome: mmap failed~%")
         (cffi:foreign-funcall "close" :int fd :int)
         (return-from launcher-create-shm nil))
       (setf *launcher-shm-fd* fd
@@ -823,7 +823,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
 
 (defun launcher-configure-handler (serial width height)
   "Handle layer surface configure event."
-  (format t "~&; Stumpway [debug]: launcher configure ~Ax~A serial ~A~%" width height serial)
+  (format t "~&; Rhizome [debug]: launcher configure ~Ax~A serial ~A~%" width height serial)
   ;; Use compositor-suggested size or our requested size
   (let ((w (if (> width 0) width *launcher-width*))
         (h (if (> height 0) height *launcher-height*)))
@@ -853,7 +853,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
   (launcher-update-scroll *launcher-height*)
   ;; Reuse shm buffer if size hasn't changed
   (unless (launcher-ensure-shm *launcher-width* *launcher-height*)
-    (format t "~&; Stumpway: failed to create shm buffer~%")
+    (format t "~&; Rhizome: failed to create shm buffer~%")
     (return-from launcher-redraw))
   ;; Render directly to shared memory
   (launcher-render-to-shm *launcher-width* *launcher-height*)
@@ -864,15 +864,15 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
 
 (defun show-launcher ()
   "Show the native launcher popup."
-  (format t "~&; Stumpway [debug]: show-launcher called, active=~A~%" *launcher-active*)
+  (format t "~&; Rhizome [debug]: show-launcher called, active=~A~%" *launcher-active*)
   (force-output)
   (when *launcher-active*
     (return-from show-launcher))
-  (format t "~&; Stumpway [debug]: compositor=~A shm=~A layer-shell=~A~%"
+  (format t "~&; Rhizome [debug]: compositor=~A shm=~A layer-shell=~A~%"
           *compositor* *shm* *layer-shell*)
   (force-output)
   (unless (and *compositor* *shm* *layer-shell*)
-    (format t "~&; Stumpway: missing compositor/shm/layer-shell, cannot show launcher~%")
+    (format t "~&; Rhizome: missing compositor/shm/layer-shell, cannot show launcher~%")
     (return-from show-launcher))
   ;; Rescan .desktop files on every open: fresh installs (pacman -S
   ;; variety ...) appear on the next launcher open, no restart
@@ -881,7 +881,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
         *launcher-selection* 0
         *launcher-scroll-offset* 0
         *launcher-entries* (launcher-filter-entries))
-  (format t "~&; Stumpway: showing native launcher~%")
+  (format t "~&; Rhizome: showing native launcher~%")
   (force-output)
   (unwind-protect
        (progn
@@ -890,7 +890,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
          ;; Create layer surface (output=nil = let compositor choose, layer=2 = top)
          (setf *launcher-layer-surface*
                (rwm:zwlr-layer-shell-v1.get-layer-surface
-                 *layer-shell* *launcher-surface* nil :top "stumpway-launcher"))
+                 *layer-shell* *launcher-surface* nil :top "rhizome-launcher"))
          ;; Set up event handler for configure
          (push (lambda (event-name &rest args)
                  (case event-name
@@ -898,7 +898,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
                     (destructuring-bind (serial width height) args
                       (launcher-configure-handler serial width height)))
                    (:closed
-                    (format t "~&; Stumpway: launcher surface closed~%")
+                    (format t "~&; Rhizome: launcher surface closed~%")
                     (setf *launcher-active* nil))))
                (wl:wl-proxy-hooks *launcher-layer-surface*))
          ;; Set size, anchor (center = no anchor edges), keyboard interactivity
@@ -924,7 +924,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
   (unless *launcher-active*
     (return-from hide-launcher))
   (setf *launcher-active* nil)
-  (format t "~&; Stumpway: hiding launcher~%")
+  (format t "~&; Rhizome: hiding launcher~%")
   ;; Destroy layer surface and surface
   (handler-case
       (progn
@@ -933,7 +933,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
         (when *launcher-surface*
           (wl:wl-surface.destroy *launcher-surface*)))
     (error (e)
-      (format t "~&; Stumpway: error destroying launcher surface: ~A~%" e)))
+      (format t "~&; Rhizome: error destroying launcher surface: ~A~%" e)))
   (setf *launcher-layer-surface* nil
         *launcher-surface* nil)
   (launcher-destroy-shm))
@@ -951,7 +951,7 @@ Returns T if the key was consumed, NIL if not."
     ((= keysym 65293)
      (let ((entry (nth *launcher-selection* *launcher-entries*)))
        (when entry
-         (format t "~&; Stumpway: launching ~A~%" (cdr entry))
+         (format t "~&; Rhizome: launching ~A~%" (cdr entry))
          (uiop:launch-program (list "bash" "-c" (cdr entry))))
        (hide-launcher))
      (launcher-redraw)

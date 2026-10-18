@@ -3,9 +3,9 @@
 ;;; browser visible on workspace 2, current workspace is 1.
 ;;; render-layout-for-output must SHOW the hidden workspace-1 window
 ;;; and HIDE the workspace-2 one.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -29,9 +29,9 @@
               (when (eq fn 'hide-window)
                 (setf (window-hidden-p win) t))))))
 
-  (let ((ide    (make-instance 'stumpway-window :proxy :ide-proxy))
-        (browser (make-instance 'stumpway-window :proxy :browser-proxy))
-        (out     (make-instance 'stumpway-output :proxy :out-proxy
+  (let ((ide    (make-instance 'rhizome-window :proxy :ide-proxy))
+        (browser (make-instance 'rhizome-window :proxy :browser-proxy))
+        (out     (make-instance 'rhizome-output :proxy :out-proxy
                                 :width 1920 :height 1080)))
     ;; IDE on workspace 1, hidden (we switched away and are back)
     (setf (gethash :ide-proxy *windows*) ide

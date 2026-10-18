@@ -1,4 +1,4 @@
-;;; Live eval prompt for Stumpway
+;;; Live eval prompt for Rhizome
 ;;;
 ;;; Alt+; opens a small centered layer-shell prompt. Type a Lisp
 ;;; expression (full ASCII keyboard support via the shift-aware
@@ -6,7 +6,7 @@
 ;;; Escape to cancel. This is the StumpWM-style eval: redefine layouts,
 ;;; change state, inspect anything — without restarting the compositor.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *eval-prompt-active* nil
   "Whether the eval prompt is open.")
@@ -58,7 +58,7 @@ shm-fd, shm-ptr, shm-size, wl-pool, wl-buffer, width, height.")
   "Evaluate TEXT in the live WM image and display the result.
 Errors are caught and shown instead of killing the WM."
   (let ((expr (handler-case
-                  (let ((*package* (find-package "STUMPWAY")))
+                  (let ((*package* (find-package "RHIZOME")))
                     (read-from-string text))
                 (end-of-file ()
                   :incomplete)
@@ -75,7 +75,7 @@ Errors are caught and shown instead of killing the WM."
        (let ((results
                (handler-case
                    (multiple-value-list
-                     (let ((*package* (find-package "STUMPWAY")))
+                     (let ((*package* (find-package "RHIZOME")))
                        (eval expr)))
                  (error (e)
                    (list (format nil "error: ~A" e))))))
@@ -83,7 +83,7 @@ Errors are caught and shown instead of killing the WM."
                (format nil "~{~A~^ ~}" (mapcar (lambda (r) (format nil "~A" r))
                                                results))
                *eval-prompt-result-visible* t)
-         (format t "~&; Stumpway: eval ~S => ~A~%"
+         (format t "~&; Rhizome: eval ~S => ~A~%"
                  text *eval-prompt-result*))))
     ;; Keep the query so successive evals can be edited; redraw shows result
     (eval-prompt-redraw)))
@@ -140,7 +140,7 @@ Errors are caught and shown instead of killing the WM."
   (when *eval-prompt-active*
     (return-from show-eval-prompt))
   (unless (and *compositor* *shm* *layer-shell*)
-    (format t "~&; Stumpway: cannot show eval prompt (missing globals)~%")
+    (format t "~&; Rhizome: cannot show eval prompt (missing globals)~%")
     (return-from show-eval-prompt))
   (setf *eval-prompt-query* ""
         *eval-prompt-result* nil
@@ -153,7 +153,7 @@ Errors are caught and shown instead of killing the WM."
       (setf (gethash :surface state) surface)
       (let ((layer-surface
               (rwm:zwlr-layer-shell-v1.get-layer-surface
-                *layer-shell* surface nil :top "stumpway-eval")))
+                *layer-shell* surface nil :top "rhizome-eval")))
         (setf (gethash :layer-surface state) layer-surface)
         (push (lambda (event-name &rest args)
                 (case event-name
@@ -186,7 +186,7 @@ Errors are caught and shown instead of killing the WM."
           (when (gethash :surface state)
             (wl:wl-surface.destroy (gethash :surface state))))
       (error (e)
-        (format t "~&; Stumpway: error closing eval prompt: ~A~%" e)))
+        (format t "~&; Rhizome: error closing eval prompt: ~A~%" e)))
     (bar-destroy-shm state)
     (setf *eval-prompt-state* nil))
-  (format t "~&; Stumpway: eval prompt closed~%"))
+  (format t "~&; Rhizome: eval prompt closed~%"))

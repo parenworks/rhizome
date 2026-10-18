@@ -1,11 +1,11 @@
-;;; Hooks for Stumpway
+;;; Hooks for Rhizome
 ;;;
 ;;; StumpWM-style hooks: user-defined functions triggered on WM
 ;;; events. Handlers are added with ADD-HOOK and run (in unspecified
 ;;; order) with the event's arguments; an error in one handler never
 ;;; affects others or the WM itself.
 ;;;
-;;;   (stumpway:add-hook :window-created
+;;;   (rhizome:add-hook :window-created
 ;;;     (lambda (win) (format t "new window: ~A~%" (window-title win))))
 ;;;
 ;;; Available hooks:
@@ -16,7 +16,7 @@
 ;;;   :workspace-changed  (workspace output)
 ;;;   :output-created      (output)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defvar *hooks* (make-hash-table)
   "Maps hook names (keywords) to lists of handler functions.")
@@ -48,4 +48,4 @@ logged and isolated: they never affect other handlers or the WM."
     (handler-case
         (apply handler args)
       (error (e)
-        (format t "~&; Stumpway: error in ~A hook handler: ~A~%" name e)))))
+        (format t "~&; Rhizome: error in ~A hook handler: ~A~%" name e)))))

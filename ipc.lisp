@@ -1,24 +1,24 @@
-;;; IPC for Stumpway — the stumpish equivalent
+;;; IPC for Rhizome — the stumpish equivalent
 ;;;
-;;; A Unix domain socket (default $XDG_RUNTIME_DIR/stumpway.sock) that
+;;; A Unix domain socket (default $XDG_RUNTIME_DIR/rhizome.sock) that
 ;;; accepts one command per line and replies with the result:
 ;;;
-;;;   stumpway-cmd switch-workspace 3
-;;;   stumpway-cmd current-workspace
-;;;   stumpway-cmd "(+ 1 2)"            ; Lisp forms are evaluated
+;;;   rhizome-cmd switch-workspace 3
+;;;   rhizome-cmd current-workspace
+;;;   rhizome-cmd "(+ 1 2)"            ; Lisp forms are evaluated
 ;;;
 ;;; Safety model: the socket thread only reads and writes bytes.
 ;;; Commands are enqueued and executed by the WM's main thread (see
 ;;; the poll loop in wm-protocol.lisp), so no Wayland request is ever
 ;;; made from a foreign thread.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;;; --- Command queue (drained by the main loop) ---
 
 (defvar *ipc-queue* nil
   "Pending command thunks, executed by the WM's main thread.")
-(defvar *ipc-lock* (bt:make-lock "stumpway-ipc")
+(defvar *ipc-lock* (bt:make-lock "rhizome-ipc")
   "Protects *ipc-queue*.")
 
 (defun ipc-enqueue (thunk)
@@ -36,13 +36,13 @@
       (handler-case
           (funcall thunk)
         (error (e)
-          (format t "~&; Stumpway: ipc command error: ~A~%" e))))))
+          (format t "~&; Rhizome: ipc command error: ~A~%" e))))))
 
 ;;; --- Command dispatch ---
 
 (defun ipc-dispatch-line (line)
   "Execute one command LINE and return the result as a string.
-A line starting with ( is evaluated as a Lisp form in the STUMPWAY
+A line starting with ( is evaluated as a Lisp form in the RHIZOME
 package; otherwise it is NAME ARGS..., looked up in *command-table*."
   (let ((line (string-trim " " (remove #\newline line))))
     (cond
@@ -50,7 +50,7 @@ package; otherwise it is NAME ARGS..., looked up in *command-table*."
       ((char= (char line 0) #\()
        (let ((result
                (handler-case
-                   (let ((*package* (find-package "STUMPWAY")))
+                   (let ((*package* (find-package "RHIZOME")))
                      (format nil "~{~A~^ ~}"
                              (multiple-value-list
                                (eval (read-from-string line)))))
@@ -89,8 +89,8 @@ package; otherwise it is NAME ARGS..., looked up in *command-table*."
   "Path of the IPC socket."
   (or (and (uiop:getenv "XDG_RUNTIME_DIR")
            (concatenate 'string (uiop:getenv "XDG_RUNTIME_DIR")
-                        "/stumpway.sock"))
-      (format nil "/tmp/stumpway-~A.sock"
+                        "/rhizome.sock"))
+      (format nil "/tmp/rhizome-~A.sock"
               (cffi:foreign-funcall "getuid" :int))))
 
 (defparameter *ipc-thread* nil
@@ -155,7 +155,7 @@ main thread by the queued thunk."
           (when (< client 0) (return))
           (ipc-handle-connection client)))
     (error (e)
-      (format t "~&; Stumpway: ipc accept loop ended: ~A~%" e))))
+      (format t "~&; Rhizome: ipc accept loop ended: ~A~%" e))))
 
 (defun start-ipc-server (&optional (path (ipc-socket-path)))
   "Start the IPC command socket on PATH (the default location unless
@@ -163,19 +163,19 @@ given)."
   (when *ipc-thread* (return-from start-ipc-server))
   (let ((fd (%ipc-socket)))
     (when (< fd 0)
-      (format t "~&; Stumpway: ipc: cannot create socket~%")
+      (format t "~&; Rhizome: ipc: cannot create socket~%")
       (return-from start-ipc-server))
     (cffi:foreign-funcall "unlink" :string path :int)
     (when (< (%ipc-bind fd path) 0)
-      (format t "~&; Stumpway: ipc: cannot bind ~A~%" path)
+      (format t "~&; Rhizome: ipc: cannot bind ~A~%" path)
       (cffi:foreign-funcall "close" :int fd :int)
       (return-from start-ipc-server))
     (cffi:foreign-funcall "listen" :int fd :int 8 :int)
     (setf *ipc-fd* fd
           *ipc-thread*
           (bt:make-thread (lambda () (ipc-accept-loop fd))
-                          :name "stumpway-ipc"))
-    (format t "~&; Stumpway: ipc listening on ~A~%" path)))
+                          :name "rhizome-ipc"))
+    (format t "~&; Rhizome: ipc listening on ~A~%" path)))
 
 (defun stop-ipc-server ()
   "Stop the IPC server and remove the socket."
@@ -188,7 +188,7 @@ given)."
       (error ())))
   (setf *ipc-thread* nil))
 
-;;; --- Client side (used by tests; stumpway-cmd uses the shell) ---
+;;; --- Client side (used by tests; rhizome-cmd uses the shell) ---
 
 (defun ipc-send-command (path line)
   "Connect to the IPC socket at PATH, send LINE, return the reply."

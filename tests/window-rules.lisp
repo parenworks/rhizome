@@ -1,8 +1,8 @@
 ;;; Window rules regression tests.
 ;;; Rules match app-id/title regexes and assign workspaces.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run (configure -> apply-config
 ;; starts the bar process otherwise!)
@@ -24,7 +24,7 @@
                               name actual expected)))))
 
     ;; App-id match: "vivaldi-stable" contains "vivaldi"
-    (let ((win (make-instance 'stumpway-window :proxy :w1)))
+    (let ((win (make-instance 'rhizome-window :proxy :w1)))
       (setf (gethash :w1 *windows*) win
             (window-app-id win) "vivaldi-stable")
       (apply-window-rules win)
@@ -32,7 +32,7 @@
              (window-workspace win) 2))
 
     ;; Title match: "my GNU Emacs" matches "emacs" case-insensitively
-    (let ((win (make-instance 'stumpway-window :proxy :w2)))
+    (let ((win (make-instance 'rhizome-window :proxy :w2)))
       (setf (gethash :w2 *windows*) win
             (window-title win) "my GNU Emacs")
       (apply-window-rules win)
@@ -40,7 +40,7 @@
              (window-workspace win) 3))
 
     ;; No rule matches: window keeps its current (nil) workspace
-    (let ((win (make-instance 'stumpway-window :proxy :w3)))
+    (let ((win (make-instance 'rhizome-window :proxy :w3)))
       (setf (gethash :w3 *windows*) win
             (window-app-id win) "foot")
       (apply-window-rules win)

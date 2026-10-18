@@ -1,8 +1,8 @@
-// Stumpway Testing Day — a manual QA strategy
+// Rhizome Testing Day — a manual QA strategy
 // Compile:  typst compile docs/testing-day.typ docs/testing-day.pdf
 
 #set document(
-  title: "Stumpway Testing Day",
+  title: "Rhizome Testing Day",
   author: "Glenn Thompson",
 )
 #set page(paper: "a4", margin: 2.2cm, numbering: "1 / 1")
@@ -16,9 +16,9 @@
 #let cb = box(baseline: 0.05em)[#h(0.1em) ☐#h(0.25em)]
 
 #align(center)[
-  #text(size: 24pt, weight: "bold")[Stumpway Testing Day]
+  #text(size: 24pt, weight: "bold")[Rhizome Testing Day]
   #v(0.3em)
-  #text(size: 12pt)[A manual QA strategy for the stumpway window manager]
+  #text(size: 12pt)[A manual QA strategy for the rhizome window manager]
   #v(0.3em)
   #text(size: 10pt, fill: luma(100))[River + StumpWM-parity stack — Sunday edition]
 ]
@@ -27,7 +27,7 @@
 
 = Goal and method
 
-Stumpway now has broad feature coverage; this plan puts it through its
+Rhizome now has broad feature coverage; this plan puts it through its
 paces as a *daily driver* under real usage, not just unit conditions.
 The strategy has three layers:
 
@@ -35,7 +35,7 @@ The strategy has three layers:
   testing starts from a known-good base.
 + *Feature circuits* — scripted walks through each feature area with
   concrete steps and expected results (the bulk of this document).
-+ *Soak testing* — use stumpway as your only window manager for the
++ *Soak testing* — use rhizome as your only window manager for the
   day: browse, edit, chat, take screenshots, switch workspaces under
   load, and note anything that breaks, flickers, or feels wrong.
 
@@ -47,7 +47,7 @@ appendix turns that into a fixable report.
 
 #cb Install missing helpers: `sudo pacman -S swaylock swayidle` (lock
 screen — MOD+Shift+L is a no-op without them).
-#cb Fresh login: pick the stumpway (river) session at the SDDM
+#cb Fresh login: pick the rhizome (river) session at the SDDM
 greeter. Watch the first 10 seconds: one bar, one wallpaper process,
 both autostart apps (variety tray-less in tray, flameshot daemon).
 #cb Automated suite green (next section).
@@ -113,8 +113,8 @@ get its own frame.
   [#cb], [C-t +/-], [Dividing line nudges ±30px; iresize (C-t r) then arrows works continuously, Enter commits, Escape cancels],
   [#cb], [C-t M + arrows], [Moves the focused window into that frame],
   [#cb], [C-t e + arrows], [Swaps the current frame's window with the target frame's (focus follows the arrival)],
-  [#cb], [Switch layout: `stumpway-cmd switch-layout master-stack`], [Tree rebuilds as master/stack; windows distributed one per frame],
-  [#cb], [`stumpway-cmd dump-frame proj` then open/close windows, then `restore-frame proj`], [Layout returns; windows placed by number; missing windows skipped without crash],
+  [#cb], [Switch layout: `rhizome-cmd switch-layout master-stack`], [Tree rebuilds as master/stack; windows distributed one per frame],
+  [#cb], [`rhizome-cmd dump-frame proj` then open/close windows, then `restore-frame proj`], [Layout returns; windows placed by number; missing windows skipped without crash],
 )
 
 == D. Expose (C-t Return)
@@ -156,7 +156,7 @@ get its own frame.
   [#cb], [Scroll over a tray icon], [Scroll(delta, vertical) reaches the item without errors in the log],
   [#cb], [Close an app with a tray item], [Its icon disappears within a second (NameOwnerChanged fires and the item is pruned)],
   [#cb], [`busctl --user status org.kde.StatusNotifierWatcher`], [PID points at the bar's sbcl process],
-  [#cb], [`stumpway-cmd toggle-bar` twice], [The watcher name follows the bar (released on stop, re-acquired on start); icons return],
+  [#cb], [`rhizome-cmd toggle-bar` twice], [The watcher name follows the bar (released on stop, re-acquired on start); icons return],
 )
 
 == D3. Group types (C-t l)
@@ -168,7 +168,7 @@ get its own frame.
   [#cb], [C-t l again], [Everything floats in a cascade (scroll -> floating); message names the type],
   [#cb], [Open a new window while floating], [It arrives floated, cascaded below the existing floats — not tiled],
   [#cb], [C-t l a third time], [Back to dynamic tiling (floating -> tile); windows re-split into frames],
-  [#cb], [`stumpway-cmd set-group-type floating` then back with `tile`], [Direct type sets behave like the cycle legs],
+  [#cb], [`rhizome-cmd set-group-type floating` then back with `tile`], [Direct type sets behave like the cycle legs],
 )
 
 == E. Floats and pointer operations
@@ -194,8 +194,8 @@ get its own frame.
   [#cb], [MOD+1..9 / C-t 1..9], [Direct switch; bar highlights; hidden windows restore],
   [#cb], [MOD+Shift+1..9], [Moves the focused window and follows it],
   [#cb], [C-t N / C-t P], [Next/previous workspace],
-  [#cb], [`stumpway-cmd renumber` after closing windows], [Numbers compact 1..N; C-t ' selects by number],
-  [#cb], [C-t \# then `stumpway-cmd move-marked 3`], [Marked window (star) moves; marks clear],
+  [#cb], [`rhizome-cmd renumber` after closing windows], [Numbers compact 1..N; C-t ' selects by number],
+  [#cb], [C-t \# then `rhizome-cmd move-marked 3`], [Marked window (star) moves; marks clear],
   [#cb], [Set a rule: `(configure '(:window-rules ((:match "foot" :workspace 4))))`, then launch a terminal], [It opens on workspace 4; check via C-t w (windowlist shows workspace numbers)],
   [#cb], [Same with a `:wse` rule: `(:wse (:and (:app-id "foot") (:float nil)) :float t)`], [Matching windows float automatically],
 )
@@ -234,7 +234,7 @@ get its own frame.
   [#cb], [MOD+Shift+L], [Locks (needs swaylock installed); password unlocks],
   [#cb], [MOD+Shift+E once], ["press again to log out" message],
   [#cb], [MOD+Shift+E twice within 3s], [Session ends; SDDM greeter returns; log back in cleanly],
-  [#cb], [`stumpway-cmd suspend`], [Machine suspends; wake restores session with input working],
+  [#cb], [`rhizome-cmd suspend`], [Machine suspends; wake restores session with input working],
   [#cb], [MOD+Shift+Q / R], [Confirm-style behavior consistent; power actions prompt polkit as configured],
   [#cb], [C-t q twice / once], [Quit needs the second press; a single press just warns],
 )
@@ -250,7 +250,7 @@ get its own frame.
   [#cb], [`(enable-minor-mode :test)` with a bound key], [Mode binding shadows the prefix binding while enabled; disable restores],
   [#cb], [C-t m (lastmsg), C-t a (time)], [Both show in the message window; lastmsg re-shows the previous text],
   [#cb], [Unbound key in a chain], ["unbound key" message, clean exit],
-  [#cb], [`(set-prefix-key "C-z")`, try C-z then C-t], [C-z now opens chains; C-t is inert; set it back with `"(stumpway:set-prefix-key \"C-t\")"`],
+  [#cb], [`(set-prefix-key "C-z")`, try C-z then C-t], [C-z now opens chains; C-t is inert; set it back with `"(rhizome:set-prefix-key \"C-t\")"`],
   [#cb], [`(set-user-mod :alt)` and back to `:super`], [MOD bindings re-grab in both directions; MOD+drag follows],
 )
 
@@ -259,16 +259,16 @@ get its own frame.
 #table(
   columns: (auto, 1fr, 1fr),
   [ ], [Action], [Expected],
-  [#cb], [`stumpway-cmd current-workspace`, `wse (:float t)`, `renumber`], [All reply in the message window without breaking the WM],
-  [#cb], [`stumpway-cmd '(+ 1 2)'`], [Evaluates; reply shows in the message window],
-  [#cb], [M-x slime-connect (or `stumpway-cmd`) while windows are moving], [No request from a foreign thread errors in the log],
+  [#cb], [`rhizome-cmd current-workspace`, `wse (:float t)`, `renumber`], [All reply in the message window without breaking the WM],
+  [#cb], [`rhizome-cmd '(+ 1 2)'`], [Evaluates; reply shows in the message window],
+  [#cb], [M-x slime-connect (or `rhizome-cmd`) while windows are moving], [No request from a foreign thread errors in the log],
   [#cb], [Flood: hold MOD+J/K for 10s, then C-t chains immediately], [No input loss, no stuck modes],
-  [#cb], [`stumpway-cmd lock` twice in a row], [Second lock doesn't spawn duplicates (swaylock may refuse politely)],
+  [#cb], [`rhizome-cmd lock` twice in a row], [Second lock doesn't spawn duplicates (swaylock may refuse politely)],
 )
 
 = Soak testing (the afternoon)
 
-Use stumpway as your only session for 3–4 hours. Keep this list open
+Use rhizome as your only session for 3–4 hours. Keep this list open
 and note anything that matches:
 
 #table(
@@ -278,8 +278,8 @@ and note anything that matches:
   [#cb Focus fights], [Auto-focus stealing, clicks not moving focus, expose leaving stale focus],
   [#cb Slow chains], [C-t taking > 100ms, launcher scrolling hitching],
   [#cb Workspace drift], [Windows landing on wrong workspaces via rules, or losing their frame order after switches],
-  [#cb Log growth], [Tail `~/.cache/stumpway/stumpway.log` and `bar.log` — idle should add nothing; bursts during drag/resize are expected but should stop on release],
-  [#cb Memory], [`ps -o rss -p $(pgrep -f stumpway:run)` at start vs end of the afternoon; >2x growth is worth investigating],
+  [#cb Log growth], [Tail `~/.cache/rhizome/rhizome.log` and `bar.log` — idle should add nothing; bursts during drag/resize are expected but should stop on release],
+  [#cb Memory], [`ps -o rss -p $(pgrep -f rhizome:run)` at start vs end of the afternoon; >2x growth is worth investigating],
 )
 
 Suggested load: 8–12 windows across 4+ workspaces, a browser with
@@ -291,15 +291,15 @@ Exercise expose, splits, and workspace switches while the video plays.
 - *Stability — protocol stream (the freeze fix):* open and close the
   launcher, show messages (C-t m), open prompts (MOD+W) repeatedly —
   10+ popups. Then check the log:
-  `grep -c "Malformed" ~/.cache/stumpway/stumpway.log` — reads 0
+  `grep -c "Malformed" ~/.cache/rhizome/rhizome.log` — reads 0
   after the v5 compositor cap (any non-zero number means the
   desync is back; stop and report).
 - *Stability — the snapshot storm (the freeze fix):* with the bar
   running and windows open, run
-  `ls -l --time-style=+%s ~/.cache/stumpway/snapshot.sexp` twice,
+  `ls -l --time-style=+%s ~/.cache/rhizome/snapshot.sexp` twice,
   10 seconds apart — the mtime must be IDENTICAL while nothing
   changes (a bumping mtime at idle = the bar feedback storm).
-  Also: `tail -f ~/.cache/stumpway/stumpway.log` should be quiet
+  Also: `tail -f ~/.cache/rhizome/rhizome.log` should be quiet
   at idle — a stream of MANAGE-START lines at idle is the storm.
 - *Stability — scroll gauntlet:* toggle C-t v, wait 10s (the
   message expiry), toggle back, wait 10s. The laptop must stay
@@ -315,12 +315,12 @@ Exercise expose, splits, and workspace switches while the video plays.
   backends). Any app's file chooser counts: Firefox uploads,
   Chromium saves — if a picker never appears, the activation
   environment went stale again.
-- *Hot-reload resilience:* `(stumpway:configure '(:bar (:height 26)))`
-  from `stumpway-cmd`, then `ql:quickload` a changed file via the eval
+- *Hot-reload resilience:* `(rhizome:configure '(:bar (:height 26)))`
+  from `rhizome-cmd`, then `ql:quickload` a changed file via the eval
   prompt (C-t :). The WM should survive; note any stuck mode or lost
   focus. Recovery lever: `C-t q q` then relogin.
 - *Multi-bar safety:* confirm exactly one bar process at all times:
-  `pgrep -fc "stumpway:run-bar"` must read `1` (the fork-bomb guard).
+  `pgrep -fc "rhizome:run-bar"` must read `1` (the fork-bomb guard).
 - *Timeout paths:* enter iresize, expose, command mode and just wait
   60s in each — all three must restore their state cleanly on expiry.
 - *Float + expose interplay:* a pre-existing float plus dynamic tiles,
@@ -329,11 +329,11 @@ Exercise expose, splits, and workspace switches while the video plays.
 = Appendix A: capture guide (how to report a failure)
 
 - Section number + exact steps + what happened vs expected.
-- `tail -50 ~/.cache/stumpway/stumpway.log` (WM) and
-  `~/.cache/stumpway/bar.log`.
+- `tail -50 ~/.cache/rhizome/rhizome.log` (WM) and
+  `~/.cache/rhizome/bar.log`.
 - For input/mode bugs: which modes were active (C-t h b lists minor
   modes), whether a timeout or manual exit was involved.
-- One-liner repro if you can: the `stumpway-cmd` or key sequence.
+- One-liner repro if you can: the `rhizome-cmd` or key sequence.
 
 = Appendix B: quick reference
 

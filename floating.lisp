@@ -1,9 +1,9 @@
-;;; Floating windows for Stumpway — the StumpWM float experience
+;;; Floating windows for Rhizome — the StumpWM float experience
 ;;;
 ;;; Not everything belongs in a tiling grid: GIMP toolboxes, palette
 ;;; dialogs, and picture-in-picture video want to keep their own size
 ;;; and be moved around freely. StumpWM handles these as floats and
-;;; so does stumpway:
+;;; so does rhizome:
 ;;;
 ;;;   - A floating window keeps its own position and dimensions; the
 ;;;     tiling layouts never see it, and it stacks above the tiling.
@@ -16,10 +16,10 @@
 ;;;     the cumulative pointer motion, and each manage sequence applies
 ;;;     it. Sizes are clamped to the window's own min/max hints.
 ;;;   - Window rules can float apps by regex:
-;;;     (stumpway:configure '(:window-rules ((:match "gimp" :float t))))
+;;;     (rhizome:configure '(:window-rules ((:match "gimp" :float t))))
 ;;;   - C-t f toggles the focused window between float and tiling.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *float-min-size* 50
   "Smallest float dimension a user resize may produce.")
@@ -265,7 +265,7 @@ Cumulative deltas make this idempotent: origin + total motion."
                                       (window-height win) 100)
                         :dx 0 :dy 0 :released nil))
             (rwm:river-seat-v1.op-start-pointer (seat-proxy seat))
-            (format t "~&; Stumpway: float ~A op started~%"
+            (format t "~&; Rhizome: float ~A op started~%"
                     (getf pending :type))))))
     (let ((op (seat-op-state seat)))
       (when op

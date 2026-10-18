@@ -1,8 +1,8 @@
 ;;; Tests for the second medium batch: frame dump/restore (fdump),
 ;;; window marks, and set-prefix-key.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -37,13 +37,13 @@
 
     ;; --- Frame dump/restore ---
 
-    (let* ((out (make-instance 'stumpway-output :proxy :dump-out
+    (let* ((out (make-instance 'rhizome-output :proxy :dump-out
                                :width 1920 :height 1080))
-           (w1 (make-instance 'stumpway-window :proxy :d1))
-           (w2 (make-instance 'stumpway-window :proxy :d2))
-           (w3 (make-instance 'stumpway-window :proxy :d3))
-           (w4 (make-instance 'stumpway-window :proxy :d4))
-           (tmp-file "/tmp/stumpway-frame-dump-test.lisp"))
+           (w1 (make-instance 'rhizome-window :proxy :d1))
+           (w2 (make-instance 'rhizome-window :proxy :d2))
+           (w3 (make-instance 'rhizome-window :proxy :d3))
+           (w4 (make-instance 'rhizome-window :proxy :d4))
+           (tmp-file "/tmp/rhizome-frame-dump-test.lisp"))
       (setf (gethash :d1 *windows*) w1
             (gethash :d2 *windows*) w2
             (gethash :d3 *windows*) w3
@@ -109,7 +109,7 @@
             (current-frame-for out 3) (first leaves)))
 
       ;; Scaling: restore the 1920x1080 dump into a 960x540 output
-      (let ((small (make-instance 'stumpway-output :proxy :small-out
+      (let ((small (make-instance 'rhizome-output :proxy :small-out
                                  :width 960 :height 540)))
         (setf (gethash small *output-workspace*) 3)
         (setf *frame-trees* (make-hash-table :test 'equal))
@@ -124,7 +124,7 @@
 
       ;; Windows missing from the dump pile onto the last frame:
       ;; restore with w4's number gone
-      (let ((extra (make-instance 'stumpway-window :proxy :extra)))
+      (let ((extra (make-instance 'rhizome-window :proxy :extra)))
         (setf (gethash :extra *windows*) extra
               (window-output extra) out)
         (assign-window-number extra)
@@ -140,10 +140,10 @@
 
     ;; --- Window marks ---
 
-    (let* ((out (make-instance 'stumpway-output :proxy :mark-out
+    (let* ((out (make-instance 'rhizome-output :proxy :mark-out
                                 :width 1920 :height 1080))
-           (m1 (make-instance 'stumpway-window :proxy :m1))
-           (m2 (make-instance 'stumpway-window :proxy :m2)))
+           (m1 (make-instance 'rhizome-window :proxy :m1))
+           (m2 (make-instance 'rhizome-window :proxy :m2)))
         (setf (gethash :m1 *windows*) m1
               (gethash :m2 *windows*) m2)
         (dolist (w (list m1 m2))

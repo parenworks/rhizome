@@ -1,4 +1,4 @@
-;;; Per-workspace group types for Stumpway
+;;; Per-workspace group types for Rhizome
 ;;;
 ;;; StumpWM's workspace "kinds" (tile-windows, floating-windows,
 ;;; dynamic-windows) as one per-workspace setting with a live switch:
@@ -11,7 +11,7 @@
 ;;; floating un-ribbons and floats, entering tile unfloats and un-ribbons
 ;;; so the dynamic tiler re-adopts everything).
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *workspace-types* (make-hash-table :test 'equal)
   "Explicit per-workspace group types, keyed like frame trees. Only

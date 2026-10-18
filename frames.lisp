@@ -1,4 +1,4 @@
-;;; Frame trees for Stumpway — StumpWM's core data structure
+;;; Frame trees for Rhizome — StumpWM's core data structure
 ;;;
 ;;; StumpWM doesn't have "layouts" in the i3 sense: the screen is a
 ;;; recursive binary tree of FRAMES (rectangles) that the user carves
@@ -18,7 +18,7 @@
 ;;; each frame's visible window its rectangle, the render pass places
 ;;; it — the same river requests the preset layouts used.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *frame-min-size* 50
   "Smallest frame dimension a split or resize may produce.")
@@ -481,12 +481,12 @@ round-robin (StumpWM's fclear)."
 ;;; dump.
 
 (defun frame-dump-pathname (name)
-  "Pathname of the frame dump NAME (stumpway-cmd dump-frame <name>)."
+  "Pathname of the frame dump NAME (rhizome-cmd dump-frame <name>)."
   (merge-pathnames
     (make-pathname :name (string-downcase (string name))
                    :type "lisp"
                    :directory '(:relative "frame-dumps"))
-    (merge-pathnames #P".local/share/stumpway/"
+    (merge-pathnames #P".local/share/rhizome/"
                      (user-homedir-pathname))))
 
 (defun frame-tree-to-sexp (root)

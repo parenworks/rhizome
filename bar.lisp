@@ -1,4 +1,4 @@
-;;; Stumpway bar - a configurable status bar / mode-line
+;;; Rhizome bar - a configurable status bar / mode-line
 ;;;
 ;;; A mode-line in the StumpWM tradition, rendered directly from the
 ;;; window manager's own state. The bar runs on its own Wayland
@@ -10,7 +10,7 @@
 ;;; functions returning strings; the :left/:center/:right module lists
 ;;; can be changed live from the REPL.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;;; --- State ---
 
@@ -321,7 +321,7 @@ the segment's base color). Unknown or failing modules render empty."
 ;;;
 ;;;   (:icons ((:icon "flameshot" :on-click "flameshot gui")
 ;;;            (:icon "variety" :on-click "variety")
-;;;            (:icon "/path/to/custom.png" :on-click "stumpway-cmd lock")))
+;;;            (:icon "/path/to/custom.png" :on-click "rhizome-cmd lock")))
 
 (defparameter *bar-icon-size* 16
   "Rendered icon size (fits the 20px default bar).")
@@ -569,7 +569,7 @@ after it."
   (let* ((width (gethash :width state))
          (height (gethash :height state))
          (size (* width height 4))
-         (filename (format nil "stumpway-bar-~A-~A"
+         (filename (format nil "rhizome-bar-~A-~A"
                            (get-universal-time) (random 100000)))
          (path (concatenate 'string "/dev/shm/" filename))
          (fd (cffi:foreign-funcall "open"
@@ -578,7 +578,7 @@ after it."
                :int 384                        ; 0600
                :int)))
     (when (< fd 0)
-      (format t "~&; Stumpway: bar: failed to create shm file~%")
+      (format t "~&; Rhizome: bar: failed to create shm file~%")
       (return-from bar-ensure-shm nil))
     (cffi:foreign-funcall "unlink" :string path :int)
     (cffi:foreign-funcall "ftruncate" :int fd :long size :int)
@@ -686,7 +686,7 @@ last commit. Re-renders are skipped when nothing changed."
   (handler-case
       (uiop:launch-program (list "bash" "-c" command))
     (error (e)
-      (format t "~&; Stumpway: bar: command failed: ~A~%" e))))
+      (format t "~&; Rhizome: bar: command failed: ~A~%" e))))
 
 (defun bar-module-action (module key)
   "The configured shell command for MODULE's action KEY
@@ -708,17 +708,17 @@ entries carry their actions inline."
       (cond
         ;; Tray item: Activate / SecondaryActivate on the item
         ((and (listp module) (getf module :name))
-         (format t "~&; Stumpway: bar: tray click ~A~%" (getf module :name))
+         (format t "~&; Rhizome: bar: tray click ~A~%" (getf module :name))
          (tray-click module))
         ;; Workspace numbers: switch to the clicked workspace via IPC
         ((eq module :workspaces)
          (let ((workspace (1+ (floor (- x (second hit)) 8))))
            (when (<= 1 workspace (getf (bar-snapshot) :workspace-count 9))
-             (format t "~&; Stumpway: bar: click workspace ~D~%" workspace)
+             (format t "~&; Rhizome: bar: click workspace ~D~%" workspace)
              (bar-run-command
-               (format nil "stumpway-cmd switch-workspace ~D" workspace)))))
+               (format nil "rhizome-cmd switch-workspace ~D" workspace)))))
         (t
-         (format t "~&; Stumpway: bar: click on ~A~%" module)
+         (format t "~&; Rhizome: bar: click on ~A~%" module)
          (let ((command (bar-module-action module :on-click)))
            (when command
              (bar-run-command command))))))))
@@ -733,13 +733,13 @@ here, the prompt surfaces live there)."
                        *bar-hitboxes*))
          (module (first hit)))
     (when (and (listp module) (getf module :name) (getf module :menu))
-      (format t "~&; Stumpway: bar: tray menu ~A~%" (getf module :name))
+      (format t "~&; Rhizome: bar: tray menu ~A~%" (getf module :name))
       ;; the Menu property is (o . "/path") — an object-path variant
       (let ((menu-path (if (consp (getf module :menu))
                            (cdr (getf module :menu))
                            (getf module :menu))))
         (bar-run-command
-          (format nil "stumpway-cmd \"(stumpway:tray-show-menu \\\"~A\\\" \\\"~A\\\")\""
+          (format nil "rhizome-cmd \"(rhizome:tray-show-menu \\\"~A\\\" \\\"~A\\\")\""
                   (getf module :name) menu-path))))))
 
 (defun bar-handle-scroll (amount)
@@ -821,12 +821,12 @@ here, the prompt surfaces live there)."
            (handler-case
                (wl:wl-display-roundtrip display)
              (error (e)
-               (format t "~&; Stumpway: bar: ignored event error: ~A~%" e))))
+               (format t "~&; Rhizome: bar: ignored event error: ~A~%" e))))
          (safe-dispatch (display)
            (handler-case
                (wl:wl-display-dispatch-event display)
              (error (e)
-               (format t "~&; Stumpway: bar: ignored event error: ~A~%" e)))))
+               (format t "~&; Rhizome: bar: ignored event error: ~A~%" e)))))
     (handler-case
         (wl:with-open-display (display)
           (setf (gethash :display state) display)
@@ -841,7 +841,7 @@ here, the prompt surfaces live there)."
             (unless (and (gethash :compositor state)
                          (gethash :shm state)
                          (gethash :layer-shell state))
-              (format t "~&; Stumpway: bar: missing compositor/shm/layer-shell globals~%")
+              (format t "~&; Rhizome: bar: missing compositor/shm/layer-shell globals~%")
               (return-from bar-run-loop))
             (let ((surface (wl:wl-compositor.create-surface
                             (gethash :compositor state))))
@@ -849,7 +849,7 @@ here, the prompt surfaces live there)."
               (let ((layer-surface
                       (rwm:zwlr-layer-shell-v1.get-layer-surface
                         (gethash :layer-shell state) surface
-                        (gethash :output state) :top "stumpway-bar")))
+                        (gethash :output state) :top "rhizome-bar")))
                 (setf (gethash :layer-surface state) layer-surface)
                 (push (lambda (event-name &rest args)
                         (bar-layer-surface-handler state layer-surface
@@ -888,13 +888,13 @@ here, the prompt surfaces live there)."
                          (sleep (config-getf '(:bar) :interval :default 0.15)))
                 (bar-destroy-shm state)))))
       (error (e)
-        (format t "~&; Stumpway: bar thread error: ~A~%" e)))))
+        (format t "~&; Rhizome: bar thread error: ~A~%" e)))))
 
 
 (defparameter *bar-process-mode* nil
   "T in the bar process itself (set by run-bar BEFORE anything else).
 Guards all bar process spawning: the bar loads the user config at
-startup, and any (stumpway:configure ...) in it must never reach
+startup, and any (rhizome:configure ...) in it must never reach
 bar-apply-config — the bar applying config used to spawn another bar,
 which loaded the config and spawned another: exponential bars on
 screen. Only the WM process ever manages bar processes.")
@@ -911,7 +911,7 @@ no matter what the user config asks for."
   ;; bus name, serves registrations, and renders the items.
   (handler-case (tray-start)
     (error (e)
-      (format t "~&; Stumpway: tray: startup failed: ~A~%" e)))
+      (format t "~&; Rhizome: tray: startup failed: ~A~%" e)))
   (let ((state (make-hash-table)))
     (setf *bar-state* state)
     (bar-run-loop state)
@@ -931,7 +931,7 @@ no matter what the user config asks for."
 
 (defun bar-log-path ()
   "Pathname of the bar process's log file."
-  (merge-pathnames #P".cache/stumpway/bar.log"
+  (merge-pathnames #P".cache/rhizome/bar.log"
                    (user-homedir-pathname)))
 
 (defun start-bar ()
@@ -943,9 +943,9 @@ past incidents (they would stack on screen)."
   (when (bar-alive-p)
     (return-from start-bar))
   ;; Reap orphan bar processes: exact-match the run-bar eval, never
-  ;; the WM (its arg is (stumpway:run))
+  ;; the WM (its arg is (rhizome:run))
   (ignore-errors
-    (uiop:run-program '("pkill" "-f" "stumpway:run-bar")
+    (uiop:run-program '("pkill" "-f" "rhizome:run-bar")
                       :ignore-error-status t))
   (ensure-directories-exist (bar-log-path))
   (with-open-file (s (bar-log-path) :direction :output
@@ -954,11 +954,11 @@ past incidents (they would stack on screen)."
         (uiop:launch-program
           (list "sbcl"
                 "--non-interactive"
-                "--eval" "(ql:quickload :stumpway)"
-                "--eval" "(stumpway:run-bar)")
+                "--eval" "(ql:quickload :rhizome)"
+                "--eval" "(rhizome:run-bar)")
           :output (bar-log-path)
           :error-output :output))
-  (format t "~&; Stumpway: bar started~%"))
+  (format t "~&; Rhizome: bar started~%"))
 
 (defun stop-bar ()
   "Stop the bar process. Kills tracked AND orphan bars (the latter
@@ -969,15 +969,15 @@ left by past incidents); WM process only."
     (handler-case
         (uiop:terminate-process *bar-process*)
       (error (e)
-        (format t "~&; Stumpway: error stopping bar: ~A~%" e))))
+        (format t "~&; Rhizome: error stopping bar: ~A~%" e))))
   (when *bar-process*
     (ignore-errors (uiop:wait-process *bar-process*)))
   ;; Reap orphans too (exact-match, never the WM)
   (ignore-errors
-    (uiop:run-program '("pkill" "-f" "stumpway:run-bar")
+    (uiop:run-program '("pkill" "-f" "rhizome:run-bar")
                       :ignore-error-status t))
   (setf *bar-process* nil)
-  (format t "~&; Stumpway: bar stopped~%"))
+  (format t "~&; Rhizome: bar stopped~%"))
 
 (defun bar-reserved-height ()
   "Vertical pixels reserved for the bar (0 when disabled).

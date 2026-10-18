@@ -1,4 +1,4 @@
-;;; Command dispatch for Stumpway
+;;; Command dispatch for Rhizome
 ;;;
 ;;; Commands can be triggered by:
 ;;;   - Keyboard bindings (via river-xkb-bindings-v1, future)
@@ -6,10 +6,10 @@
 ;;;   - The REPL (via SLIME/SLY - the StumpWM way)
 ;;;
 ;;; From the REPL:
-;;;   (stumpway:execute-command output :focus-next nil)
-;;;   (stumpway:execute-command output :switch-layout '("even"))
+;;;   (rhizome:execute-command output :focus-next nil)
+;;;   (rhizome:execute-command output :switch-layout '("even"))
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defvar *command-table* (make-hash-table)
   "Maps command keywords to handler functions.")
@@ -32,7 +32,7 @@ describe-command."
   (let ((handler (gethash command *command-table*)))
     (if handler
         (funcall handler output args)
-        (format t "~&; Stumpway: unknown command ~A~%" command))))
+        (format t "~&; Rhizome: unknown command ~A~%" command))))
 
 (defun describe-command-prompt ()
   "Prompt for a command name and show its documentation."
@@ -117,7 +117,7 @@ describe-command."
 (define-command :list-layouts (output args)
   "List available layouts."
   (declare (ignore output args))
-  (format t "~&; Stumpway: available layouts:~%")
+  (format t "~&; Rhizome: available layouts:~%")
   (maphash (lambda (name fn)
              (declare (ignore fn))
              (format t "~&;   ~A~%" name))
@@ -126,7 +126,7 @@ describe-command."
 (define-command :help (output args)
   "Show available commands."
   (declare (ignore output args))
-  (format t "~&; Stumpway commands:~%")
+  (format t "~&; Rhizome commands:~%")
   (maphash (lambda (name fn)
              (declare (ignore fn))
              (format t "~&;   ~A~%" name))
@@ -223,7 +223,7 @@ Usage: pull <n>"
 
 (define-command :dump-frame (output args)
   "Save the current workspace's frame layout to a file.
-Usage: dump-frame <name> (files live in ~/.local/share/stumpway/frame-dumps/)"
+Usage: dump-frame <name> (files live in ~/.local/share/rhizome/frame-dumps/)"
   (when args
     (dump-frame output (current-workspace output)
                 (frame-dump-pathname (first args)))))
@@ -306,7 +306,7 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
 
 (define-command :tray-show-menu (output args)
   "Open a tray item's dbusmenu as a selection prompt (bar right-click)."
-  (apply #'stumpway::tray-show-menu args))
+  (apply #'rhizome::tray-show-menu args))
 
 (define-command :group-type (output args)
   "Report the current workspace's group type."
@@ -469,12 +469,12 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
 (defun shutdown-machine ()
   "Power off the machine. Works from an active session (polkit
 grants login1 power-off to active local sessions)."
-  (format t "~&; Stumpway: powering off~%")
+  (format t "~&; Rhizome: powering off~%")
   (uiop:launch-program '("systemctl" "poweroff")))
 
 (defun reboot-machine ()
   "Reboot the machine."
-  (format t "~&; Stumpway: rebooting~%")
+  (format t "~&; Rhizome: rebooting~%")
   (uiop:launch-program '("systemctl" "reboot")))
 
 ;;; --- Screenshot ---
@@ -498,5 +498,5 @@ With :region t, select the area with slurp first."
                   (format nil "grim ~S && wl-copy < ~S" path-str path-str))))
     (ensure-directories-exist dir)
     (uiop:launch-program (list "bash" "-c" cmd))
-    (format t "~&; Stumpway: screenshot ~A-> ~A~%"
+    (format t "~&; Rhizome: screenshot ~A-> ~A~%"
             (if region "region " "") path-str)))

@@ -1,8 +1,8 @@
 ;;; Tests for the frame tree engine (frames.lisp) and its tiling
 ;;; integration (tiling.lisp). River-touching functions are stubbed.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -28,7 +28,7 @@
       (let ((fn-sym fn))
         (setf (symbol-function fn)
               (lambda (&rest args)
-                (if (and args (typep (first args) 'stumpway-window))
+                (if (and args (typep (first args) 'rhizome-window))
                     (progn
                       (push (list (intern (string fn-sym) :keyword)
                                   (first args))
@@ -50,7 +50,7 @@
           *frame-trees* (make-hash-table :test 'equal)
           *current-frames* (make-hash-table :test 'equal))
 
-    (let ((out (make-instance 'stumpway-output :proxy :out-proxy
+    (let ((out (make-instance 'rhizome-output :proxy :out-proxy
                               :width 1920 :height 1080)))
       (setf (gethash out *output-workspace*) 1)
 
@@ -65,9 +65,9 @@
       ;; --- Splitting ---
 
       (let* ((root (frame-tree-for out 2))
-             (a (make-instance 'stumpway-window :proxy :a-proxy))
-             (b (make-instance 'stumpway-window :proxy :b-proxy))
-             (c (make-instance 'stumpway-window :proxy :c-proxy)))
+             (a (make-instance 'rhizome-window :proxy :a-proxy))
+             (b (make-instance 'rhizome-window :proxy :b-proxy))
+             (c (make-instance 'rhizome-window :proxy :c-proxy)))
         (setf (gethash :a-proxy *windows*) a
               (gethash :b-proxy *windows*) b
               (gethash :c-proxy *windows*) c)
@@ -188,11 +188,11 @@
 
     ;; --- set-workspace-tree distribution ---
 
-    (let* ((out2 (make-instance 'stumpway-output :proxy :out2-proxy
+    (let* ((out2 (make-instance 'rhizome-output :proxy :out2-proxy
                                :width 1920 :height 1080))
-           (w1 (make-instance 'stumpway-window :proxy :w1))
-           (w2 (make-instance 'stumpway-window :proxy :w2))
-           (w3 (make-instance 'stumpway-window :proxy :w3)))
+           (w1 (make-instance 'rhizome-window :proxy :w1))
+           (w2 (make-instance 'rhizome-window :proxy :w2))
+           (w3 (make-instance 'rhizome-window :proxy :w3)))
       (setf (gethash :w1 *windows*) w1
             (gethash :w2 *windows*) w2
             (gethash :w3 *windows*) w3
@@ -231,11 +231,11 @@
 
     ;; --- Cycling windows within a frame ---
 
-    (let* ((out3 (make-instance 'stumpway-output :proxy :out3-proxy
+    (let* ((out3 (make-instance 'rhizome-output :proxy :out3-proxy
                                :width 1920 :height 1080))
-           (x (make-instance 'stumpway-window :proxy :x))
-           (y (make-instance 'stumpway-window :proxy :y))
-           (z (make-instance 'stumpway-window :proxy :z)))
+           (x (make-instance 'rhizome-window :proxy :x))
+           (y (make-instance 'rhizome-window :proxy :y))
+           (z (make-instance 'rhizome-window :proxy :z)))
       (setf (gethash :x *windows*) x
             (gethash :y *windows*) y
             (gethash :z *windows*) z
@@ -263,11 +263,11 @@
 
     ;; --- Manage/render integration ---
 
-    (let* ((out4 (make-instance 'stumpway-output :proxy :out4-proxy
+    (let* ((out4 (make-instance 'rhizome-output :proxy :out4-proxy
                                 :width 1920 :height 1080))
-           (t1 (make-instance 'stumpway-window :proxy :t1))
-           (t2 (make-instance 'stumpway-window :proxy :t2))
-           (t3 (make-instance 'stumpway-window :proxy :t3)))
+           (t1 (make-instance 'rhizome-window :proxy :t1))
+           (t2 (make-instance 'rhizome-window :proxy :t2))
+           (t3 (make-instance 'rhizome-window :proxy :t3)))
       (setf (gethash :t1 *windows*) t1
             (gethash :t2 *windows*) t2
             (gethash :t3 *windows*) t3
@@ -332,11 +332,11 @@
 
     ;; --- switch-layout rebuilds from a template ---
 
-    (let* ((out5 (make-instance 'stumpway-output :proxy :out5-proxy
+    (let* ((out5 (make-instance 'rhizome-output :proxy :out5-proxy
                                 :width 1920 :height 1080))
-           (m1 (make-instance 'stumpway-window :proxy :m1))
-           (m2 (make-instance 'stumpway-window :proxy :m2))
-           (m3 (make-instance 'stumpway-window :proxy :m3)))
+           (m1 (make-instance 'rhizome-window :proxy :m1))
+           (m2 (make-instance 'rhizome-window :proxy :m2))
+           (m3 (make-instance 'rhizome-window :proxy :m3)))
       (setf (gethash :m1 *windows*) m1
             (gethash :m2 *windows*) m2
             (gethash :m3 *windows*) m3
@@ -361,11 +361,11 @@
 
     ;; --- Dynamic tiling: new windows split the current frame ---
 
-    (let* ((dyn (make-instance 'stumpway-output :proxy :dyn-out
+    (let* ((dyn (make-instance 'rhizome-output :proxy :dyn-out
                               :width 1920 :height 1080))
-           (a (make-instance 'stumpway-window :proxy :dyn-a))
-           (b (make-instance 'stumpway-window :proxy :dyn-b))
-           (c (make-instance 'stumpway-window :proxy :dyn-c)))
+           (a (make-instance 'rhizome-window :proxy :dyn-a))
+           (b (make-instance 'rhizome-window :proxy :dyn-b))
+           (c (make-instance 'rhizome-window :proxy :dyn-c)))
       (setf (gethash :dyn-a *windows*) a
             (gethash :dyn-b *windows*) b
             (gethash :dyn-c *windows*) c)
@@ -416,12 +416,12 @@
 
     ;; --- Close reclaim: empty frames absorb into siblings ---
 
-    (let* ((pr (make-instance 'stumpway-output :proxy :pr-out
+    (let* ((pr (make-instance 'rhizome-output :proxy :pr-out
                              :width 1920 :height 1080))
-           (p1 (make-instance 'stumpway-window :proxy :pr1))
-           (p2 (make-instance 'stumpway-window :proxy :pr2))
-           (p3 (make-instance 'stumpway-window :proxy :pr3))
-           (p4 (make-instance 'stumpway-window :proxy :pr4)))
+           (p1 (make-instance 'rhizome-window :proxy :pr1))
+           (p2 (make-instance 'rhizome-window :proxy :pr2))
+           (p3 (make-instance 'rhizome-window :proxy :pr3))
+           (p4 (make-instance 'rhizome-window :proxy :pr4)))
       (setf (gethash :pr1 *windows*) p1
             (gethash :pr2 *windows*) p2
             (gethash :pr3 *windows*) p3
@@ -471,7 +471,7 @@
 
       ;; a NEW window (fresh object, like river delivers) lands in
       ;; the reclaimed root and fills it
-      (let ((p5 (make-instance 'stumpway-window :proxy :pr5)))
+      (let ((p5 (make-instance 'rhizome-window :proxy :pr5)))
         (setf (gethash :pr5 *windows*) p5
               (window-output p5) pr)
         (assign-window-workspace p5 9)
@@ -494,7 +494,7 @@
           (bar-reserved-height) 0))
 
     ;; Refitting rescales trees when the content area changes
-    (let* ((out6 (make-instance 'stumpway-output :proxy :out6-proxy
+    (let* ((out6 (make-instance 'rhizome-output :proxy :out6-proxy
                                :width 1920 :height 1080))
            (root (frame-tree-for out6 7)))
       (split-current-frame out6 7 :horizontal)   ; 960 | 960

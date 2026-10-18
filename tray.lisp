@@ -1,4 +1,4 @@
-;;; The system tray for Stumpway — org.kde.StatusNotifierWatcher
+;;; The system tray for Rhizome — org.kde.StatusNotifierWatcher
 ;;;
 ;;; The watcher OWNS the well-known bus name; tray apps (Variety,
 ;;; flameshot, anything SNI-aware) register their items with it and
@@ -14,7 +14,7 @@
 ;;; bytes-per-row packed in an int32 array — drawn directly into
 ;;; the bar's shm buffer).
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *tray-items* nil
   "Registered SNI items, newest last: alists of
@@ -44,7 +44,7 @@ menu-path-or-nil).")
       (push item *tray-items*)
       (setf *tray-items* (nreverse *tray-items*))
       (incf *tray-changed*)
-      (format t "~&; Stumpway: tray: registered ~A~A~%" bus-name path)
+      (format t "~&; Rhizome: tray: registered ~A~A~%" bus-name path)
       (dbus-emit-signal *tray-conn* +snw-path+
                         +snw-name+ "StatusNotifierItemRegistered"
                         :signature "s" :values (list bus-name)))))
@@ -57,7 +57,7 @@ menu-path-or-nil).")
                                 :key (lambda (item)
                                        (getf item :name))))
     (incf *tray-changed*)
-    (format t "~&; Stumpway: tray: removed ~A~%" bus-name)
+    (format t "~&; Rhizome: tray: removed ~A~%" bus-name)
     (dbus-emit-signal *tray-conn* +snw-path+
                       +snw-name+ "StatusNotifierItemUnregistered"
                       :signature "s" :values (list bus-name))))
@@ -108,7 +108,7 @@ are bus names; the SNI object lives at the registered path."
                           (third first-px)))))
           (incf *tray-changed*))))
     (error (e)
-      (format t "~&; Stumpway: tray: refresh failed: ~A~%" e))))
+      (format t "~&; Rhizome: tray: refresh failed: ~A~%" e))))
 
 (defun tray-property-values ()
   "The watcher's exposed properties (Properties.GetAll)."
@@ -135,7 +135,7 @@ item owners vanishing from the bus."
     (return-from tray-start *tray-conn*))
   (let ((conn (dbus-connect :path path)))
     (unless conn
-      (format t "~&; Stumpway: tray: no session bus; tray disabled~%")
+      (format t "~&; Rhizome: tray: no session bus; tray disabled~%")
       (return-from tray-start nil))
     (setf *tray-conn* conn)
     ;; Service the standard watcher surface
@@ -163,11 +163,11 @@ interface='org.freedesktop.DBus',member='NameOwnerChanged'")
     (let ((result (dbus-request-name conn +snw-name+ 4)))
       (if (= result 1)
           (progn
-            (format t "~&; Stumpway: tray: watcher active as ~A~%"
+            (format t "~&; Rhizome: tray: watcher active as ~A~%"
                     +snw-name+)
             conn)
           (progn
-            (format t "~&; Stumpway: tray: ~A already owned (~A); \
+            (format t "~&; Rhizome: tray: ~A already owned (~A); \
 tray disabled~%" +snw-name+ result)
             (setf *tray-conn* nil)
             nil)))))
@@ -207,13 +207,13 @@ NameOwnerChanged item loss. Redefines the dbus-drain stub."
              (handler-case
                  (dispatch-method-call msg conn)
                (error (e)
-                 (format t "~&; Stumpway: tray: dispatch ~A.~A(~A): ~A~%"
+                 (format t "~&; Rhizome: tray: dispatch ~A.~A(~A): ~A~%"
                          (message-field msg 2) (message-field msg 3)
                          (message-field msg 8) e))))
             ((eq (dbus-message-type msg) +dbus-msg-signal+)
              (handler-case (tray-signal msg)
                (error (e)
-                 (format t "~&; Stumpway: tray: signal: ~A~%" e))))))))))
+                 (format t "~&; Rhizome: tray: signal: ~A~%" e))))))))))
 
 (defun tray-click (item &optional (secondary nil))
   "Left/secondary-click an item: Activate / SecondaryActivate at
@@ -227,7 +227,7 @@ what most apps actually use for 'the icon was clicked')."
                    :signature "ii" :values (list 0 0)
                    :timeout 2)
       (error (e)
-        (format t "~&; Stumpway: tray: click failed: ~A~%" e)))))
+        (format t "~&; Rhizome: tray: click failed: ~A~%" e)))))
 
 (defun tray-scroll (item delta)
   "Scroll over an item: Scroll(delta, 'vertical')."
@@ -238,7 +238,7 @@ what most apps actually use for 'the icon was clicked')."
                    :signature "is" :values (list delta "vertical")
                    :timeout 2)
       (error (e)
-        (format t "~&; Stumpway: tray: scroll failed: ~A~%" e)))))
+        (format t "~&; Rhizome: tray: scroll failed: ~A~%" e)))))
 
 ;;; --- dbusmenu: right-click menus mapped onto select-from-menu ---
 

@@ -1,8 +1,8 @@
 ;;; Tests for expose (C-t Return): grid geometry, exact layout
 ;;; restoration, digit/arrow/Return/click picking.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -42,7 +42,7 @@
     ;; Fresh state (and one seat, so focused-state changes apply)
     (setf *seats* (make-hash-table)
           (gethash :expose-seat *seats*)
-          (make-instance 'stumpway-seat :proxy :expose-seat))
+          (make-instance 'rhizome-seat :proxy :expose-seat))
     (setf *windows* (make-hash-table)
           *output-workspace* (make-hash-table)
           *window-workspace* (make-hash-table)
@@ -55,11 +55,11 @@
           *expose-order* nil
           *expose-prev-focus* nil)
 
-    (let* ((out (make-instance 'stumpway-output :proxy :exp-out
+    (let* ((out (make-instance 'rhizome-output :proxy :exp-out
                               :width 1920 :height 1080))
            (wins (loop for i below 4
                        for proxy = (intern (format nil "E~D" i) :keyword)
-                       collect (make-instance 'stumpway-window
+                       collect (make-instance 'rhizome-window
                                                :proxy proxy))))
       (setf (gethash out *output-workspace*) 3)
       (dolist (win wins)

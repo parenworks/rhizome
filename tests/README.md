@@ -1,4 +1,4 @@
-# Stumpway regression tests
+# Rhizome regression tests
 
 Plain SBCL scripts that exercise window-management logic against
 stubbed river requests. Run with:

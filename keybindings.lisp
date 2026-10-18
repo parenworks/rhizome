@@ -1,4 +1,4 @@
-;;; Keyboard bindings for Stumpway
+;;; Keyboard bindings for Rhizome
 ;;;
 ;;; Uses the river-xkb-bindings-v1 protocol to register key
 ;;; bindings with the compositor. Bindings are defined with
@@ -26,7 +26,7 @@
 ;;;   MOD+Shift+R  - reboot the machine
 ;;;   MOD+;        - live eval prompt (evaluate Lisp in the running WM)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defvar *xkb-bindings-proxy* nil
   "The river_xkb_bindings_v1 proxy.")
@@ -83,11 +83,11 @@
   (when (string= interface "river_xkb_bindings_v1")
     (let ((iface-class (wl:find-interface-named interface)))
       (unless iface-class
-        (format t "~&; Stumpway: xkb-bindings interface not found!~%")
+        (format t "~&; Rhizome: xkb-bindings interface not found!~%")
         (return-from setup-xkb-bindings))
       (setf *xkb-bindings-proxy*
             (wl:wl-registry.bind registry name iface-class version))
-      (format t "~&; Stumpway: bound river_xkb_bindings_v1 (version ~D)~%" version))))
+      (format t "~&; Rhizome: bound river_xkb_bindings_v1 (version ~D)~%" version))))
 
 (defun define-key (keysym modifiers callback)
   "Register a keybinding. KEYSYM is an xkb keysym, MODIFIERS is a bitmask,
@@ -98,7 +98,7 @@ CALLBACK is a function called when the key is pressed."
   "Create and enable all registered keybindings. Must be called during
 a manage sequence."
   (when (null *xkb-bindings-proxy*)
-    (format t "~&; Stumpway: no xkb-bindings proxy, skipping keybindings~%")
+    (format t "~&; Rhizome: no xkb-bindings proxy, skipping keybindings~%")
     (return-from install-keybindings))
 
   (when (and *active-bindings* (plusp (hash-table-count *keybindings*)))
@@ -110,7 +110,7 @@ a manage sequence."
     (rwm:river-xkb-binding-v1.destroy binding))
   (setf *active-bindings* nil)
 
-  (format t "~&; Stumpway: installing ~D keybindings on ~D seats~%"
+  (format t "~&; Rhizome: installing ~D keybindings on ~D seats~%"
           (hash-table-count *keybindings*) (hash-table-count *seats*))
 
   ;; Create and enable new bindings for each seat
@@ -130,7 +130,7 @@ a manage sequence."
                                 (declare (ignore args))
                                 (case event-name
                                   (:pressed
-                                   (format t "~&; Stumpway: keybinding pressed (keysym=~A mod=~A)~%"
+                                   (format t "~&; Rhizome: keybinding pressed (keysym=~A mod=~A)~%"
                                            keysym modifiers)
                                    (funcall callback))
                                   (:released
@@ -178,7 +178,7 @@ into (MODIFIERS KEYSYM). C = ctrl, M = alt, s = super, S = shift."
                          (char-code (char-downcase (char rest 0))))))))))
 
 (defun set-prefix-key (spec)
-  "Change the prefix key at runtime, e.g. (stumpway:set-prefix-key \"C-z\").
+  "Change the prefix key at runtime, e.g. (rhizome:set-prefix-key \"C-z\").
 Current grabs are destroyed and the new binding is installed during
 the next manage sequence, like set-user-mod."
   (multiple-value-bind (mods keysym) (parse-key-spec spec)
@@ -203,7 +203,7 @@ the next manage sequence, like set-user-mod."
   ;; MOD+Return - launch terminal
   (define-key +xkb-key-Return+ *mod*
     (lambda ()
-      (format t "~&; Stumpway: launching terminal~%")
+      (format t "~&; Rhizome: launching terminal~%")
       (uiop:launch-program '("foot"))))
 
   ;; MOD+, / MOD+. - scroll the ribbon viewport (niri-style)
@@ -218,7 +218,7 @@ the next manage sequence, like set-user-mod."
       (let* ((seats (all-seats))
              (focused (and seats (seat-focused-window (first seats)))))
         (when focused
-          (format t "~&; Stumpway: closing window ~A~%" (window-title focused))
+          (format t "~&; Rhizome: closing window ~A~%" (window-title focused))
           (close-window focused)
           (request-manage-dirty)))))
 
@@ -267,31 +267,31 @@ the next manage sequence, like set-user-mod."
   ;; MOD+E - launch emacs
   (define-key +xkb-key-E+ *mod*
     (lambda ()
-      (format t "~&; Stumpway: launching emacs~%")
+      (format t "~&; Rhizome: launching emacs~%")
       (uiop:launch-program '("emacs"))))
 
   ;; MOD+D - application launcher (native layer-shell popup)
   (define-key +xkb-key-D+ *mod*
     (lambda ()
-      (format t "~&; Stumpway: launching application launcher~%")
+      (format t "~&; Rhizome: launching application launcher~%")
       (handler-case
           (show-launcher)
         (error (e)
-          (format t "~&; Stumpway: launcher error: ~A~%" e)))))
+          (format t "~&; Rhizome: launcher error: ~A~%" e)))))
 
   ;; MOD+B - toggle the status bar
   (define-key +xkb-key-B+ *mod*
     (lambda ()
-      (format t "~&; Stumpway: toggling bar~%")
+      (format t "~&; Rhizome: toggling bar~%")
       (handler-case
           (toggle-bar)
         (error (e)
-          (format t "~&; Stumpway: bar error: ~A~%" e)))))
+          (format t "~&; Rhizome: bar error: ~A~%" e)))))
 
   ;; Ctrl+T - prefix key (StumpWM-style keychains, see prefix.lisp):
   ;;   C-t w windowlist | C-t g workspace picker | C-t x command palette
   ;;   C-t : eval       | C-t ! shell command    | C-t b toggle bar
-  ;;   C-t n/p next/prev workspace | C-t q quit stumpway
+  ;;   C-t n/p next/prev workspace | C-t q quit rhizome
   ;; The prefix key (changeable at runtime: set-prefix-key)
   (define-key (car *prefix-key-binding*) (cdr *prefix-key-binding*)
     (lambda ()
@@ -329,11 +329,11 @@ the next manage sequence, like set-user-mod."
   ;; it in the running WM image; Escape cancels)
   (define-key +xkb-key-Semicolon+ *mod*
     (lambda ()
-      (format t "~&; Stumpway: opening eval prompt~%")
+      (format t "~&; Rhizome: opening eval prompt~%")
       (handler-case
           (show-eval-prompt)
         (error (e)
-          (format t "~&; Stumpway: eval prompt error: ~A~%" e)))))
+          (format t "~&; Rhizome: eval prompt error: ~A~%" e)))))
 
   ;; Print - screenshot of the full screen
   ;; Shift+Print - screenshot of a selected region (slurp)
@@ -362,9 +362,9 @@ the next manage sequence, like set-user-mod."
   "Show an application launcher using fzf in a terminal.
 Shows a curated list of Wayland-relevant applications."
   (setf (uiop:getenv "WAYLAND_DISPLAY") "wayland-1")
-  (let ((names-file "/tmp/stumpway-launcher-names.txt")
-        (cmds-file "/tmp/stumpway-launcher-cmds.txt")
-        (result-file "/tmp/stumpway-launcher-result.txt"))
+  (let ((names-file "/tmp/rhizome-launcher-names.txt")
+        (cmds-file "/tmp/rhizome-launcher-cmds.txt")
+        (result-file "/tmp/rhizome-launcher-result.txt"))
     ;; Write names and commands to temp files
     (with-open-file (f names-file :direction :output :if-exists :supersede)
       (dolist (entry *app-launcher-entries*)
@@ -402,7 +402,7 @@ Shows a curated list of Wayland-relevant applications."
             (let ((entry (find cmd *app-launcher-entries*
                                :key #'car :test #'string=)))
               (when entry
-                (format t "~&; Stumpway: launching ~A~%" (cdr entry))
+                (format t "~&; Rhizome: launching ~A~%" (cdr entry))
                 (uiop:launch-program
                   (list "bash" "-c" (cdr entry)))))))))))
 
@@ -420,8 +420,8 @@ Current grabs are destroyed and everything re-binds with the new
 modifier during the next manage sequence (enable requests are
 manage-sequence-only in river's protocol).
 
-  (stumpway:set-user-mod :alt)     ; classic StumpWM-on-X11 feel
-  (stumpway:set-user-mod :super)   ; the default"
+  (rhizome:set-user-mod :alt)     ; classic StumpWM-on-X11 feel
+  (rhizome:set-user-mod :super)   ; the default"
   (let ((resolved (resolve-mod mod)))
     (unless resolved
       (message "unknown modifier: ~A (try :alt, :super, :ctrl)" mod)

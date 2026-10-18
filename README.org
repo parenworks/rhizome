@@ -1,4 +1,4 @@
-* Stumpway
+* Rhizome
 
 StumpWM-style window manager for the [[https://github.com/riverwm/river][River]] Wayland compositor, written in Common Lisp.
 
@@ -7,23 +7,23 @@ The goal: a Wayland desktop/window manager like [[https://github.com/YaLTeR/niri
 * Architecture
 
 #+begin_example
-WSLg (Weston) → River (nested) → Stumpway (window manager)
+WSLg (Weston) → River (nested) → Rhizome (window manager)
 #+end_example
 
 On a real Linux machine (e.g. Arch Linux):
 
 #+begin_example
-DRM/KMS → River (compositor) → Stumpway (window manager)
+DRM/KMS → River (compositor) → Rhizome (window manager)
 #+end_example
 
-River is a non-monolithic Wayland compositor — it handles rendering and input hardware, but delegates all window management policy to a separate process via the =river-window-management-v1= protocol. Stumpway is that process. This is exactly the StumpWM model: StumpWM doesn't composite, it manages windows on top of X11. Stumpway does the same on top of Wayland/river.
+River is a non-monolithic Wayland compositor — it handles rendering and input hardware, but delegates all window management policy to a separate process via the =river-window-management-v1= protocol. Rhizome is that process. This is exactly the StumpWM model: StumpWM doesn't composite, it manages windows on top of X11. Rhizome does the same on top of Wayland/river.
 
 The protocol uses a **manage/render sequence loop**:
 
 1. River sends state changes (new window, output, seat) then =manage_start=
-2. Stumpway sends window management decisions (propose dimensions, focus, fullscreen) then =manage_finish=
+2. Rhizome sends window management decisions (propose dimensions, focus, fullscreen) then =manage_finish=
 3. River sends actual window dimensions then =render_start=
-4. Stumpway sends rendering decisions (position, borders, z-order) then =render_finish=
+4. Rhizome sends rendering decisions (position, borders, z-order) then =render_finish=
 
 This gives StumpWM-style live REPL control — you can redefine layouts, switch focus, and add commands without restarting the compositor.
 
@@ -132,11 +132,11 @@ Wayflan's scanner generates Lisp bindings from these at compile time via =wl-inc
 # 1. Start river (nested in WSLg)
 river &
 
-# 2. Start stumpway
-~/SourceCode/stumpway/start-stumpway.sh
+# 2. Start rhizome
+~/SourceCode/rhizome/start-rhizome.sh
 
 # Or manually:
-sbcl --eval '(ql:quickload :stumpway)' --eval '(stumpway:run)'
+sbcl --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)'
 #+end_src
 
 River opens as a window inside your WSLg desktop. It uses the Wayland backend automatically when it detects an existing compositor (WSLg's Weston).
@@ -147,18 +147,18 @@ River opens as a window inside your WSLg desktop. It uses the Wayland backend au
 # From a TTY after login (not from within a desktop session):
 river &
 # In another TTY or via a script:
-sbcl --eval '(ql:quickload :stumpway)' --eval '(stumpway:run)'
+sbcl --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)'
 #+end_src
 
 On bare metal, river is the primary compositor — no nesting. The WSLg limitations (Super key hijack, nested Wayland GPU quirks) disappear.
 
 ** Session integration (REQUIRED for a daily driver)
 
-Three session-level pieces make stumpway behave like a first-class
+Three session-level pieces make rhizome behave like a first-class
 desktop. Without them everything *looks* fine until you touch the
 parts that talk to the session bus:
 
-1. *Session environment* (~/.local/bin/stumpway-session, exported
+1. *Session environment* (~/.local/bin/rhizome-session, exported
    before =exec river=): =XDG_CURRENT_DESKTOP=river=,
    =XDG_SESSION_TYPE=wayland=, and — mirroring Omarchy's Hyprland
    envs.lua — =QT_QPA_PLATFORMTHEME=gtk3= (Qt apps follow the GTK
@@ -186,12 +186,12 @@ parts that talk to the session bus:
    the same backends the Hyprland session pins, so pickers and
    secrets behave identically across sessions.
 
-The omarchy-sddm-stumpway/ directory carries the SDDM session
-entry that launches stumpway-session.
+The omarchy-sddm-rhizome/ directory carries the SDDM session
+entry that launches rhizome-session.
 
 ** WSLg-specific notes
 
-- Windows hijacks the Super key, so use (stumpway:set-user-mod :alt) under WSLg; on real hardware the default Super modifier applies
+- Windows hijacks the Super key, so use (rhizome:set-user-mod :alt) under WSLg; on real hardware the default Super modifier applies
 - =WAYLAND_DISPLAY= must be set to =wayland-1= for launched applications
 - Some CFFI string decoding errors from Wayflan can occur with certain window titles (e.g. Emacs dashboard) — handled with =handler-case= around the event dispatch loop
 
@@ -202,8 +202,8 @@ MOD is the user modifier — Super by default, defined once as =*mod*=
 pointer grabs. Change it live:
 
 #+begin_src lisp
-(stumpway:set-user-mod :alt)     ; classic StumpWM-on-X11 feel
-(stumpway:set-user-mod :super)   ; the default
+(rhizome:set-user-mod :alt)     ; classic StumpWM-on-X11 feel
+(rhizome:set-user-mod :super)   ; the default
 #+end_src
 
 | Key            | Action                              |
@@ -240,7 +240,7 @@ errors are caught and shown instead of killing the WM. Escape closes the
 prompt.
 
 #+begin_src lisp
-;; Examples typed into the prompt (implicit STUMPWAY package):
+;; Examples typed into the prompt (implicit RHIZOME package):
 (+ 1 2)                          ; => 3
 *workspace-count*                ; => 9
 (switch-workspace 3)             ; immediate effect
@@ -252,8 +252,8 @@ User functions triggered on WM events. Handler errors are isolated: one
 bad hook never breaks others or the WM.
 
 #+begin_src lisp
-(stumpway:add-hook :window-created
-  (lambda (win) (format t "new: ~A~%" (stumpway:window-title win))))
+(rhizome:add-hook :window-created
+  (lambda (win) (format t "new: ~A~%" (rhizome:window-title win))))
 #+end_src
 
 Available hooks: =:window-created= (win), =:window-closed= (win),
@@ -263,17 +263,17 @@ Also: =remove-hook=, =clear-hook=, =list-hooks=, =run-hook=.
 
 ** IPC — the stumpish equivalent
 
-A Unix domain socket (=$XDG_RUNTIME_DIR/stumpway.sock=) accepts one
-command per line and replies with the result. The =stumpway-cmd= helper
+A Unix domain socket (=$XDG_RUNTIME_DIR/rhizome.sock=) accepts one
+command per line and replies with the result. The =rhizome-cmd= helper
 (in ~~/.local/bin/~) sends commands from the shell or scripts:
 
 #+begin_src bash
-stumpway-cmd current-workspace
-stumpway-cmd switch-workspace 3
-stumpway-cmd "(* 6 7)"          # Lisp forms evaluate in the live image
-stumpway-cmd list-windows
-stumpway-cmd toggle-bar
-stumpway-cmd quit               # stops the WM; river keeps running
+rhizome-cmd current-workspace
+rhizome-cmd switch-workspace 3
+rhizome-cmd "(* 6 7)"          # Lisp forms evaluate in the live image
+rhizome-cmd list-windows
+rhizome-cmd toggle-bar
+rhizome-cmd quit               # stops the WM; river keeps running
 #+end_src
 
 Commands run on the WM's main thread (the socket thread only moves
@@ -294,14 +294,14 @@ anything, while it runs. Disable with =(:swank (:enabled nil))=.
 ** Prefix key (Ctrl+T) — StumpWM-style keychains
 
 River's keybindings are single-key+modifier registrations, so multi-key
-chains cannot be one binding. Stumpway solves this StumpWM-style: the
+chains cannot be one binding. Rhizome solves this StumpWM-style: the
 prefix (Ctrl+T) is a normal binding; pressing it opens an invisible
 keyboard-exclusive capture surface, and follow-up keys dispatch through
 a client-side keymap state machine (prefix.lisp) — the same wl_keyboard
 path the interactive prompts use. A transient "C-t -" message shows the
 chain is active.
 
-Default chains (the StumpWM classics, mapped to stumpway features):
+Default chains (the StumpWM classics, mapped to rhizome features):
 
 | Chain   | Action                 |
 |---------+------------------------|
@@ -341,14 +341,14 @@ Default chains (the StumpWM classics, mapped to stumpway features):
 
 Escape aborts, an unbound key aborts with a message, and chains
 auto-expire after 5 seconds. Extend with
-=(stumpway:define-prefix-key keysym thunk)= or nested keymaps via
+=(rhizome:define-prefix-key keysym thunk)= or nested keymaps via
 =define-keymap-key= for deeper chains (C-t h k style).
 
 ** Message window and interactive prompts
 
 Transient on-screen messages (the StumpWM message-window equivalent):
-workspace switches echo their number, =stumpway-cmd= results appear
-briefly on screen, and =(stumpway:message "fmt" args)= shows anything
+workspace switches echo their number, =rhizome-cmd= results appear
+briefly on screen, and =(rhizome:message "fmt" args)= shows anything
 else. Messages auto-hide after 3 seconds.
 
 The generalized input prompt (prompt.lisp) provides filtering and
@@ -365,11 +365,11 @@ through the scripting menu (StumpWM's select-from-menu):
 
 #+begin_src lisp
 ;; from config.lisp or the REPL: pop a menu, act on the choice
-(stumpway:select-from-menu "Workspace?"
-  (list (cons "Web"  (lambda () (stumpway:switch-workspace 2)))
-        (cons "Code" (lambda () (stumpway:switch-workspace 3)))))
+(rhizome:select-from-menu "Workspace?"
+  (list (cons "Web"  (lambda () (rhizome:switch-workspace 2)))
+        (cons "Code" (lambda () (rhizome:switch-workspace 3)))))
 #+end_src
-=(stumpway:prompt-open "Title:" :candidates '(...) :on-complete #'f)=.
+=(rhizome:prompt-open "Title:" :candidates '(...) :on-complete #'f)=.
 
 ** Workspaces
 
@@ -379,7 +379,7 @@ window (and follows it). Windows on other workspaces are hidden and reappear
 on return. The current workspace is shown in the bar's =:workspaces= module
 with the active number highlighted in the accent color. The WM exports its
 state (layout, window count, workspace, focused title) to the bar via an
-atomic snapshot file, ~~/.cache/stumpway/snapshot.sexp~.
+atomic snapshot file, ~~/.cache/rhizome/snapshot.sexp~.
 
 ** Status bar
 
@@ -390,13 +390,13 @@ Since river reports full output dimensions to the WM even when the bar has an
 exclusive zone, the WM reserves the bar's space itself in its layout math.
 
 #+begin_src lisp
-;; Live from the REPL or in ~/.config/stumpway/config.lisp:
-(stumpway:configure '(:bar (:enabled nil)))          ; disable the bar
-(stumpway:configure '(:bar (:modules (:left (:layout :windows)
+;; Live from the REPL or in ~/.config/rhizome/config.lisp:
+(rhizome:configure '(:bar (:enabled nil)))          ; disable the bar
+(rhizome:configure '(:bar (:modules (:left (:layout :windows)
                                         :center (:clock)
                                         :right (:network :volume :battery)))))
-(stumpway:configure '(:modules (:clock (:format "%a %d %b %H:%M"))))
-(stumpway:reload-config)                             ; reset + reload user file
+(rhizome:configure '(:modules (:clock (:format "%a %d %b %H:%M"))))
+(rhizome:reload-config)                             ; reset + reload user file
 #+end_src
 
 Bar modules: =:workspaces= (numbers, current highlighted), =:layout= (current
@@ -415,7 +415,7 @@ by 5%); clicking the network module opens nm-connection-editor. These
 targets are plain shell commands — any application works, e.g.:
 
 #+begin_src lisp
-(stumpway:configure
+(rhizome:configure
   '(:modules (:volume (:on-click "pavucontrol")
               :network (:on-click "nm-connection-editor"))))
 #+end_src
@@ -425,11 +425,11 @@ launcher-style, with real PNG icons decoded and alpha-blended into
 the shm buffer:
 
 #+begin_src lisp
-(stumpway:configure
+(rhizome:configure
   '(:bar (:modules (:left (:layout :windows
                                 (:icons ((:icon "flameshot" :on-click "flameshot gui")
                                          (:icon "variety" :on-click "variety")
-                                         (:icon "/path/to/custom.png" :on-click "stumpway-cmd lock"))))
+                                         (:icon "/path/to/custom.png" :on-click "rhizome-cmd lock"))))
                      :center (:clock)
                      :right (:volume :network :battery)))))
 #+end_src
@@ -441,8 +441,8 @@ through the same hitbox chain as text modules.
 
 The target applications are user choices, not hard dependencies —
 see the optional package list above. The user config file lives at
-~~/.config/stumpway/config.lisp~; the bar process logs to
-~~/.cache/stumpway/bar.log~. MOD+B toggles the bar.
+~~/.config/rhizome/config.lisp~; the bar process logs to
+~~/.cache/rhizome/bar.log~. MOD+B toggles the bar.
 
 ** Native application launcher (MOD+D)
 
@@ -470,7 +470,7 @@ frames holding windows, one visible at a time:
   =C-t R=. The current window stays put on a split; the next window
   opened lands in the new frame.
 - =C-t= arrows move focus between frames; =C-t n= / =C-t p= cycle
-  the windows inside the current frame; =stumpway-cmd resize-split
+  the windows inside the current frame; =rhizome-cmd resize-split
   30= nudges a dividing line.
 - New windows open into the current frame; closed windows leave the
   frame behind — the layout is yours and it stays.
@@ -492,7 +492,7 @@ frames holding windows, one visible at a time:
 ** Defining custom layouts
 
 #+begin_src lisp
-(stumpway:define-layout :my-layout (windows width height)
+(rhizome:define-layout :my-layout (windows width height)
   ;; Your tiling logic here
   ;; Must return a list of (window x y w h) tuples
   ;; that tile the screen — the rectangles become frames
@@ -508,19 +508,19 @@ The locker is a configurable external program — =swaylock= by default
 (=sudo pacman -S swaylock=; hyprlock and friends work too):
 
 #+begin_src lisp
-(stumpway:configure
+(rhizome:configure
   '(:lock (:command "swaylock"
            :args ("--daemonize")
            :idle-seconds 300)))   ; swayidle auto-lock; 0 = off
 #+end_src
 
-MOD+Shift+L locks now; =stumpway-cmd lock= too. With =:idle-seconds=
+MOD+Shift+L locks now; =rhizome-cmd lock= too. With =:idle-seconds=
 set, the WM spawns =swayidle= at startup and locks after that many
 seconds of inactivity.
 
-MOD+Shift+E (or =stumpway-cmd logout=) ends the river session and
+MOD+Shift+E (or =rhizome-cmd logout=) ends the river session and
 returns to the display manager's greeter — press twice within three
-seconds to confirm. River 0.4.x ships no riverctl, so stumpway
+seconds to confirm. River 0.4.x ships no riverctl, so rhizome
 SIGTERMs the compositor, which triggers its clean shutdown path (the
 WM receives the finished event and exits with it).
 
@@ -528,7 +528,7 @@ WM receives the finished event and exits with it).
 
 Not everything belongs in a tiling grid: GIMP toolboxes, palette
 dialogs, and picture-in-picture video want to keep their own size and
-be moved around freely. Stumpway handles these StumpWM-style as floats
+be moved around freely. Rhizome handles these StumpWM-style as floats
 (floating.lisp):
 
 - A floating window keeps its own position and dimensions; the tiling
@@ -548,26 +548,26 @@ be moved around freely. Stumpway handles these StumpWM-style as floats
 - Floats live on workspaces like everything else: switching hides and
   restores them with the rest.
 
-Toggle the focused window with =C-t f= or =stumpway-cmd toggle-float=;
+Toggle the focused window with =C-t f= or =rhizome-cmd toggle-float=;
 float apps automatically with a window rule:
 
 #+begin_src lisp
-(stumpway:configure
+(rhizome:configure
   '(:window-rules ((:match "gimp" :float t))))
 #+end_src
 
-From the REPL: =(stumpway:float-window win)=, =(stumpway:unfloat-window win)=,
-=(stumpway:toggle-float win)=.
+From the REPL: =(rhizome:float-window win)=, =(rhizome:unfloat-window win)=,
+=(rhizome:toggle-float win)=.
 
 * Project structure
 
 #+begin_example
-stumpway/
-  stumpway.asd                        — ASDF system definition
+rhizome/
+  rhizome.asd                        — ASDF system definition
   river-protocol.lisp                 — Wayflan scanner for all protocol XMLs
   package.lisp                        — Package definition and exports
   config.lisp                         — Configuration system (defaults, user file, live overrides)
-  ipc.lisp                            — IPC command socket (stumpish equivalent, stumpway-cmd)
+  ipc.lisp                            — IPC command socket (stumpish equivalent, rhizome-cmd)
   prompt.lisp                         — Generalized input prompt (filtering, selection)
   prompt-clients.lisp                 — Windowlist, workspace picker, command palette
   prefix.lisp                         — Prefix key engine (Ctrl+T chains)
@@ -656,7 +656,7 @@ stumpway/
 ** Roadmap (StumpWM parity audit)
 
 Audited against the StumpWM source (~/SourceCode/stumpwm: bindings.lisp,
-manual, 180 commands). Where stumpway stands:
+manual, 180 commands). Where rhizome stands:
 
 *** Ahead of StumpWM
 
@@ -666,7 +666,7 @@ manual, 180 commands). Where stumpway stands:
   command palette
 - Live hot-reload development loop into the running WM
 - Config-driven bar space reservation with frame-tree refitting
-  (StumpWM refreshes; stumpway rescales trees on any change)
+  (StumpWM refreshes; rhizome rescales trees on any change)
 - IPC command socket + swank (StumpWM ships stumpish as contrib)
 
 *** Quick wins (small, well-understood)
@@ -676,12 +676,12 @@ manual, 180 commands). Where stumpway stands:
 - [X] Window numbering: C-t ' selects by number (prompt), renumber /
       repack commands, numbers shown in the windowlist
 - [X] Fullscreen toggle C-t F11 (river_window_v1.fullscreen request —
-      stumpway only reacted to client requests before)
+      rhizome only reacted to client requests before)
 - [X] Frame commands: only (C-t Q collapse to one frame), balance
       (C-t B equalize splits), fclear (clears the current frame)
 - [X] exchange-direction: swap windows between frames (C-t e + arrows;
-      StumpWM binds C-t x, which stumpway keeps for the command palette)
-- [X] pull: pull any window (by number via stumpway-cmd pull N, or the
+      StumpWM binds C-t x, which rhizome keeps for the command palette)
+- [X] pull: pull any window (by number via rhizome-cmd pull N, or the
       next/previous hidden window with C-t n/p — StumpWM's real
       pull-hidden-next/prev semantics)
 - [X] Clipboard commands getsel/putsel/copy-last-message via wl-clipboard
@@ -701,11 +701,11 @@ manual, 180 commands). Where stumpway stands:
 - [X] Frame dump/restore: the workspace's frame tree serializes to a
       readable sexp with window numbers; restore rebuilds the tree,
       places windows by number, skips the missing, scales when the
-      output changed (stumpway-cmd dump-frame / restore-frame <name>;
-      files in ~/.local/share/stumpway/frame-dumps/)
+      output changed (rhizome-cmd dump-frame / restore-frame <name>;
+      files in ~/.local/share/rhizome/frame-dumps/)
 - [X] Window marks: C-t # tags windows (marked ones show * in the
       windowlist); move-marked <ws> moves them all and clears marks
-- [X] set-prefix-key: (stumpway:set-prefix-key "C-z") swaps the
+- [X] set-prefix-key: (rhizome:set-prefix-key "C-z") swaps the
       prefix chord live, reinstalling the grab in the next manage
       sequence; parse-key-spec speaks C/M/s/S-t style specs
 - [X] Menus for scripting: select-from-menu (alias menu) pops a
@@ -723,7 +723,7 @@ manual, 180 commands). Where stumpway stands:
       scope to C-t, where C-t h b lists them. IPC: enable-minor-mode
       / disable-minor-mode <name>
 - [ ] Multiple workspace types: StumpWM has tile, floating AND dynamic
-      (dwm-style) group types per workspace; stumpway workspaces are
+      (dwm-style) group types per workspace; rhizome workspaces are
       uniform
 - [X] Expose-style window overview (C-t Return): every window on the
       workspace — including ones hidden in monocle frames — floats
@@ -743,7 +743,7 @@ manual, 180 commands). Where stumpway stands:
 
 * A note on dependencies: why we implement DBus ourselves
 
-Stumpway stays a pure Common Lisp application — the DBus wire
+Rhizome stays a pure Common Lisp application — the DBus wire
 protocol is implemented locally in =dbus.lisp= (SASL EXTERNAL auth,
 signature parsing, alignment-aware marshalling, message framing,
 reader thread with reply matching), reusing the same minimal CFFI
@@ -775,7 +775,7 @@ dbus-broker rejects the padded form).
       (:and (:app-id \"emacs\") (:title \"docs\")) over app-id,
       title, number, workspace, float, marked, focused; wse-windows /
       wse-map / wse-count for scripting, window rules accept :wse in
-      place of :match, stumpway-cmd wse <expr> reports matches
+      place of :match, rhizome-cmd wse <expr> reports matches
 - [X] Niri-style scrollable tiling (C-t v): a horizontal ribbon
       where every window owns a full-height column; C-t , / . move
       focus between columns with the viewport following (niri keeps
@@ -819,10 +819,10 @@ This project was developed on WSL2/Ubuntu 24.04 as a development environment. To
    git clone https://github.com/wayflan/wayflan.git
    #+end_src
 
-4. *Clone stumpway*:
+4. *Clone rhizome*:
    #+begin_src bash
    cd ~/SourceCode
-   git clone <your-stumpway-repo> stumpway
+   git clone <your-rhizome-repo> rhizome
    #+end_src
 
 5. *Start river from a TTY*:
@@ -830,7 +830,7 @@ This project was developed on WSL2/Ubuntu 24.04 as a development environment. To
    # From TTY1 after login:
    river &
    # From TTY2:
-   sbcl --eval '(ql:quickload :stumpway)' --eval '(stumpway:run)'
+   sbcl --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)'
    #+end_src
 
 6. *Key differences on real hardware*:

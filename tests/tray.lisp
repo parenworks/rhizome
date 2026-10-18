@@ -4,9 +4,9 @@
 ;;; drive the watcher logic: registration, deduplication, owner-loss
 ;;; removal via NameOwnerChanged, the exposed properties, and
 ;;; click/scroll dispatch.
-(ql:quickload :stumpway :silent t)
+(ql:quickload :rhizome :silent t)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (let ((pass 0) (fail 0) (emitted nil))
   (flet ((ok (name actual expected)

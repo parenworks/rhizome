@@ -1,4 +1,4 @@
-;;; Tiling engine for Stumpway
+;;; Tiling engine for Rhizome
 ;;;
 ;;; Integrates the frame trees (frames.lisp) and floating windows
 ;;; (floating.lisp) with river's manage/render sequence loop in
@@ -13,7 +13,7 @@
 ;;; Switching a workspace's layout rebuilds its tree from the
 ;;; template; user splits afterwards are kept until the next switch.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;;; --- Layout registry ---
 
@@ -23,7 +23,7 @@
 (defmacro define-layout (name (windows width height) &body body)
   "Define a new layout template.
 NAME is a keyword naming the layout.
-The function receives WINDOWS (a list of stumpway-window instances),
+The function receives WINDOWS (a list of rhizome-window instances),
 WIDTH, HEIGHT and must return a list of (window x y w h) tuples.
 The placements become the frame tree's leaves."
   `(setf (gethash ,name *layouts*)
@@ -120,7 +120,7 @@ frame, extras onto the last)."
       (set-workspace-tree output workspace
                           (layout-template-rects layout-name width height wins)
                           wins)))
-  (format t "~&; Stumpway: switched to ~A~%" layout-name)
+  (format t "~&; Rhizome: switched to ~A~%" layout-name)
   (message "~A" layout-name)
   (run-hook :layout-changed output layout-name)
   (request-manage-dirty))

@@ -1,4 +1,4 @@
-;;; Generalized input prompt for Stumpway
+;;; Generalized input prompt for Rhizome
 ;;;
 ;;; An interactive layer-shell input bar with filtering and
 ;;; selection — the machinery behind windowlist, workspace selection
@@ -8,7 +8,7 @@
 ;;;   (prompt-open "Window:" :candidates '("a" "b")
 ;;;                :on-complete (lambda (choice) ...))
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *prompt-active* nil)
 (defparameter *prompt-title* "")
@@ -38,7 +38,7 @@ exclusive surface can never trap input. Called from the main loop."
   (when (and *prompt-active*
              (plusp *prompt-expiry*)
              (>= (get-universal-time) *prompt-expiry*))
-    (format t "~&; Stumpway: prompt timed out~%")
+    (format t "~&; Rhizome: prompt timed out~%")
     (prompt-close)))
 
 (defun prompt-filtered ()
@@ -69,7 +69,7 @@ order, case-insensitive; substring matches rank first)."
            (handler-case
                (funcall on-complete choice)
              (error (e)
-               (format t "~&; Stumpway: prompt complete error: ~A~%" e))))))
+               (format t "~&; Rhizome: prompt complete error: ~A~%" e))))))
       ;; Up / Down / Tab — cycle selection
       ((= keysym 65362)
        (when (plusp *prompt-selection*)
@@ -170,7 +170,7 @@ ON-COMPLETE is called with the selected string on Enter."
   (when *prompt-active*
     (prompt-close))
   (unless (and *compositor* *shm* *layer-shell*)
-    (format t "~&; Stumpway: cannot show prompt (missing globals)~%")
+    (format t "~&; Rhizome: cannot show prompt (missing globals)~%")
     (return-from prompt-open))
   (setf *prompt-title* title
         *prompt-query* initial
@@ -186,7 +186,7 @@ ON-COMPLETE is called with the selected string on Enter."
       (setf (gethash :surface state) surface)
       (let ((layer-surface
               (rwm:zwlr-layer-shell-v1.get-layer-surface
-                *layer-shell* surface nil :top "stumpway-prompt")))
+                *layer-shell* surface nil :top "rhizome-prompt")))
         (setf (gethash :layer-surface state) layer-surface)
         (push (lambda (event-name &rest args)
                 (case event-name
@@ -220,7 +220,7 @@ ON-COMPLETE is called with the selected string on Enter."
           (when (gethash :surface state)
             (wl:wl-surface.destroy (gethash :surface state))))
       (error (e)
-        (format t "~&; Stumpway: error closing prompt: ~A~%" e)))
+        (format t "~&; Rhizome: error closing prompt: ~A~%" e)))
     (bar-destroy-shm state)
     (setf *prompt-state* nil
           *prompt-on-complete* nil)))

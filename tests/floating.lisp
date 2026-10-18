@@ -1,9 +1,9 @@
 ;;; Tests for the floating window engine (floating.lisp).
 ;;; River-touching functions are stubbed so the manage/render
 ;;; integration can be exercised without a live compositor.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -31,7 +31,7 @@
       (let ((fn-sym fn))
         (setf (symbol-function fn)
               (lambda (&rest args)
-                (if (and args (typep (first args) 'stumpway-window))
+                (if (and args (typep (first args) 'rhizome-window))
                     (progn
                       (push (list (intern (string fn-sym) :keyword)
                                   (first args))
@@ -50,10 +50,10 @@
           *window-workspace* (make-hash-table)
           *minimized-windows* (make-hash-table))
 
-    (let ((out (make-instance 'stumpway-output :proxy :out-proxy
+    (let ((out (make-instance 'rhizome-output :proxy :out-proxy
                               :width 1920 :height 1080))
-          (term (make-instance 'stumpway-window :proxy :term-proxy))
-          (gimp (make-instance 'stumpway-window :proxy :gimp-proxy)))
+          (term (make-instance 'rhizome-window :proxy :term-proxy))
+          (gimp (make-instance 'rhizome-window :proxy :gimp-proxy)))
 
       (setf (gethash :term-proxy *windows*) term
             (gethash :gimp-proxy *windows*) gimp
@@ -163,7 +163,7 @@
           '(300 200))
 
       ;; A fresh float (no output yet) is adopted onto the workspace
-      (let ((fresh (make-instance 'stumpway-window :proxy :fresh-proxy)))
+      (let ((fresh (make-instance 'rhizome-window :proxy :fresh-proxy)))
         (setf (gethash :fresh-proxy *windows*) fresh
               (window-floating-p fresh) t
               (window-float-x fresh) 10 (window-float-y fresh) 20)
@@ -197,7 +197,7 @@
 
       ;; --- interactive op requests ---
 
-      (let ((seat (make-instance 'stumpway-seat :proxy :seat-proxy)))
+      (let ((seat (make-instance 'rhizome-seat :proxy :seat-proxy)))
         (setf (window-floating-p gimp) nil)
         (float-op-request gimp seat :move)
         (ok "non-floating drag is ignored" (seat-op-pending seat) nil)

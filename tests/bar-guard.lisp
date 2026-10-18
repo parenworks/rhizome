@@ -1,12 +1,12 @@
 ;;; Regression test for the bar fork-bomb: the bar process loads the
-;;; user config at startup; any (stumpway:configure ...) in it must
+;;; user config at startup; any (rhizome:configure ...) in it must
 ;;; never reach bar process management. Before the *bar-process-mode*
 ;;; guard, a bar applying config spawned another bar, which loaded the
 ;;; config and spawned another — exponential bars on screen, forcing
 ;;; the user to power off the machine.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))

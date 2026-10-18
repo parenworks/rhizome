@@ -1,9 +1,9 @@
 ;;; Tests for per-workspace group types: the registry, live type
 ;;; switches that take over every window (tile/scroll/floating),
 ;;; floating-workspace arrivals, and the C-t l cycle.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (configure '(:bar (:enabled nil)))
 
@@ -42,7 +42,7 @@
     ;; Fresh state (and one seat, so focus takes effect)
     (setf *seats* (make-hash-table)
           (gethash :groups-seat *seats*)
-          (make-instance 'stumpway-seat :proxy :groups-seat))
+          (make-instance 'rhizome-seat :proxy :groups-seat))
     (setf *windows* (make-hash-table)
           *output-workspace* (make-hash-table)
           *window-workspace* (make-hash-table)
@@ -52,11 +52,11 @@
           *scroll-states* (make-hash-table :test 'equal)
           *workspace-types* (make-hash-table :test 'equal))
 
-    (let* ((out (make-instance 'stumpway-output :proxy :gr-out
+    (let* ((out (make-instance 'rhizome-output :proxy :gr-out
                               :width 1920 :height 1080))
-           (a (make-instance 'stumpway-window :proxy :ga))
-           (b (make-instance 'stumpway-window :proxy :gb))
-           (c (make-instance 'stumpway-window :proxy :gc)))
+           (a (make-instance 'rhizome-window :proxy :ga))
+           (b (make-instance 'rhizome-window :proxy :gb))
+           (c (make-instance 'rhizome-window :proxy :gc)))
       (setf (gethash :ga *windows*) a
             (gethash :gb *windows*) b
             (gethash :gc *windows*) c

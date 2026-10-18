@@ -1,20 +1,20 @@
-;;; Session management for Stumpway: lock, idle lock, logout
+;;; Session management for Rhizome: lock, idle lock, logout
 ;;;
 ;;; The locker is a configurable external program (swaylock by
 ;;; default — `sudo pacman -S swaylock`; hyprlock, waylock or any
 ;;; ext-session-lock-v1 client work too), configured under (:lock ...):
 ;;;
-;;;   (stumpway:configure
+;;;   (rhizome:configure
 ;;;     '(:lock (:command "swaylock"                  ; the locker
 ;;;              :args ("--daemonize" "--effect-blur" "10x3")
 ;;;              :idle-seconds 600)))                  ; swayidle auto-lock
 ;;;
 ;;; Logout ends the river session and returns to the display
-;;; manager's greeter. River 0.4.x ships no riverctl, so stumpway
+;;; manager's greeter. River 0.4.x ships no riverctl, so rhizome
 ;;; sends the compositor SIGTERM — river then sends the WM its
 ;;; finished event and both shut down cleanly.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *idle-locker-process* nil
   "The running swayidle process, if idle locking is configured.")
@@ -47,7 +47,7 @@ of inactivity. Called at WM startup; config changes need a restart."
                 (list "swayidle" "-w"
                       "timeout" (format nil "~A" secs)
                       (format nil "~{~A~^ ~}" (lock-command))))))
-      (format t "~&; Stumpway: idle locker armed (~As)~%" secs))))
+      (format t "~&; Rhizome: idle locker armed (~As)~%" secs))))
 
 (defparameter *logout-armed-at* 0
   "Universal time logout was last armed (logout-confirm).")

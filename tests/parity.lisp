@@ -1,9 +1,9 @@
 ;;; Tests for phase 6 parity items: Alt+drag pointer bindings,
 ;;; C-t h help system, C-t +/- resize, move-window-to-frame-direction,
 ;;; and :output window rules.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -27,7 +27,7 @@
       (let ((fn-sym fn))
         (setf (symbol-function fn)
               (lambda (&rest args)
-                (if (and args (typep (first args) 'stumpway-window))
+                (if (and args (typep (first args) 'rhizome-window))
                     (progn
                       (push (list (intern (string fn-sym) :keyword)
                                   (first args))
@@ -56,11 +56,11 @@
 
     ;; --- Window-at-pointer and Alt+drag ---
 
-    (let* ((out (make-instance 'stumpway-output :proxy :out-proxy
+    (let* ((out (make-instance 'rhizome-output :proxy :out-proxy
                               :width 1920 :height 1080))
-           (seat (make-instance 'stumpway-seat :proxy :seat-proxy))
-           (term (make-instance 'stumpway-window :proxy :term-proxy))
-           (floaty (make-instance 'stumpway-window :proxy :float-proxy)))
+           (seat (make-instance 'rhizome-seat :proxy :seat-proxy))
+           (term (make-instance 'rhizome-window :proxy :term-proxy))
+           (floaty (make-instance 'rhizome-window :proxy :float-proxy)))
       (setf (gethash out *output-workspace*) 1
             (gethash :term-proxy *windows*) term
             (gethash :float-proxy *windows*) floaty
@@ -226,11 +226,11 @@
           t)
 
       ;; :output window rules
-      (let* ((out1 (make-instance 'stumpway-output :proxy :out-proxy
+      (let* ((out1 (make-instance 'rhizome-output :proxy :out-proxy
                                   :width 1920 :height 1080))
-             (out2 (make-instance 'stumpway-output :proxy :out2-proxy
+             (out2 (make-instance 'rhizome-output :proxy :out2-proxy
                                  :width 1920 :height 1080 :x 1920))
-             (steam (make-instance 'stumpway-window :proxy :steam-proxy)))
+             (steam (make-instance 'rhizome-window :proxy :steam-proxy)))
         (setf (gethash :out-proxy *outputs*) out1
               (gethash :out2-proxy *outputs*) out2
               (gethash :steam-proxy *windows*) steam

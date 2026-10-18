@@ -1,10 +1,10 @@
-;;; Transient on-screen messages for Stumpway
+;;; Transient on-screen messages for Rhizome
 ;;;
 ;;; The StumpWM message-window equivalent: show text briefly on
 ;;; screen, auto-hide after a timeout. Expiry is drained by the WM's
 ;;; main poll loop — no threads, no timers.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *message-state* nil
   "Surface state hash for the visible message.")
@@ -31,7 +31,7 @@
 already showing, replace it. Newlines start new lines."
   (setf *last-message* text)
   (unless (and *compositor* *shm* *layer-shell*)
-    (format t "~&; Stumpway: ~A~%" text)
+    (format t "~&; Rhizome: ~A~%" text)
     (return-from show-message))
   (setf *message-expiry* (+ (get-universal-time) seconds))
   (let ((height (message-height-for text)))
@@ -58,7 +58,7 @@ already showing, replace it. Newlines start new lines."
             (setf (gethash :surface state) surface)
             (let ((layer-surface
                     (rwm:zwlr-layer-shell-v1.get-layer-surface
-                      *layer-shell* surface nil :top "stumpway-message")))
+                      *layer-shell* surface nil :top "rhizome-message")))
               (setf (gethash :layer-surface state) layer-surface)
               (push (lambda (event-name &rest args)
                       (case event-name
@@ -129,7 +129,7 @@ already showing, replace it. Newlines start new lines."
               (wl:wl-surface.destroy (gethash :surface state)))
             (bar-destroy-shm state))
         (error (e)
-          (format t "~&; Stumpway: error hiding message: ~A~%" e))))))
+          (format t "~&; Rhizome: error hiding message: ~A~%" e))))))
 
 (defun message-drain ()
   "Hide the message when its expiry passes. Called from the main loop."

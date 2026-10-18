@@ -1,4 +1,4 @@
-;;; Workspaces for Stumpway
+;;; Workspaces for Rhizome
 ;;;
 ;;; StumpWM-style workspaces (groups): each output has N workspaces
 ;;; (configurable via *workspace-count*), windows are stamped with the
@@ -9,7 +9,7 @@
 ;;; The current workspace per output is exported to the bar via the
 ;;; WM snapshot file (see update-wm-snapshot in wm-protocol.lisp).
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *workspace-count* 9
   "Number of workspaces per output.")
@@ -62,7 +62,7 @@ because they are on another workspace.")
   (unless (and (<= 1 workspace *workspace-count*) output)
     (return-from switch-workspace))
   (setf (gethash output *output-workspace*) workspace)
-  (format t "~&; Stumpway: switched to workspace ~D~%" workspace)
+  (format t "~&; Rhizome: switched to workspace ~D~%" workspace)
   (message "workspace ~D" workspace)
   (run-hook :workspace-changed workspace output)
   ;; Focus the most recently registered window on the new workspace
@@ -88,7 +88,7 @@ because they are on another workspace.")
   (assign-window-workspace win workspace)
   ;; Moving a minimized window restores it
   (setf (window-minimized-p win) nil)
-  (format t "~&; Stumpway: moved window to workspace ~D~%" workspace)
+  (format t "~&; Rhizome: moved window to workspace ~D~%" workspace)
   (when output
     (switch-workspace workspace output)))
 
@@ -121,7 +121,7 @@ because they are on another workspace.")
 ;;; Rules live in the config and match a regex against the window's
 ;;; app-id (default) or title:
 ;;;
-;;;   (stumpway:configure
+;;;   (rhizome:configure
 ;;;     '(:window-rules ((:match "vivaldi" :workspace 2 :follow t)
 ;;;                      (:match "emacs" :workspace 3 :layout :monocle)
 ;;;                      (:match "gimp" :float t)
@@ -187,7 +187,7 @@ window. Returns the matched rule, if any."
             (when outs
               (switch-workspace workspace (first outs)))))
         (request-manage-dirty)
-        (format t "~&; Stumpway: window rule ~S applied to ~A~%"
+        (format t "~&; Rhizome: window rule ~S applied to ~A~%"
                 rule (or (window-app-id win) (window-title win) win))
         (return rule)))))
 

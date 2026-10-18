@@ -2,9 +2,9 @@
 ;;; command mode (sticky prefix). River-touching functions are
 ;;; stubbed; prefix mode is driven directly (the capture surface
 ;;; needs a compositor, which tests don't have).
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -81,7 +81,7 @@
 
     ;; --- iresize ---
 
-    (let* ((out (make-instance 'stumpway-output :proxy :resize-out
+    (let* ((out (make-instance 'rhizome-output :proxy :resize-out
                               :width 1920 :height 1080))
            (root (frame-tree-for out 8)))
       (setf (gethash out *output-workspace*) 8

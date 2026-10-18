@@ -1,12 +1,12 @@
-;;; Stumpway configuration
+;;; Rhizome configuration
 ;;;
 ;;; Configuration is a nested plist stored in *config*. Defaults are
 ;;; defined by DEFAULT-CONFIG; user overrides live in
-;;; ~/.config/stumpway/config.lisp, which typically contains calls to
-;;; (stumpway:configure '(...)). Configuration can be changed live from
+;;; ~/.config/rhizome/config.lisp, which typically contains calls to
+;;; (rhizome:configure '(...)). Configuration can be changed live from
 ;;; the REPL - the bar and other consumers pick changes up immediately.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;;; --- Config data structure helpers ---
 
@@ -97,18 +97,18 @@ Returns (values value found-p)."
             :port 4005)))
 
 (defvar *config* (default-config)
-  "The current stumpway configuration.")
+  "The current rhizome configuration.")
 
 ;;; --- Public config API ---
 
 (defun configure (plist)
   "Merge PLIST into *config* and apply it. For example:
 
-  (stumpway:configure '(:bar (:modules (:left (:layout :windows)
+  (rhizome:configure '(:bar (:modules (:left (:layout :windows)
                                           :center (:clock)
                                           :right (:battery))
                            :height 24)))
-  (stumpway:configure '(:bar (:enabled nil)))   ; disable the bar
+  (rhizome:configure '(:bar (:enabled nil)))   ; disable the bar
 
 Restarting running components (e.g. the bar) is handled automatically."
   (setf *config* (merge-plist *config* plist))
@@ -125,7 +125,7 @@ user config would otherwise spawn bars — see *bar-process-mode*)."
 
 (defun config-pathname ()
   "Pathname of the user config file."
-  (merge-pathnames #P".config/stumpway/config.lisp"
+  (merge-pathnames #P".config/rhizome/config.lisp"
                    (user-homedir-pathname)))
 
 ;;; --- Modifier keys (define once, use many) ---
@@ -135,7 +135,7 @@ user config would otherwise spawn bars — see *bar-process-mode*)."
 ;;; user modifier — every direct binding (MOD+Return terminal,
 ;;; MOD+1..9 workspaces, MOD+drag window moves, ...) routes through
 ;;; it. Default Super (:mod4); change at runtime with
-;;; (stumpway:set-user-mod :alt) or :super.
+;;; (rhizome:set-user-mod :alt) or :super.
 
 (defparameter *mod-none*  '(:none)
   "No modifier.")
@@ -193,11 +193,11 @@ query returns the candidates unchanged."
   "Load the user's config file if it exists."
   (let ((path (config-pathname)))
     (when (probe-file path)
-      (format t "~&; Stumpway: loading config from ~A~%" path)
+      (format t "~&; Rhizome: loading config from ~A~%" path)
       (handler-case
           (load path)
         (error (e)
-          (format t "~&; Stumpway: error loading config: ~A~%" e))))))
+          (format t "~&; Rhizome: error loading config: ~A~%" e))))))
 
 (defun reload-config ()
   "Reset to defaults, reload the user config file, and re-apply."

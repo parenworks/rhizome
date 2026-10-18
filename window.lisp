@@ -1,12 +1,12 @@
-;;; Window management for Stumpway
+;;; Window management for Rhizome
 ;;;
-;;; Each river_window_v1 is wrapped in a stumpway-window CLOS instance
+;;; Each river_window_v1 is wrapped in a rhizome-window CLOS instance
 ;;; that tracks the window's state (dimensions, title, app_id, focus,
 ;;; tiling frame assignment, etc.)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
-(defclass stumpway-window ()
+(defclass rhizome-window ()
   ((proxy       :initarg :proxy       :accessor window-proxy)
    (node        :initarg :node        :accessor window-node :initform nil)
    (title       :initarg :title       :accessor window-title :initform nil)
@@ -162,7 +162,7 @@ sequence)."
             (rwm:river-window-v1.exit-fullscreen (window-proxy win))
             (rwm:river-window-v1.fullscreen (window-proxy win)))
       (error (e)
-        (format t "~&; Stumpway: fullscreen request failed: ~A~%" e))))
+        (format t "~&; Rhizome: fullscreen request failed: ~A~%" e))))
   (setf *pending-fullscreen-requests* nil))
 
 (defun toggle-fullscreen (win)
@@ -175,7 +175,7 @@ request itself is flushed by the manage pass."
 
 (defun register-window (proxy)
   "Register a new river_window_v1 proxy and set up event handlers."
-  (let ((win (make-instance 'stumpway-window :proxy proxy)))
+  (let ((win (make-instance 'rhizome-window :proxy proxy)))
     (setf (gethash proxy *windows*) win
           *last-registered-window* win
           *pending-autofocus* win)
@@ -184,7 +184,7 @@ request itself is flushed by the manage pass."
             (apply #'handle-window-event win event-name args))
           (wl:wl-proxy-hooks proxy))
     (run-hook :window-created win)
-    (format t "~&; Stumpway: new window registered~%")))
+    (format t "~&; Rhizome: new window registered~%")))
 
 (defun handle-window-event (win event-name &rest args)
   "Dispatch river_window_v1 events for WIN."
@@ -212,7 +212,7 @@ request itself is flushed by the manage pass."
         (:title
          (destructuring-bind (title) args
            (setf (window-title win) title)
-           (format t "~&; Stumpway: window title: ~A~%" title)
+           (format t "~&; Rhizome: window title: ~A~%" title)
            ;; Window rules may match on title
            (apply-window-rules win)))
 
@@ -223,7 +223,7 @@ request itself is flushed by the manage pass."
            (apply-window-rules win)))
 
         (:closed
-         (format t "~&; Stumpway: window closed~%")
+         (format t "~&; Rhizome: window closed~%")
          (run-hook :window-closed win)
          (remhash (window-proxy win) *windows*)
          (remhash win *window-workspace*)
@@ -266,9 +266,9 @@ request itself is flushed by the manage pass."
                (float-op-request win seat :resize edges)))))
 
         (t
-         (format t "~&; Stumpway: unhandled window event ~A~%" event-name)))
+         (format t "~&; Rhizome: unhandled window event ~A~%" event-name)))
     (error (e)
-      (format t "~&; Stumpway: error handling window event ~A: ~A~%" event-name e))))
+      (format t "~&; Rhizome: error handling window event ~A: ~A~%" event-name e))))
 
 (defun all-windows ()
   "Return a list of all registered windows."

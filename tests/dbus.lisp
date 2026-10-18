@@ -3,9 +3,9 @@
 ;;; RequestName, GetNameOwner, Properties.Get). The live section
 ;;; guards on the bus socket existing.
 
-(ql:quickload :stumpway :silent t)
+(ql:quickload :rhizome :silent t)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (let ((pass 0) (fail 0))
   (flet ((ok (name actual expected)
@@ -67,13 +67,13 @@
           (ok "ListNames sees the broker's own name"
               (and (member "org.freedesktop.DBus" names :test #'string=) t)
               t))
-        (let ((result (dbus-request-name conn "org.stumpway.Test")))
+        (let ((result (dbus-request-name conn "org.rhizome.Test")))
           (ok "RequestName succeeds (1 = primary owner)" result 1))
         (multiple-value-bind (reply body)
             (dbus-call conn "org.freedesktop.DBus" "/org/freedesktop/DBus"
                        "org.freedesktop.DBus" "GetNameOwner"
                        :signature "s"
-                       :values (list "org.stumpway.Test"))
+                       :values (list "org.rhizome.Test"))
           (ok "GetNameOwner returns our unique name"
               (and reply (first body)
                    (string= (first body)
@@ -88,7 +88,7 @@
               (and reply (consp (first body))
                    (string= (car (first body)) "as"))
               t))
-        (dbus-request-name conn "org.stumpway.Test" 0))
+        (dbus-request-name conn "org.rhizome.Test" 0))
       (when conn
         (ok "reader thread running"
             (and (bt:thread-alive-p (dbus-connection-thread conn)) t)

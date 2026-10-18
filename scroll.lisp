@@ -1,4 +1,4 @@
-;;; Niri-style scrollable tiling for Stumpway
+;;; Niri-style scrollable tiling for Rhizome
 ;;;
 ;;; A workspace view mode: an infinite horizontal ribbon where every
 ;;; window owns a full-height column. New windows enter next to the
@@ -13,7 +13,7 @@
 ;;; placement) and the dispatch in tiling.lisp routes manage/render
 ;;; passes here instead of the frame tree.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *scroll-states* (make-hash-table :test 'equal)
   "Scroll-ribbon state per workspace key, or no entry when the

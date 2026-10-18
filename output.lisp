@@ -1,11 +1,11 @@
-;;; Output (monitor) management for Stumpway
+;;; Output (monitor) management for Rhizome
 ;;;
-;;; Each river_output_v1 is wrapped in a stumpway-output CLOS instance
+;;; Each river_output_v1 is wrapped in a rhizome-output CLOS instance
 ;;; that tracks the output's position, dimensions, and assigned windows.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
-(defclass stumpway-output ()
+(defclass rhizome-output ()
   ((proxy    :initarg :proxy    :accessor output-proxy)
    (x        :initarg :x        :accessor output-x :initform 0)
    (y        :initarg :y        :accessor output-y :initform 0)
@@ -14,17 +14,17 @@
    (wl-output-name :initarg :wl-output-name :accessor output-wl-output-name :initform nil)
    (current-layout :initarg :current-layout :accessor output-current-layout :initform :master-stack)
    (windows  :initarg :windows  :accessor output-windows :initform nil))
-  (:documentation "Represents a logical output (monitor) managed by stumpway."))
+  (:documentation "Represents a logical output (monitor) managed by rhizome."))
 
 (defun register-output (proxy)
   "Register a new river_output_v1 proxy and set up event handlers."
-  (let ((output (make-instance 'stumpway-output :proxy proxy)))
+  (let ((output (make-instance 'rhizome-output :proxy proxy)))
     (setf (gethash proxy *outputs*) output)
     (push (lambda (event-name &rest args)
             (apply #'handle-output-event output event-name args))
           (wl:wl-proxy-hooks proxy))
     (run-hook :output-created output)
-    (format t "~&; Stumpway: new output registered~%")
+    (format t "~&; Rhizome: new output registered~%")
     ;; Register with river_layer_shell_v1 if available
     (when *river-layer-shell*
       (handler-case
@@ -37,9 +37,9 @@
                          (declare (ignore x y w h)))
                        nil)))
                   (wl:wl-proxy-hooks ls-output))
-            (format t "~&; Stumpway: registered output with river_layer_shell_v1~%"))
+            (format t "~&; Rhizome: registered output with river_layer_shell_v1~%"))
           (error (e)
-            (format t "~&; Stumpway: failed to register output with layer shell: ~A~%" e))))))
+            (format t "~&; Rhizome: failed to register output with layer shell: ~A~%" e))))))
 
 (defun handle-output-event (output event-name &rest args)
   "Dispatch river_output_v1 events for OUTPUT."
@@ -61,18 +61,18 @@
              (when *wm-proxy*
                (request-manage-dirty)))
          (error (e)
-           (format t "~&; Stumpway: error refitting frame trees: ~A~%" e)))))
+           (format t "~&; Rhizome: error refitting frame trees: ~A~%" e)))))
 
     (:wl-output
      (destructuring-bind (name) args
        (setf (output-wl-output-name output) name)))
 
     (:removed
-     (format t "~&; Stumpway: output removed~%")
+     (format t "~&; Rhizome: output removed~%")
      (remhash (output-proxy output) *outputs*))
 
     (t
-     (format t "~&; Stumpway: unhandled output event ~A~%" event-name))))
+     (format t "~&; Rhizome: unhandled output event ~A~%" event-name))))
 
 (defun all-outputs ()
   "Return a list of all registered outputs."

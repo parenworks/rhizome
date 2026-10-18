@@ -1,8 +1,8 @@
-(defpackage #:stumpway
+(defpackage #:rhizome
   (:use #:cl)
   (:local-nicknames
    (#:wl #:xyz.shunter.wayflan.client)
-   (#:rwm #:stumpway.river-wm))
+   (#:rwm #:rhizome.river-wm))
   (:export
    ;; Main entry point
    #:run

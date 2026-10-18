@@ -1,4 +1,4 @@
-;;; Expose for Stumpway — the StumpWM (C-t Return) / macOS overview
+;;; Expose for Rhizome — the StumpWM (C-t Return) / macOS overview
 ;;;
 ;;; Press C-t Return: every window on the workspace — including the
 ;;; ones hidden in monocle frames — floats into an aspect-fitted
@@ -11,7 +11,7 @@
 ;;; clicks ride river's window-interaction events, which fire on any
 ;;; button press over a window — focus moves and ends the expose.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defparameter *expose-order* nil
   "The exposed windows in grid order (row-major) while expose runs.")

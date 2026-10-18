@@ -1,7 +1,7 @@
-;;; DBus wire protocol for Stumpway — pure Common Lisp
+;;; DBus wire protocol for Rhizome — pure Common Lisp
 ;;;
 ;;; The system tray (an org.kde.StatusNotifierWatcher host) needs a
-;;; DBus connection, and stumpway stays a pure-CL application: this
+;;; DBus connection, and rhizome stays a pure-CL application: this
 ;;; file speaks the DBus wire protocol directly over a Unix socket
 ;;; (minimal CFFI shims, the same approach ipc.lisp takes), with no C
 ;;; library, no foreign bindings, and no quicklisp dependencies —
@@ -18,7 +18,7 @@
 ;;;     ListNames), a reader thread that completes pending calls,
 ;;;     and a main-loop drain for incoming method calls and signals.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;;; --- Socket shims (standalone; same foreign-funcall style as ipc.lisp) ---
 
@@ -571,7 +571,7 @@ the socket-write result — callers match replies on this)."
       (return-from dbus-auth nil))
     (let ((line (dbus-read-line fd)))
       (unless (and line (>= (length line) 2) (string= line "OK" :end1 2))
-        (format t "~&; Stumpway: dbus: auth rejected: ~S~%" line)
+        (format t "~&; Rhizome: dbus: auth rejected: ~S~%" line)
         (return-from dbus-auth nil))
       (sock-write-all
         fd (string->utf8 (format nil "BEGIN~C~C" #\Return #\Newline)))
@@ -619,7 +619,7 @@ the socket-write result — callers match replies on this)."
 DBUS-CONNECTION, or NIL on failure."
   (let ((fd (sock-connect-unix path)))
     (unless fd
-      (format t "~&; Stumpway: dbus: cannot connect to ~A~%" path)
+      (format t "~&; Rhizome: dbus: cannot connect to ~A~%" path)
       (return-from dbus-connect nil))
     (unless (dbus-auth fd)
       (%sock-close fd)
@@ -638,7 +638,7 @@ DBUS-CONNECTION, or NIL on failure."
       (setf (dbus-connection-thread conn)
             (bt:make-thread
               (lambda () (dbus-reader-loop conn))
-              :name "stumpway-dbus-reader"))
+              :name "rhizome-dbus-reader"))
       ;; Hello: the bus assigns our unique name
       (let* ((serial (dbus-send-outgoing
                        conn
@@ -652,13 +652,13 @@ DBUS-CONNECTION, or NIL on failure."
              (reply (dbus-await-reply conn serial 2)))
         (unless (and reply (eq (dbus-message-type reply)
                                +dbus-msg-return+))
-          (format t "~&; Stumpway: dbus: Hello failed: ~A~%"
+          (format t "~&; Rhizome: dbus: Hello failed: ~A~%"
                   (and reply (first (dbus-message-body reply))))
           (%sock-close fd)
           (return-from dbus-connect nil))
         (setf (dbus-connection-unique-name conn)
               (first (dbus-message-body reply))))
-      (format t "~&; Stumpway: dbus: connected as ~A~%"
+      (format t "~&; Rhizome: dbus: connected as ~A~%"
               (dbus-connection-unique-name conn))
       conn)))
 
@@ -870,4 +870,4 @@ signal-handler table. Runs on a tick; safe on an empty queue."
         (handler-case
             (dispatch-method-call msg conn)
           (error (e)
-            (format t "~&; Stumpway: dbus: dispatch error: ~A~%" e)))))))
+            (format t "~&; Rhizome: dbus: dispatch error: ~A~%" e)))))))

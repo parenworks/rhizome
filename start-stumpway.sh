@@ -1,16 +1,16 @@
 #!/bin/bash
-# Start river maximized in WSLg, then launch stumpway
-# Usage: ./start-stumpway.sh
+# Start river maximized in WSLg, then launch rhizome
+# Usage: ./start-rhizome.sh
 
 set -e
 
 # Kill any existing instances
-pkill -f "sbcl.*stumpway" 2>/dev/null || true
+pkill -f "sbcl.*rhizome" 2>/dev/null || true
 pkill -f "river" 2>/dev/null || true
 sleep 1
 
 # Clear FASL cache to ensure clean reload
-rm -rf "$HOME"/.cache/common-lisp/sbcl-*/home/glenn/SourceCode/stumpway 2>/dev/null || true
+rm -rf "$HOME"/.cache/common-lisp/sbcl-*/home/glenn/SourceCode/rhizome 2>/dev/null || true
 
 # Start river nested in WSLg
 WAYLAND_DISPLAY=wayland-0 river -log-level info &
@@ -49,5 +49,5 @@ if ($proc) {
 }
 ' 2>/dev/null
 
-echo "; Starting stumpway..."
-WAYLAND_DISPLAY=wayland-1 sbcl --eval '(ql:quickload :stumpway)' --eval '(stumpway:run)'
+echo "; Starting rhizome..."
+WAYLAND_DISPLAY=wayland-1 sbcl --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)'

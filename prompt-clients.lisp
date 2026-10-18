@@ -1,7 +1,7 @@
 ;;; Interactive prompt clients: windowlist, workspace picker,
 ;;; command palette. Bound to Alt+W, Alt+G, Alt+X.
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 (defun windowlist ()
   "Interactive window list: pick by title, jump to its workspace and
@@ -83,7 +83,7 @@ ITEMS is a list of labels or (LABEL . ACTION) entries:
 - any other entry (including data payloads) is passed to ON-SELECT
   if given, otherwise the label is echoed
 
-  (stumpway:select-from-menu \"Workspace?\"
+  (rhizome:select-from-menu \"Workspace?\"
     (list (cons \"Web\"  (lambda () (switch-workspace 2)))
           (cons \"Code\" (lambda () (switch-workspace 3)))))"
   (let* ((labels (mapcar (lambda (item)

@@ -1,9 +1,9 @@
 ;;; Tests for the first "bigger" batch: minor modes (prefix-scoped
 ;;; keymap overlays), WSE window selection expressions, and fuzzy
 ;;; filtering (prompt + launcher helpers).
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -65,14 +65,14 @@
 
     ;; --- WSE ---
 
-    (let* ((out (make-instance 'stumpway-output :proxy :wse-out
+    (let* ((out (make-instance 'rhizome-output :proxy :wse-out
                               :width 1920 :height 1080))
-           (ff (make-instance 'stumpway-window :proxy :ff))
-           (em (make-instance 'stumpway-window :proxy :em)))
+           (ff (make-instance 'rhizome-window :proxy :ff))
+           (em (make-instance 'rhizome-window :proxy :em)))
       (setf (gethash :ff *windows*) ff
             (gethash :em *windows*) em
             (window-app-id ff) "org.mozilla.firefox"
-            (window-title ff) "GitHub - stumpway"
+            (window-title ff) "GitHub - rhizome"
             (window-app-id em) "emacs"
             (window-title em) "main.lisp"
             (window-output ff) out
@@ -88,7 +88,7 @@
       (ok "app-id regex matches"
           (and (wse-matches-p ff '(:app-id "mozilla")) t) t)
       (ok "title regex matches"
-          (and (wse-matches-p ff '(:title "stumpway")) t) t)
+          (and (wse-matches-p ff '(:title "rhizome")) t) t)
       (ok "unrelated title does not match"
           (wse-matches-p em '(:title "GitHub")) nil)
       (ok "and combines predicates"

@@ -1,7 +1,7 @@
 ;;; IPC (stumpish) tests: dispatch logic and a real socket round-trip.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -37,12 +37,12 @@ drains the command queue — mirroring the WM's poll loop."
        t)
 
     ;; A fake output so workspace commands have real state
-    (let ((out (make-instance 'stumpway-output :proxy :test-out)))
+    (let ((out (make-instance 'rhizome-output :proxy :test-out)))
       (setf (gethash :test-out *outputs*) out)
 
       ;; Socket round-trip on a THROWAWAY path: never touch the real
-      ;; stumpway.sock, which may belong to a running WM!
-      (let ((path "/tmp/stumpway-test.sock"))
+      ;; rhizome.sock, which may belong to a running WM!
+      (let ((path "/tmp/rhizome-test.sock"))
         (cffi:foreign-funcall "unlink" :string path :int)
         (stop-ipc-server)
         (setf *ipc-thread* nil *ipc-fd* nil)

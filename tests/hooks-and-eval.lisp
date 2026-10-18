@@ -1,7 +1,7 @@
 ;;; Tests for hooks and the eval prompt evaluator.
-(ql:quickload :stumpway)
+(ql:quickload :rhizome)
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;; Never start the bar from a test run
 (configure '(:bar (:enabled nil)))
@@ -36,7 +36,7 @@
              (first got) :after)
       (clear-hook :test-hook-2))
 
-    ;; Eval: simple arithmetic in the stumpway package
+    ;; Eval: simple arithmetic in the rhizome package
     (setf *eval-prompt-query* "(+ 1 2)")
     (eval-prompt-eval *eval-prompt-query*)
     (check "eval (+ 1 2) => 3"

@@ -11,7 +11,7 @@
 ;;; Devices are discovered via river_input_manager_v1 (device names/types)
 ;;; and river_libinput_config_v1 (libinput capabilities and configuration).
 
-(in-package #:stumpway)
+(in-package #:rhizome)
 
 ;;; --- Configuration knobs ---
 
@@ -51,17 +51,17 @@
           (declare (ignore args))
           (case event-name
             (:success
-             (format t "~&; Stumpway: input config ok: ~A~%" what))
+             (format t "~&; Rhizome: input config ok: ~A~%" what))
             (:unsupported
-             (format t "~&; Stumpway: input config unsupported: ~A~%" what))
+             (format t "~&; Rhizome: input config unsupported: ~A~%" what))
             (:invalid
-             (format t "~&; Stumpway: input config invalid: ~A~%" what))))
+             (format t "~&; Rhizome: input config invalid: ~A~%" what))))
         (wl:wl-proxy-hooks result)))
 
 ;;; --- Applying configuration ---
 
 (defun apply-libinput-config (device)
-  "Apply stumpway's input policy to a libinput device.
+  "Apply rhizome's input policy to a libinput device.
 Called once all initial device information has been received."
   (let ((props (gethash device *libinput-devices*)))
     (let ((tap-fingers (getf props :tap-fingers 0))
@@ -69,7 +69,7 @@ Called once all initial device information has been received."
           (drag-state (getf props :drag-state))
           (name (libinput-device-name device)))
       (when (and *enable-tap* (plusp tap-fingers) (not (eq tap-state :enabled)))
-        (format t "~&; Stumpway: enabling tap-to-click (~D finger~:P) on ~S~%"
+        (format t "~&; Rhizome: enabling tap-to-click (~D finger~:P) on ~S~%"
                 tap-fingers name)
         (handle-libinput-result
           (rwm:river-libinput-device-v1.set-tap device :enabled)
@@ -92,7 +92,7 @@ Called once all initial device information has been received."
             (:name
              (setf (getf (gethash device *river-input-devices*) :name)
                    (first args))
-             (format t "~&; Stumpway: input device ~S (type ~A)~%"
+             (format t "~&; Rhizome: input device ~S (type ~A)~%"
                      (first args)
                      (getf (gethash device *river-input-devices*) :type)))
             (:removed
@@ -138,9 +138,9 @@ Called once all initial device information has been received."
                 (:input-device
                  (register-river-input-device (first args)))
                 (:finished
-                 (format t "~&; Stumpway: input manager finished~%"))))
+                 (format t "~&; Rhizome: input manager finished~%"))))
             (wl:wl-proxy-hooks *input-manager*))
-      (format t "~&; Stumpway: bound river_input_manager_v1 (version ~D)~%" version))))
+      (format t "~&; Rhizome: bound river_input_manager_v1 (version ~D)~%" version))))
 
 (defun setup-libinput-config (registry name interface version)
   "Bind to river_libinput_config_v1 if advertised."
@@ -154,6 +154,6 @@ Called once all initial device information has been received."
                 (:libinput-device
                  (register-libinput-device (first args)))
                 (:finished
-                 (format t "~&; Stumpway: libinput config finished~%"))))
+                 (format t "~&; Rhizome: libinput config finished~%"))))
             (wl:wl-proxy-hooks *libinput-config*))
-      (format t "~&; Stumpway: bound river_libinput_config_v1 (version ~D)~%" version))))
+      (format t "~&; Rhizome: bound river_libinput_config_v1 (version ~D)~%" version))))
