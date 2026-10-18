@@ -152,6 +152,43 @@ sbcl --eval '(ql:quickload :stumpway)' --eval '(stumpway:run)'
 
 On bare metal, river is the primary compositor — no nesting. The WSLg limitations (Super key hijack, nested Wayland GPU quirks) disappear.
 
+** Session integration (REQUIRED for a daily driver)
+
+Three session-level pieces make stumpway behave like a first-class
+desktop. Without them everything *looks* fine until you touch the
+parts that talk to the session bus:
+
+1. *Session environment* (~/.local/bin/stumpway-session, exported
+   before =exec river=): =XDG_CURRENT_DESKTOP=river=,
+   =XDG_SESSION_TYPE=wayland=, and — mirroring Omarchy's Hyprland
+   envs.lua — =QT_QPA_PLATFORMTHEME=gtk3= (Qt apps follow the GTK
+   theme: without it qBittorrent and every Qt app render light no
+   matter what you select), plus the native-Wayland forcing set
+   (=GDK_BACKEND=, =QT_QPA_PLATFORM=, =MOZ_ENABLE_WAYLAND=,
+   =ELECTRON_OZONE_PLATFORM_HINT=, =OZONE_PLATFORM=).
+
+2. *Environment import* (~/.config/river/init, guarded on
+   =XDG_CURRENT_DESKTOP=river=): =systemctl --user
+   import-environment WAYLAND_DISPLAY ...= and
+   =dbus-update-activation-environment --systemd ...=, then
+   =systemctl --user restart xdg-desktop-portal=. Without this,
+   D-Bus-ACTIVATED processes (portal backends: file choosers, app
+   launchers, flatpak helpers) inherit a stale activation
+   environment from the previous session and die trying to connect
+   to a dead display — Steam's add-library-folder picker and every
+   portal dialog silently never appears. The import must NOT run
+   in a nested test river (it would poison the outer session's
+   activation environment); the XDG_CURRENT_DESKTOP guard prevents
+   exactly that.
+
+3. *Portal backends* (~/.config/xdg-desktop-portal/river-portals.conf):
+   =FileChooser=omanta=, =default=gtk=, =Secret=gnome-keyring= —
+   the same backends the Hyprland session pins, so pickers and
+   secrets behave identically across sessions.
+
+The omarchy-sddm-stumpway/ directory carries the SDDM session
+entry that launches stumpway-session.
+
 ** WSLg-specific notes
 
 - Windows hijacks the Super key, so use (stumpway:set-user-mod :alt) under WSLg; on real hardware the default Super modifier applies
