@@ -103,6 +103,7 @@
    #:workspace-type
    #:set-workspace-type
    #:cycle-workspace-type
+   #:tray-show-menu
    #:set-prefix-key
    ;; Window marks
    #:window-marked-p

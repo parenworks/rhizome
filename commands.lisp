@@ -304,6 +304,10 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
   (declare (ignore args))
   (scroll-viewport-right output))
 
+(define-command :tray-show-menu (output args)
+  "Open a tray item's dbusmenu as a selection prompt (bar right-click)."
+  (apply #'stumpway::tray-show-menu args))
+
 (define-command :group-type (output args)
   "Report the current workspace's group type."
   (declare (ignore args))

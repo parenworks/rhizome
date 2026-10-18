@@ -723,6 +723,25 @@ entries carry their actions inline."
            (when command
              (bar-run-command command))))))))
 
+(defun bar-handle-right-click (x)
+  "Handle a right click at X: a tray item opens its dbusmenu via
+the WM's prompt machinery (IPC round-trip: the menu data lives
+here, the prompt surfaces live there)."
+  (let* ((hit (find-if (lambda (hb)
+                         (and (<= (second hb) x)
+                              (< x (third hb))))
+                       *bar-hitboxes*))
+         (module (first hit)))
+    (when (and (listp module) (getf module :name) (getf module :menu))
+      (format t "~&; Stumpway: bar: tray menu ~A~%" (getf module :name))
+      ;; the Menu property is (o . "/path") — an object-path variant
+      (let ((menu-path (if (consp (getf module :menu))
+                           (cdr (getf module :menu))
+                           (getf module :menu))))
+        (bar-run-command
+          (format nil "stumpway-cmd \"(stumpway:tray-show-menu \\\"~A\\\" \\\"~A\\\")\""
+                  (getf module :name) menu-path))))))
+
 (defun bar-handle-scroll (amount)
   "Handle a vertical scroll gesture over a module."
   (let* ((module (and *bar-pointer-x* (bar-module-at *bar-pointer-x*)))
@@ -754,10 +773,13 @@ entries carry their actions inline."
         (:button
          (destructuring-bind (serial time button state) args
            (declare (ignore serial time))
-           ;; 272 = BTN_LEFT
-           (when (and (= button 272) (eq state :pressed))
+           ;; 272 = BTN_LEFT, 273 = BTN_RIGHT
+           (when (eq state :pressed)
              (let ((x *bar-pointer-x*))
-               (when x (bar-handle-click x))))))
+               (when x
+                 (cond
+                   ((= button 272) (bar-handle-click x))
+                   ((= button 273) (bar-handle-right-click x))))))))
         (:axis
          (destructuring-bind (time axis value) args
            (declare (ignore time))

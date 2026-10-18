@@ -239,3 +239,106 @@ what most apps actually use for 'the icon was clicked')."
                    :timeout 2)
       (error (e)
         (format t "~&; Stumpway: tray: scroll failed: ~A~%" e)))))
+
+;;; --- dbusmenu: right-click menus mapped onto select-from-menu ---
+
+(defun menu-prop (props name)
+  "The DATUM of a dbusmenu property from an alist of
+(NAME (SIG . VALUE)) pairs."
+  (cdr (second (assoc name props :test #'string=))))
+
+(defun menu-strip-accel (label)
+  "Remove _ accelerator marks from LABEL (dbusmenu convention)."
+  (remove #\_ label))
+
+(defun menu-unwrap (node)
+  "A dbusmenu layout node: either (id props children) — the
+GetLayout root — or a VARIANT (sig id props children) — the
+recursive children, which arrive as variants with signature
+"ia{sv}av". Returns (id props children)."
+  (if (stringp (first node))
+      (rest node)                     ; variant: strip the signature
+      node))
+
+(defun menu-entries (node &optional (prefix ""))
+  "Flatten a dbusmenu layout NODE into select-from-menu entries:
+(LABEL . ID) pairs. Separators, invisible and disabled entries are
+skipped; submenu children are indented with a prefix."
+  (destructuring-bind (id props children) (menu-unwrap node)
+    (declare (ignorable id))
+    (flet ((prop-false (name)
+             ;; present AND false: a missing prop means visible/enabled
+             (let ((entry (assoc name props :test #'string=)))
+               (and entry
+                    (null (cdr (second entry)))))))
+      (let ((type (menu-prop props "type"))
+            (label (menu-prop props "label"))
+            (submenu (string= (or (menu-prop props "children-display") "")
+                              "submenu")))
+        (append
+          (unless (or (and type (string= type "separator"))
+                      (prop-false "visible")
+                      (prop-false "enabled"))
+          (when (and label (not submenu))
+            (list (cons (concatenate 'string prefix
+                                      (menu-strip-accel label))
+                        id))))
+          (when (and submenu children)
+            ;; The root menu node also carries children-display=submenu,
+            ;; but it is a container, not an entry: only LABELLED
+            ;; submenus indent their children
+            (let ((child-prefix (if label
+                                    (concatenate 'string prefix "  ")
+                                    prefix)))
+              (loop for child in children
+                    append (menu-entries (menu-unwrap child)
+                                          child-prefix)))))))))
+
+(defun tray-menu-activate (conn bus-name menu-path id)
+  "Click dbusmenu entry ID: Event(id, clicked, (), timestamp)."
+  (dbus-call conn bus-name menu-path
+             "com.canonical.dbusmenu" "Event"
+             :signature "isvu"
+             :values (list id "clicked"
+                            (cons "i" 0)
+                            0)
+             :timeout 2))
+
+(defun tray-show-menu (bus-name menu-path)
+  "Fetch an item's dbusmenu and present it as a selection prompt.
+WM-side: the bar's right-click invokes this via IPC; the menu
+renders with the WM's prompt machinery (filter, navigation,
+expiry) and clicking an entry sends Event back over DBus."
+  (let ((conn (or *tray-conn* (dbus-connect))))
+    (unless conn
+      (message "tray: no session bus")
+      (return-from tray-show-menu nil))
+    ;; AboutToShow: some apps refresh their menu state on this
+    (ignore-errors
+      (dbus-call conn bus-name menu-path
+                 "com.canonical.dbusmenu" "AboutToShow"
+                 :signature "i" :values (list 0)
+                 :timeout 2))
+    (multiple-value-bind (reply body)
+        (dbus-call conn bus-name menu-path
+                   "com.canonical.dbusmenu" "GetLayout"
+                   :signature "iias"
+                   :values (list 0 -1 '())
+                   :timeout 3)
+      (unless (and reply (typep reply 'dbus-message)
+                   (eq (dbus-message-type reply) +dbus-msg-return+))
+        (message "tray: no menu from ~A" bus-name)
+        (return-from tray-show-menu nil))
+      (let ((layout (second body)))
+        (let ((ids (menu-entries layout)))
+          (if (null ids)
+              (message "tray: empty menu")
+              (select-from-menu "tray menu"
+                (loop for (label . id) in ids
+                      collect (cons label
+                                    (lambda ()
+                                      (tray-menu-activate
+                                        conn bus-name menu-path id))))
+                :on-select (lambda (entry)
+                             (declare (ignore entry))
+                             nil))))))))
