@@ -59,6 +59,8 @@ is the interface version that introduced the feature.
 | =fullscreen= / =exit_fullscreen= + =inform_*=    | C-t F11 toggle, client-requested fullscreen  |
 | =set_borders=, river decorations, =place_above/below= | borders, z-order, message window       |
 | =hide= / =show= (minimize), =minimize_requested= | minimized windows, expose filtering         |
+| =maximize_requested= / =unmaximize_requested= | honored: float covering the output's usable area, prior state restored (=rhizome-cmd maximize= toggles) |
+| =dimensions_hint= (min/max size hints)        | stored per window; clamps float resize and maximize |
 | =op_start_pointer= / =op_end= (seat)             | interactive float move/resize (MOD+drag)     |
 | =pointer bindings=, =xkb bindings=               | MOD+click grabs, all key bindings           |
 | river/zwlr layer shells                          | bar, message window, launcher, prompts       |
@@ -69,16 +71,17 @@ is the interface version that introduced the feature.
 
 | Feature                          | v  | What it offers / candidate use                                  |
 |----------------------------------+----+------------------------------------------------------------------|
-| =stop= request                   | 1  | stop managing: the foundation of river's WM hot-swap; a detach   |
-|                                  |    | command could hand the session to another WM                     |
-| =maximize_requested=             | 1  | rhizome only re-manages; honor it as float-maximized to output   |
+| =stop= request                   | 1  | stop receiving events (wait for =finished=, then destroy): the  |
+|                                  |    | primitive a detach command would build on for river's WM hot-swap |
 | =set_clip_box= / content clip    | 2/3| clip windows during animations (expose sliding, bar overlap)     |
 | =unreliable_pid=                 | 2  | pid tracking fallback when the pid can't be trusted               |
 | =set_xcursor_theme= (seat)       | 2  | rhizome relies on XCURSOR_THEME env; per-seat request is finer    |
 | =pointer_warp= (seat)            | 3  | programmatic cursor moves (warp on workspace switch, focus warps)|
 | =identifier= (window)            | 4  | stable IDs across WM restarts — window-rules that survive       |
 |                                  |    | restarts, "reattach" semantics                                    |
-| =set_dimension_bounds=           | 4  | honor client min/max size hints during interactive resize        |
+| =set_dimension_bounds=           | 4  | recommend max dims to the *window* (forwarded as xdg            |
+|                                  |    | configure_bounds): keeps apps from opening larger than the      |
+|                                  |    | output in the first place                                        |
 | =presentation_hint= (window) /   | 4  | tearing/VRR: let apps request immediate presentation, set the    |
 | =set_presentation_mode= (output) |    | output mode per hint (default vsync)                             |
 | =show_window_menu_requested=     | 4  | CSD window menus (GTK menu button) — client-side menu support    |
@@ -225,9 +228,10 @@ parts that talk to the session bus:
    portal dialog silently never appears. The import must NOT run
    in a nested test river (it would poison the outer session's
    activation environment); the XDG_CURRENT_DESKTOP guard prevents
-   exactly that. The import list also carries =OMARCHY_PATH=
-   (omarchy-sleep-lock's ConditionEnvironment gates on it), and is
-   followed by =systemctl --user start rhizome-session.target= (see 4).
+   exactly that. Distro-layer env vars (e.g. =OMARCHY_PATH=, which
+   Omarchy's sleep-lock conditions on) ride along when set — a
+   no-op elsewhere. The import is followed by =systemctl --user
+   start rhizome-session.target= (see 4).
 
 3. *Portal backends* (~/.config/xdg-desktop-portal/river-portals.conf):
    =FileChooser=omanta=, =default=gtk=, =Secret=gnome-keyring= —
@@ -237,15 +241,15 @@ parts that talk to the session bus:
 4. *Systemd graphical session* (~/.config/systemd/user/
    rhizome-session.target, started by river init after the
    environment import): the stock =graphical-session.target= refuses
-   manual starts (dependency-only by design; the Hyprland session
-   gets it via uwsm), so the anchor target simply =Wants= it.
-   Starting the anchor brings up every service enabled for
-   =graphical-session.target= — fcitx5, sleep-lock, crash-watch,
-   migrate-notify, tailscale-receive, bt-agent, owed, voxtype —
-   none of which run in a plain river session otherwise. On
-   compositor exit, rhizome-session stops the anchor;
-   =graphical-session.target='s =StopWhenUnneeded=yes= then tears it
-   and its =PartOf= services down (mirroring uwsm's cleanup).
+   manual starts (dependency-only by design; compositors launched
+   via uwsm get it for free), so the anchor target simply =Wants= it.
+   Starting the anchor brings up every service your distro has
+   enabled for =graphical-session.target= — on Omarchy that's
+   fcitx5, sleep-lock, crash-watch, bt-agent and friends; on a bare
+   install, nothing (harmless). On compositor exit, rhizome-session
+   stops the anchor; =graphical-session.target='s
+   =StopWhenUnneeded=yes= then tears it and its =PartOf= services
+   down (mirroring uwsm's cleanup).
 
 5. *Polkit agent* (~/.config/river/init session-apps block):
    =lxqt-policykit-agent=, pgrep-guarded so river restarts never
@@ -264,14 +268,15 @@ All five pieces live in =session/= in this repo — =river-init=,
 entry that launches rhizome-session (an Omarchy-specific installer;
 see the next section for everyone else).
 
-** Installing without Omarchy
+** Installing on any distribution
 
-Everything above is plain shell and systemd user units — none of it
-is Omarchy magic. Run =bash session/install.sh= to install the
-whole set into =$HOME=; re-running it is safe. The greeter entry is
-separate: Omarchy+SDDM users run =session/sddm/install-root.sh=
-with sudo, everyone else points their display manager (or a TTY)
-at =~/.local/bin/rhizome-session=.
+Everything above is plain shell and systemd user units — nothing in
+the session wiring is tied to one distribution or one desktop
+layer. Run =bash session/install.sh= to install the whole set into
+=$HOME=; re-running it is safe. The greeter entry is separate:
+Omarchy+SDDM users run =session/sddm/install-root.sh= with sudo,
+everyone else points their display manager (or a TTY) at
+=~/.local/bin/rhizome-session=.
 
 *** Hard requirements, every distro
 
@@ -306,7 +311,10 @@ at =~/.local/bin/rhizome-session=.
 | Void           | ships 0.3.7 — the OLD river-classic          | unusable for rhizome; build the new river from source         |
 | Artix          | Arch-based                                   | take Arch's [extra] river or AUR; non-systemd caveats below    |
 
-*** What breaks without Omarchy, and the fix
+*** Distro substitutions
+
+The reference setup defaults below come from the development
+machine (Arch + Omarchy). Substitute per your system:
 
 1. *Portal file chooser*: =river-portals.conf= pins
    =FileChooser=omanta= (Omarchy's picker) — elsewhere the file
@@ -317,12 +325,13 @@ at =~/.local/bin/rhizome-session=.
 2. *Greeter*: =session/sddm/= is Omarchy-specific (the greeter
    theme, =omarchy pkg add=, SDDM autologin parking). Skip it and
    register the session with your own DM: greetd, ly, lightdm, or
-   GDM all accept the same =Exec=.
-3. *Session services*: on a non-Omarchy machine the
-   =rhizome-session.target= anchor starts an empty
-   =graphical-session.target= — harmless. The =OMARCHY_PATH=
-   import and the =systemctl= lines in river-init are guarded and
-   no-op cleanly on non-systemd distros too.
+   GDM all accept the same =Exec=. On distros where river is not
+   at =/usr/bin/river= (NixOS), fix the desktop =TryExec= too.
+3. *Session services*: the =rhizome-session.target= anchor starts
+   whatever =graphical-session.target.wants/= holds on your
+   machine — nothing on a bare install. The =OMARCHY_PATH= import
+   is conditional (only when set) and the =systemctl= lines in
+   river-init no-op cleanly on non-systemd distros.
 4. *Session apps* (river-init's session-apps block): =variety=
    (wallpaper), =flameshot= (bar screenshot button),
    =lxqt-policykit-agent= (GUI auth prompts). Missing ones just
@@ -335,6 +344,16 @@ at =~/.local/bin/rhizome-session=.
 6. *Qt theming*: =QT_QPA_PLATFORMTHEME=gtk3= needs your distro's
    Qt-gtk platformtheme plugin; without it Qt apps merely fall
    back to their default theme.
+
+*** On Omarchy
+
+The development machine's extras, all optional and clearly
+labeled: =session/sddm/install-root.sh= registers the SDDM session
+picker (Hyprland or Rhizome) with an Omarchy-themed greeter; the
+anchor target picks up Omarchy's enabled session services (fcitx5,
+sleep-lock, crash-watch, taildrop, bt-agent, owed, voxtype); the
+portal pin to =omanta= gives the Omarchy file picker. Nothing in
+rhizome itself depends on any of these.
 
 ** WSLg-specific notes
 
@@ -709,8 +728,16 @@ float apps automatically with a window rule:
   '(:window-rules ((:match "gimp" :float t))))
 #+end_src
 
+Maximize is float-based too: a client's =maximize_requested=
+(terminal full-grid, browser buttons) is honored as a float covering
+the output's usable area — bar strip excluded — and =unmaximize_requested= restores the exact prior state (tiled windows
+return to the grid, floats get their own geometry back). Size hints
+still clamp, so fixed-size dialogs never stretch. Toggle the
+focused window with =rhizome-cmd maximize=; the audit trail is in
+the [[Protocol coverage audit][protocol audit]] above.
+
 From the REPL: =(rhizome:float-window win)=, =(rhizome:unfloat-window win)=,
-=(rhizome:toggle-float win)=.
+=(rhizome:toggle-float win)=, =(rhizome:toggle-maximize win)=.
 
 * Project structure
 

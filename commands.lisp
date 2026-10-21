@@ -445,6 +445,16 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
   (toggle-bar)
   "ok")
 
+(define-command :maximize (output args)
+  "Toggle the focused window's maximize (float covering the
+output's usable area). Client-initiated maximize requests are
+honored automatically."
+  (declare (ignore output args))
+  (let ((win (focused-window)))
+    (if win
+        (progn (toggle-maximize win) "ok")
+        "no focused window")))
+
 (define-command :screenshot (output args)
   "Take a screenshot; use arg REGION for a region capture."
   (declare (ignore output))

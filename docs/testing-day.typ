@@ -339,6 +339,12 @@ Exercise expose, splits, and workspace switches while the video plays.
   60s in each — all three must restore their state cleanly on expiry.
 - *Float + expose interplay:* a pre-existing float plus dynamic tiles,
   expose, pick, repeat — float geometry must survive every round trip.
+- *Maximize round-trip:* on a tiled window run `rhizome-cmd
+  maximize` — it must float covering the output minus the bar strip;
+  maximize again must return it to the tiling. Repeat with a
+  pre-existing float: maximize must save and restore its exact
+  geometry. A client-initiated maximize (terminal set_maximized,
+  browser maximize button) must land in the same state.
 
 = Appendix A: capture guide (how to report a failure)
 

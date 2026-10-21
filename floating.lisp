@@ -53,9 +53,84 @@ floated from its tiling position must not jump). Explicit :x :y
   "Return WIN to the tiling."
   (unless (window-floating-p win)
     (return-from unfloat-window))
-  (setf (window-floating-p win) nil)
+  (setf (window-floating-p win) nil
+        ;; Manual unfloat supersedes any maximize state
+        (window-maximized-p win) nil
+        (window-maximize-prev win) nil)
   (message "tiled: ~A" (or (window-title win) (window-app-id win) "window"))
   (request-manage-dirty))
+
+;;; --- Maximize ---
+;;;
+;;; river_window_v1.maximize_requested / unmaximize_requested arrive
+;;; whenever a client wants to be maximized (xdg_toplevel.set_maximized
+;;; under the hood). We honor them as floats covering the output's
+;;; usable area — the same geometry the tiling uses, bar strip
+;;; included — and restore the exact prior state on unmaximize.
+
+(defun output-usable-area (out)
+  "The usable area of OUT as four values (x y width height): output
+geometry minus the bar's reserved strip at the top. Matches the
+tiling's convention everywhere bar-reserved-height appears."
+  (values (output-x out)
+          (+ (output-y out) (bar-reserved-height))
+          (output-width out)
+          (max 0 (- (output-height out) (bar-reserved-height)))))
+
+(defun maximize-window (win)
+  "Float WIN to the usable area of its output, saving the
+pre-maximize state: tiled windows return to the grid on unmaximize,
+floats restore their own geometry. Size hints still clamp (a
+fixed-size dialog won't stretch), since they express a preference
+the WM is free to exceed but usually shouldn't."
+  (when (window-maximized-p win)
+    (return-from maximize-window))
+  (setf (window-maximize-prev win)
+        (if (window-floating-p win)
+            (list :floating
+                  (window-float-x win) (window-float-y win)
+                  (window-float-width win) (window-float-height win))
+            :tiled)
+        (window-maximized-p win) t)
+  (let ((out (window-output win)))
+    (when out
+      (multiple-value-bind (ux uy uw uh) (output-usable-area out)
+        (let ((w (float-clamp-dim win uw :width))
+              (h (float-clamp-dim win uh :height)))
+          (if (window-floating-p win)
+              (setf (window-float-x win) ux
+                    (window-float-y win) uy
+                    (window-float-width win) w
+                    (window-float-height win) h)
+              (float-window win :x ux :y uy :width w :height h))))))
+  (message "maximized: ~A" (or (window-title win) (window-app-id win) "window"))
+  (request-manage-dirty))
+
+(defun unmaximize-window (win)
+  "Restore WIN's pre-maximize state."
+  (unless (window-maximized-p win)
+    (return-from unmaximize-window))
+  (let ((prev (window-maximize-prev win)))
+    (setf (window-maximized-p win) nil
+          (window-maximize-prev win) nil)
+    (if (eq prev :tiled)
+        (unfloat-window win)
+        (progn
+          (destructuring-bind (x y w h) (cdr prev)
+            (setf (window-float-x win) x
+                  (window-float-y win) y
+                  (window-float-width win) w
+                  (window-float-height win) h))
+          (message "unmaximized: ~A"
+                   (or (window-title win) (window-app-id win) "window"))
+          (request-manage-dirty)))))
+
+(defun toggle-maximize (win)
+  "Toggle WIN's maximize (IPC: rhizome-cmd maximize)."
+  (when win
+    (if (window-maximized-p win)
+        (unmaximize-window win)
+        (maximize-window win))))
 
 (defun toggle-float (win)
   "Toggle WIN between floating and tiled."

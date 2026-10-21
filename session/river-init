@@ -5,28 +5,37 @@ export PATH="/usr/local/bin:$PATH"
 mkdir -p "$HOME/.cache/rhizome"
 
 # Import the session environment into systemd and the D-Bus
-# activation environment, the same way Omarchy's Hyprland session
-# does. Without this, D-Bus-ACTIVATED processes (portal backends —
-# file choosers, app launchers, flatpak helpers) inherit a stale
-# activation environment from the previous session and die trying
-# to connect to a dead display: Steam's file chooser and other
-# portal dialogs never appear. Guarded on XDG_CURRENT_DESKTOP so a
-# nested river test (which inherits the outer session's desktop)
-# can never poison the outer activation environment.
+# activation environment — any Wayland session must do this (uwsm
+# does it for compositors it launches; a plain river session must do
+# it itself). Without this, D-Bus-ACTIVATED processes (portal
+# backends — file choosers, app launchers, flatpak helpers) inherit
+# a stale activation environment from the previous session and die
+# trying to connect to a dead display: Steam's file chooser and
+# other portal dialogs never appear. Guarded on XDG_CURRENT_DESKTOP
+# so a nested river test (which inherits the outer session's
+# desktop) can never poison the outer activation environment.
 if [ "$XDG_CURRENT_DESKTOP" = "river" ]; then
-  # OMARCHY_PATH comes from /etc/profile.d/omarchy.sh and gates several
-  # omarchy session services (sleep-lock checks ConditionEnvironment).
+  # Extra env vars distro layers gate their services on can ride
+  # along; OMARCHY_PATH is one example (Omarchy's sleep-lock
+  # checks it). Imported only when set — a no-op elsewhere.
+  EXTRA_ENV=""
+  for v in OMARCHY_PATH; do
+    eval "test -n \"\${$v:-}\"" && EXTRA_ENV="$EXTRA_ENV $v"
+  done
+  # shellcheck disable=SC2086
   systemctl --user import-environment \
     WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP XDG_SESSION_TYPE \
-    XDG_SESSION_DESKTOP XDG_RUNTIME_DIR OMARCHY_PATH 2>/dev/null
+    XDG_SESSION_DESKTOP XDG_RUNTIME_DIR $EXTRA_ENV 2>/dev/null
   dbus-update-activation-environment --systemd \
     WAYLAND_DISPLAY DISPLAY XDG_CURRENT_DESKTOP \
     XDG_SESSION_TYPE XDG_SESSION_DESKTOP 2>/dev/null
-  # Activate the standard systemd graphical session so every enabled
-  # session service starts (fcitx5, sleep-lock, crash-watch, bt-agent,
-  # tailscale-receive, owed, voxtype...). Hyprland gets this via uwsm;
-  # a plain river session must request it itself. The stock target
-  # refuses direct starts (dependency-only by design), so we start our
+  # Activate the standard systemd graphical session so every service
+  # your distro has enabled for it starts (whatever is in
+  # ~/.config/systemd/user/graphical-session.target.wants/ — on
+  # Omarchy that's fcitx5, sleep-lock, crash-watch, bt-agent...).
+  # Compositors launched via uwsm get this for free; a plain river
+  # session must request it itself. The stock target refuses direct
+  # starts (dependency-only by design), so we start our
   # rhizome-session.target, which Wants it. Stopped again by
   # rhizome-session when the compositor exits.
   systemctl --user start rhizome-session.target 2>/dev/null

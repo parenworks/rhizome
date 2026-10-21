@@ -94,6 +94,69 @@
       (toggle-float gimp)
       (ok "toggle-float tiles again" (window-floating-p gimp) nil)
 
+      ;; --- maximize (client maximize_requested / IPC toggle) ---
+
+      ;; Bar disabled in tests, so the usable area is the full output.
+      (setf calls '())
+      (maximize-window term)               ; tiled 800x600 at (100,50)
+      (ok "maximize floats the window" (window-floating-p term) t)
+      (ok "maximize covers the usable area"
+          (list (window-float-x term) (window-float-y term)
+                (window-float-width term) (window-float-height term))
+          '(0 0 1920 1080))
+      (ok "maximize remembers it was tiled"
+          (window-maximize-prev term) :tiled)
+      (ok "maximize flags the window" (window-maximized-p term) t)
+      (ok "maximize requests relayout"
+          (tag-called? :request-manage-dirty) t)
+
+      (setf calls '())
+      (maximize-window term)
+      (ok "maximize is idempotent"
+          (tag-called? :request-manage-dirty) nil)
+
+      (unmaximize-window term)
+      (ok "unmaximize restores the tiling"
+          (window-floating-p term) nil)
+      (ok "unmaximize clears the flag" (window-maximized-p term) nil)
+      (ok "unmaximize clears the saved state"
+          (window-maximize-prev term) nil)
+
+      ;; A float maximizing must restore its own geometry, not tile.
+      (setf (window-output gimp) out)
+      (setf (window-float-x gimp) 100 (window-float-y gimp) 50
+            (window-float-width gimp) 400 (window-float-height gimp) 300)
+      (toggle-float gimp)                  ; float with own geometry
+      (maximize-window gimp)
+      (ok "float maximize covers the usable area"
+          (list (window-float-x gimp) (window-float-y gimp)
+                (window-float-width gimp) (window-float-height gimp))
+          '(0 0 1920 1080))
+      (ok "float maximize saves its geometry"
+          (window-maximize-prev gimp) '(:floating 100 50 400 300))
+      (unmaximize-window gimp)
+      (ok "float unmaximize restores geometry, stays floating"
+          (list (window-floating-p gimp)
+                (window-float-x gimp) (window-float-y gimp)
+                (window-float-width gimp) (window-float-height gimp))
+          '(t 100 50 400 300))
+
+      ;; Size hints clamp a maximize: a fixed-size window must not stretch.
+      (setf (window-hint-max-width term) 500 (window-hint-max-height term) 400)
+      (maximize-window term)
+      (ok "maximize respects max size hints"
+          (list (window-float-width term) (window-float-height term))
+          '(500 400))
+      (setf (window-hint-max-width term) nil (window-hint-max-height term) nil)
+      (unmaximize-window term)
+
+      ;; IPC toggle flips both ways
+      (setf calls '())
+      (toggle-maximize term)
+      (ok "toggle-maximize maximizes" (window-maximized-p term) t)
+      (toggle-maximize term)
+      (ok "toggle-maximize restores" (window-maximized-p term) nil)
+
       ;; --- geometry helpers ---
 
       (setf (window-output gimp) out)

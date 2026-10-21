@@ -25,6 +25,8 @@
    (float-y     :initarg :float-y     :accessor window-float-y :initform nil)
    (float-width :initarg :float-width :accessor window-float-width :initform nil)
    (float-height :initarg :float-height :accessor window-float-height :initform nil)
+   (maximized  :initarg :maximized  :accessor window-maximized-p :initform nil)
+   (maximize-prev :initarg :maximize-prev :accessor window-maximize-prev :initform nil)
    (hint-min-width  :initarg :hint-min-width  :accessor window-hint-min-width :initform nil)
    (hint-min-height :initarg :hint-min-height :accessor window-hint-min-height :initform nil)
    (hint-max-width  :initarg :hint-max-width  :accessor window-hint-max-width :initform nil)
@@ -242,10 +244,12 @@ request itself is flushed by the manage pass."
            (request-manage-dirty))
 
         (:maximize-requested
-         (request-manage-dirty))
+         ;; Client wants to be maximized: honor it as a float
+         ;; covering the output's usable area (floating.lisp).
+         (maximize-window win))
 
         (:unmaximize-requested
-         (request-manage-dirty))
+         (unmaximize-window win))
 
         (:minimize-requested
          (setf (window-hidden-p win) t)
