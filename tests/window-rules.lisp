@@ -50,6 +50,42 @@
     (check "string layout normalized"
            (find-layout-symbol "master-stack") :master-stack)
 
+    ;; --- fullscreen rule + flush direction ---
+    ;; The flush was inverted once: fullscreen-p t sent EXIT-fullscreen,
+    ;; so rules and the first C-t F11 never fullscreened the window.
+    (let ((sent nil))
+      (setf (symbol-function 'rwm:river-window-v1.fullscreen)
+            (lambda (&rest args) (push (cons :fullscreen args) sent) nil))
+      (setf (symbol-function 'rwm:river-window-v1.exit-fullscreen)
+            (lambda (&rest args) (push (cons :exit args) sent) nil))
+      (configure '(:window-rules ((:match "fs-test" :fullscreen t))))
+      (let ((win (make-instance 'rhizome-window :proxy :fs1)))
+        (setf (gethash :fs1 *windows*) win
+              (window-app-id win) "fs-test")
+        (setf *pending-fullscreen-requests* nil)
+        (apply-window-rules win)
+        (check "fullscreen rule flags the window"
+               (window-fullscreen-p win) t)
+        (check "fullscreen rule queues the request"
+               (and (member win *pending-fullscreen-requests*) t) t)
+        (flush-fullscreen-requests)
+        (check "flush sends FULLSCREEN for a flagged window"
+               (first (first sent)) :fullscreen))
+      ;; And the other direction: unfullscreen sends exit
+      (setf sent nil)
+      (let ((win (make-instance 'rhizome-window :proxy :fs2)))
+        (setf (gethash :fs2 *windows*) win)
+        (setf (window-fullscreen-p win) nil
+              *pending-fullscreen-requests* (list win))
+        (flush-fullscreen-requests)
+        (check "flush sends EXIT-FULLSCREEN for an unflagged window"
+               (first (first sent)) :exit))
+      (setf *pending-fullscreen-requests* nil
+            *config* (default-config))
+      ;; Restore the two-rule config the flow tests below expect
+      (configure '(:window-rules ((:match "vivaldi" :workspace 2)
+                                  (:match "emacs" :key :title :workspace 3)))))
+
     ;; Rules list survives the config merge heuristic
     (check "rules present in config"
            (length (config-get '(:window-rules))) 2)

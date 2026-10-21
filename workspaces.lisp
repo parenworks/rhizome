@@ -214,10 +214,20 @@ window. Returns the matched rule, if any."
             (layout (getf rule :layout))
             (follow (getf rule :follow))
             (float (getf rule :float))
+            (fullscreen (getf rule :fullscreen))
             (output-index (getf rule :output)))
         (when float
           ;; GIMP-style: never in the tiling (see floating.lisp)
           (float-window win))
+        (when fullscreen
+          ;; Fullscreen covers layer-shell bars (wlr-layer-shell puts
+          ;; fullscreen above TOP) — screenshot selectors etc. The
+          ;; request itself is flushed by the manage pass
+          ;; (flush-fullscreen-requests); rules fire on events, so
+          ;; never send it directly.
+          (unless (window-fullscreen-p win)
+            (setf (window-fullscreen-p win) t)
+            (pushnew win *pending-fullscreen-requests*)))
         (when (and output-index
                    (nth (1- output-index) (all-outputs-sorted)))
           ;; Place on a specific output (1-based index)

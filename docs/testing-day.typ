@@ -430,6 +430,40 @@ Exercise expose, splits, and workspace switches while the video plays.
   `rhizome-cmd maximize` glides to full-screen and back. Set
   `(:animations (:enabled nil))` live and confirm everything
   becomes instant (the old behavior); re-enable after.
+- *Workspace-switch soak (the WM-death regression):* the exact
+  scenario that terminated the WM twice: MOD+2, open a window
+  there (Vivaldi), MOD+1 back — the WM must survive. Then rapid
+  round-trips (2, 1, 3, 1 in fast succession, interrupting
+  animations mid-flight) ×10; `grep -c 'invalid modification'
+  ~/.cache/rhizome/rhizome.log` must not grow, and no fractional
+  type errors (`is not of type (SIGNED-BYTE`) may appear. The
+  failures were buffer-timing dependent: SPEED IS THE TEST.
+- *MOD+Q closes cleanly:* close a window via MOD+Q and via
+  `rhizome-cmd close` — the window must vanish within one manage
+  cycle and the WM survive both paths.
+- *Pointer window menus:* MOD+Middle-click on several windows (one
+  tiled, one floating) — a context menu opens AT the pointer with
+  Minimize, Float/Tile, Maximize, Fullscreen, Close, and
+  Move-to-workspace entries. Hover must highlight a row (accent
+  edge); click must run the action (verify Minimize hides and
+  Restore returns it, Move-to-workspace relocates and the WM
+  survives); Escape must dismiss; moving the pointer off the menu
+  must dismiss it. Arrows + Enter select via keyboard. The close
+  path routes through the manage-sequence queue — the WM must
+  survive every action here.
+- *C-t F11 fullscreens on the FIRST press:* the fullscreen request
+  flush was once inverted (first press sent a no-op exit-fullscreen;
+  only the second worked). Press C-t F11 once — fullscreen
+  immediately; press again — back. Both directions on the first
+  press, no double-press workaround.
+- *Built-in screenshot (bar included):* `MOD+Print` / `rhizome-cmd
+  screenshot` captures the full composited output INCLUDING the bar
+  (grim copies the output frame — layer surfaces are part of it).
+  For a capture of an overlay state: `sleep 8 && rhizome-cmd
+  screenshot` in a terminal, then open the target state (workspace
+  + MOD+D launcher with a filter typed in) before the timer fires.
+  Flameshot on river is best-effort only: its editor floats via
+  window rule; prefer the built-in path for anything important.
 
 = Appendix A: capture guide (how to report a failure)
 

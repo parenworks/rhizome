@@ -163,12 +163,16 @@ sequence (river_window_v1.fullscreen is a manage-sequence request).")
 
 (defun flush-fullscreen-requests ()
   "Send pending fullscreen requests (called during a manage
-sequence)."
+sequence). The request MATCHES the flag: fullscreen-p t means the
+window wants to BE fullscreen — the original code had the two
+requests inverted, so a first C-t F11 sent exit-fullscreen (a
+no-op) and only the second press fullscreened, and fullscreen
+window rules (Flameshot) never reached river at all."
   (dolist (win *pending-fullscreen-requests*)
     (handler-case
         (if (window-fullscreen-p win)
-            (rwm:river-window-v1.exit-fullscreen (window-proxy win))
-            (rwm:river-window-v1.fullscreen (window-proxy win)))
+            (rwm:river-window-v1.fullscreen (window-proxy win))
+            (rwm:river-window-v1.exit-fullscreen (window-proxy win)))
       (error (e)
         (format t "~&; Rhizome: fullscreen request failed: ~A~%" e))))
   (setf *pending-fullscreen-requests* nil))
@@ -309,6 +313,16 @@ request itself is flushed by the manage pass."
              (when seat
                (float-op-request win seat :resize edges)))))
 
+        (:show-window-menu-requested
+         ;; v4: a client (CSD titlebar, GTK menu button) asked for
+         ;; its window menu. We have one now (menus.lisp) — open
+         ;; it on the seat that most recently saw the pointer.
+         (when (and (gethash (window-proxy win) *windows*)
+                    (menus-available-p))
+           (let ((seat (first (all-seats))))
+             (when seat
+               (menu-open win seat)))))
+
         (t
          (format t "~&; Rhizome: unhandled window event ~A~%" event-name)))
     (error (e)
@@ -363,6 +377,11 @@ context — called from the manage pass). Dead windows are dropped."
         (rwm:river-seat-v1.focus-window (seat-proxy seat)
                                         (window-proxy win)))))
   (setf *pending-focus-requests* nil)
+  ;; Queued window closes (MOD+Q): close is manage-state too
+  (dolist (win (nreverse *pending-close-requests*))
+    (when (and win (window-proxy win))
+      (rwm:river-window-v1.close (window-proxy win))))
+  (setf *pending-close-requests* nil)
   ;; Pointer warps (switch-workspace) — all seats, all queued warps
   (dolist (w (nreverse *pending-pointer-warps*))
     (when (eq (first w) :warp)
@@ -375,9 +394,19 @@ context — called from the manage pass). Dead windows are dropped."
             nil)))))
   (setf *pending-pointer-warps* nil))
 
+(defvar *pending-close-requests* nil
+  "Windows whose close request is queued for the next manage
+sequence — close is manage-state, and MOD+Q arrives outside any
+sequence. River 0.5 currently tolerates it; queued so rhizome is
+proof against enforcement being tightened.")
+
 (defun close-window (win)
-  "Request that WIN be closed."
-  (rwm:river-window-v1.close (window-proxy win)))
+  "Request that WIN be closed. Sent inside the next manage
+sequence (flush-close-requests)."
+  (when (and win (window-proxy win))
+    (unless (member win *pending-close-requests* :test #'eq)
+      (push win *pending-close-requests*))
+    t))
 
 (defun propose-window-dimensions (win width height)
   "Propose dimensions for WIN during a manage sequence."

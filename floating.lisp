@@ -332,16 +332,19 @@ point."
   "A MOD+drag began on SEAT: StumpWM behavior — dragging a tiled
 window floats it first — then an interactive move/resize op starts
 (the river pointer-op protocol; see float-op-manage-pass). Right-drag
-resizes from the classic bottom-right corner."
-  (let ((win (window-at-pointer seat)))
-    (when win
-      (dolist (s (all-seats))
-        (focus-window win s))
-      (unless (window-floating-p win)
-        (float-window win))
-      (float-op-request win seat type
-                        (if (eq type :resize) '(:bottom :right) nil))
-      (request-manage-dirty))))
+resizes from the classic bottom-right corner. Middle-click opens
+the window context menu (menus.lisp) instead of an op."
+  (if (eq type :menu)
+      (menu-open-pointer-trigger seat)
+      (let ((win (window-at-pointer seat)))
+        (when win
+          (dolist (s (all-seats))
+            (focus-window win s))
+          (unless (window-floating-p win)
+            (float-window win))
+          (float-op-request win seat type
+                            (if (eq type :resize) '(:bottom :right) nil))
+          (request-manage-dirty)))))
 
 (defun float-op-manage-pass ()
   "Advance interactive float ops during a manage sequence: start

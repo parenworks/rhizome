@@ -31,8 +31,9 @@ enabled during a manage sequence).")
 (defun setup-pointer-bindings (seat)
   "Create the StumpWM-style MOD+drag bindings on SEAT: MOD+Left-drag
 moves the window under the pointer (floating it first if tiled),
-MOD+Right-drag resizes it. The modifier is the user's *mod*."
-  (dolist (spec '((:move 272) (:resize 273)))   ; BTN_LEFT / BTN_RIGHT
+MOD+Right-drag resizes it, and MOD+Middle-click opens the window
+context menu (menus.lisp). The modifier is the user's *mod*."
+  (dolist (spec '((:move 272) (:resize 273) (:menu 274)))
     (let* ((type (first spec))
            (button (second spec))
            (binding (rwm:river-seat-v1.get-pointer-binding
@@ -249,6 +250,9 @@ during the expose overview a click picks the window)."
                       ;; Prefix key chains (C-t ...) consume keys first
                       ((and *prefix-mode-active* keysym)
                        (prefix-handle-key keysym))
+                      ;; The context menu (Escape/arrows/Enter)
+                      ((and *menu-active* keysym)
+                       (menu-handle-key keysym))
                       ;; Interactive prompt next
                       ((and *prompt-active* keysym)
                        (prompt-handle-key keysym))
