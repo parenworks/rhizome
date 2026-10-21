@@ -107,9 +107,13 @@ as placement functions and their placements become the rectangles."
 (defun switch-layout (output layout-name)
   "Switch OUTPUT's current workspace to LAYOUT-NAME by rebuilding its
 frame tree from the layout's template (windows distributed one per
-frame, extras onto the last)."
+frame, extras onto the last). The layout belongs to the WORKSPACE
+— switching no longer clobbers the output's other workspaces."
   (scroll-exit-if-active output)
-  (setf (output-current-layout output) layout-name)
+  (setf (workspace-layout output (current-workspace output))
+        layout-name
+        ;; mirror for current readers (bar snapshot, cycle)
+        (output-current-layout output) layout-name)
   (let* ((workspace (current-workspace output))
          (width (output-width output))
          (height (max 0 (- (output-height output)
@@ -176,6 +180,13 @@ floats manage themselves."
     (dolist (win wins)
       (setf (window-output win) output)
       (assign-window-workspace win workspace))
+    ;; Float-mode workspaces (StumpWM's floating group type) never
+    ;; tile: new and returning windows float. Converges — already
+    ;; floating windows are skipped on the next pass.
+    (when (eq (workspace-mode output workspace) :float)
+      (dolist (win wins)
+        (unless (window-floating-p win)
+          (float-window win))))
     ;; Fresh windows get a configure_bounds hint (protocol >= 4):
     ;; apps stop opening larger than the output's usable area
     (dolist (win unassigned)

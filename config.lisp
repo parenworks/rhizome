@@ -92,6 +92,11 @@ Returns (values value found-p)."
               :network (:interval 10
                         :on-click "nm-connection-editor"))
     :window-rules ()
+    :workspaces (:modes nil
+                 ;; (2 :float 5 :float) — per-workspace TYPES:
+                 ;; :tile (frame trees, default) or :float
+                 ;; (StumpWM's floating group: every window floats)
+                 )
     :window-state (:enabled t
                    ;; Remember identifier-based window placements
                    ;; across WM restarts (river v4 identifiers)

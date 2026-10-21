@@ -455,6 +455,18 @@ restart rhizome itself from a terminal with sbcl --eval
   (detach-wm)
   "detaching")
 
+(define-command :set-workspace-mode (output args)
+  "Set a workspace's TYPE: tile (frame trees) or float (every
+window floats — StumpWM's floating group). Usage:
+set-workspace-mode <tile|float> [workspace-number] — defaults to
+the current workspace."
+  (let ((mode (when args (intern (string-upcase (first args)) :keyword)))
+        (ws (when (and args (second args))
+              (parse-integer (second args) :junk-allowed t))))
+    (if (member mode '(:tile :float))
+        (progn (set-workspace-mode mode ws output) "ok")
+        "usage: set-workspace-mode <tile|float> [N]")))
+
 (define-command :maximize (output args)  "Toggle the focused window's maximize (float covering the
 output's usable area). Client-initiated maximize requests are
 honored automatically."

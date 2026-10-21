@@ -401,6 +401,14 @@ Exercise expose, splits, and workspace switches while the video plays.
   — the bar must come back and identified windows must land on
   their remembered workspaces. This is river's headline feature;
   if it works, everything above it works.
+- *Workspace types:* `rhizome-cmd set-workspace-mode float 4` —
+  every window on workspace 4 must float immediately; opening new
+  windows there must float them too. `set-workspace-mode tile 4`
+  must return them all to the grid. Per-workspace layouts: MOD+Space
+  to :even on workspace 1, switch to workspace 2 — it must still
+  show its own layout; switch back — :even must be waiting. A
+  restart of the WM must remember both (config-declared modes via
+  (:workspaces (:modes ...)) and layouts per-workspace in-session).
 
 = Appendix A: capture guide (how to report a failure)
 

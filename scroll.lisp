@@ -124,6 +124,9 @@ re-adopts them (each gets its own frame, splitting as needed)."
       (let ((prev (getf state :prev-layout)))
         (dolist (win (getf state :columns))
           (setf (window-frame win) nil))
+        ;; The workspace keeps its tiling layout for next time
+        (when prev
+          (setf (workspace-layout output workspace) prev))
         (setf (output-current-layout output) prev)
         (message "tiling restored")
         (run-hook :layout-changed output prev)

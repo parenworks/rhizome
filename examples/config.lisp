@@ -41,6 +41,20 @@
                            :center (:clock)
                            :right (:tray :network :volume :battery)))))
 
+;;; --- Workspaces ------------------------------------------------------
+;;;
+;;; Each workspace has its own TYPE and LAYOUT. Types:
+;;;   :tile  — frame trees (the default)
+;;;   :float — StumpWM's floating group: every window floats and
+;;;            new ones auto-float (rhizome-cmd set-workspace-mode
+;;;            float 4 toggles it live)
+
+(configure '(:workspaces (:modes nil
+                         ;; (2 :float 5 :float)
+                         :default-layout :master-stack)))
+                         ;; the layout untouched workspaces use;
+                         ;; switch-layout stores per-workspace
+
 ;;; Breathing room between workspace numbers (px).
 (configure '(:bar (:workspaces (:gap 8))))    ; default
 
