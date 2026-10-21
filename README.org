@@ -81,11 +81,12 @@ is the interface version that introduced the feature.
 | Feature                          | v  | What it offers / candidate use                                  |
 |----------------------------------+----+------------------------------------------------------------------|
 | =set_clip_box= / content clip    | 2/3| clip windows during animations (expose sliding, bar overlap)     |
-| =show_window_menu_requested=     | 4  | CSD window menus (GTK menu button) — client-side menu support    |
 
-Screencasting today works through wlroots' =wlr-screencopy= via
-=grim= (screenshots) and anything using pipewire; =capture_sessions=
-is about *awareness* of those sessions, not capture itself.
+=show_window_menu_requested= graduated: CSD menu requests now open
+rhizome's pointer menu (menus.lisp). Screencasting today works
+through wlroots' =wlr-screencopy= via =grim= (screenshots) and
+anything using pipewire; =capture_sessions= is about *awareness*
+of those sessions, not capture itself.
 
 ** Key Wayflan quirks discovered
 
@@ -381,6 +382,7 @@ pointer grabs. Change it live:
 | MOD+B          | Toggle the status bar               |
 | MOD+Left-drag  | Move window (floats tiled windows)   |
 | MOD+Right-drag | Resize window (bottom-right corner)  |
+| MOD+Middle-click | Window context menu (minimize/float/maximize/fullscreen/close/move-to-workspace) |
 | Print          | Screenshot (full screen, grim + wl-copy) |
 | Shift+Print    | Screenshot of selected region (slurp) |
 | MOD+;          | Live eval prompt                       |
@@ -719,6 +721,45 @@ target. Clip boxes (river v2+/v3+) become interesting once
 windows animate ACROSS each other rather than in from edges —
 tracked in the [[Protocol coverage audit][protocol audit]].
 
+** Pointer window menus (MOD+Middle-click)
+
+A desktop-style context menu at the pointer: Minimize/Restore,
+Float/Tile, Maximize, Fullscreen, Close, and Move-to-workspace
+entries. Hover highlights with the accent edge; click selects;
+Escape or moving the pointer off the menu dismisses it; arrows +
+Enter work through the menu's keyboard grab. CSD apps asking for
+their window menu (xdg-shell show_window_menu — GTK's menu
+button) get the same menu. Every action routes through the
+sequence-queued command paths, so menu actions are
+protocol-safe by construction.
+
+#+begin_src lisp
+(rhizome:configure
+  '(:menus (:background "#1f1633"
+            :item-color "#c9b8e8"
+            :hover-background "#4b3a78"
+            :hover-color "#f0e6ff"
+            :accent "#7aa2f7"
+            :opacity 0.95)))
+#+end_src
+
+** Pseudo-shadows on floats (decorations)
+
+river_decoration_v1, used as intended: every floating window gets
+a decoration_below surface — a soft alpha-gradient shadow band
+(12px default, eased falloff, rounded corners), accent-tinted when
+the window is focused. The shadow follows resizes; un-floating or
+closing the window destroys it. Tiled windows keep river's crisp
+borders — the shadow belongs to floats.
+
+#+begin_src lisp
+(rhizome:configure
+  '(:decorations (:enabled t     ; default on
+                 :radius 12
+                 :alpha 0.4
+                 :focused-alpha 0.6)))
+#+end_src
+
 * Frame trees (the StumpWM layout model)
 
 The screen is a recursive binary tree of frames (frames.lisp) — the
@@ -914,7 +955,7 @@ rhizome/
 - [X] Configurable status bar (modules, colors, intervals; ships enabled, can be disabled); the WM reserves its space in the layout math (config-driven — windows never tile under the bar, and frame trees rescale when the bar is toggled, its height changes, or outputs are resized)
 - [X] Clickable bar modules (:on-click / :on-scroll-up / :on-scroll-down shell commands)
 - [X] Workspaces (MOD+1..9, MOD+Shift+1..9 moves window; shown in the bar)
-- [X] Window rules (:match regex on app-id/title, :workspace, :layout, :follow, :float)
+- [X] Window rules (:match regex on app-id/title, :workspace, :layout, :follow, :float, :fullscreen)
 - [X] Hooks (window creation/closed, focus, layout, workspace, output)
 - [X] Live eval prompt (MOD+; evaluates Lisp in the running WM image)
 - [X] Floating windows: C-t f toggles the focused window, window rules
@@ -939,9 +980,11 @@ rhizome/
 - [X] river_layer_shell_v1 protocol binding and output/seat registration
 - [X] Native layer-shell launcher (MOD+D) with:
   - [X] .desktop file scanning from XDG directories
-  - [X] 8x16 bitmap font with full ASCII printable glyphs
+  - [X] TrueType text through the theming engine (bitmap fallback
+        without freetype) and each app's icon left of its name
   - [X] Direct-to-shm rendering (reuses buffer, no per-frame mmap/munmap)
-  - [X] Purple color theme
+  - [X] Themable colors, translucent ARGB surface, accent edge on the
+        selected row (:launcher config group)
   - [X] Substring search filtering with live redraw
   - [X] Scrollable list with client-side key repeat
   - [X] Keyboard input: type to filter, Up/Down navigate, Enter launches, Escape closes
@@ -1043,6 +1086,37 @@ manual, 180 commands). Where rhizome stands:
       scrolls Scroll it; dbusmenu right-click menus remain future
       polish (they map onto select-from-menu). Variety and flameshot
       dock on a real session.
+- [X] Animation engine (animate.lisp): frame-paced transitions —
+      workspace slide-ins (direction follows the switch), expose
+      gliding into the overview and back, floats and maximize
+      gliding to their spots — with eased curves, whole-pixel
+      positions (a fractional position once corrupted the wire and
+      terminated the WM: SBCL's rational time arithmetic leaked
+      into river's int32 args), and a self-clearing offset so a
+      missed frame never freezes a window mid-air. Config:
+      (:animations (:enabled t :duration-ms 200 :easing
+      :ease-out-cubic)).
+- [X] Pointer window menus (MOD+Middle-click): desktop-style
+      context menu at the pointer — hover highlight, click to
+      select, Escape to dismiss, keyboard arrows + Enter — with
+      Minimize/Float/Maximize/Fullscreen/Close/Move-to-workspace
+      actions, all routed through sequence-queued commands. CSD
+      menu requests (show_window_menu_requested) get the same menu.
+- [X] Decoration shadows (decorations.lisp): river_decoration_v1
+      pseudo-shadows on floating windows — soft alpha-gradient
+      bands, accent-tinted when focused, following resizes; the
+      entire lifecycle runs inside render sequences as the
+      protocol requires.
+- [X] Sequence-safety hardening: pointer_warp, focus_window, and
+      close — river's manage-state requests — are queued and
+      flushed inside manage sequences (river terminates clients
+      that violate this); the animation pump emits whole pixels;
+      and the full protocol audit (every request classified
+      manage-seq/render-seq/anytime) keeps future features honest.
+- [X] Shared surface primitives (surface.lisp): ONE bounds-checked
+      definition of the row-major offset formula for every drawn
+      surface — the transposed variant struck five times before
+      this retired the class.
 
 * A note on dependencies: why we implement DBus ourselves
 

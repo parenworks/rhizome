@@ -75,6 +75,28 @@
                          :duration-ms 200
                          :easing :ease-out-cubic)))
 
+;;; --- Pointer menus ---------------------------------------------------
+;;;
+;;; MOD+Middle-click on any window opens the context menu at the
+;;; pointer (hover to highlight, click to select, Escape closes).
+
+(configure '(:menus (:background "#1f1633"   ; defaults
+                     :item-color "#c9b8e8"
+                     :hover-background "#4b3a78"
+                     :hover-color "#f0e6ff"
+                     :accent "#7aa2f7"
+                     :opacity 0.95)))
+
+;;; --- Decoration shadows ----------------------------------------------
+;;;
+;;; river_decoration_v1 pseudo-shadows on floating windows,
+;;; accent-tinted when focused. Set :enabled nil for flat floats.
+
+(configure '(:decorations (:enabled t         ; default
+                           :radius 12
+                           :alpha 0.4
+                           :focused-alpha 0.6)))
+
 ;;; Breathing room between workspace numbers (px).
 (configure '(:bar (:workspaces (:gap 8))))    ; default
 
