@@ -89,3 +89,38 @@ either way."
         (progn
           (setf *logout-armed-at* now)
           (message "Press again to log out")))))
+
+;;; --- Detach (WM hot-swap) ---
+
+(defvar *detach-pending* nil
+  "A detach was requested; river's finished event completes it.")
+
+(defun detach-wm ()
+  "Stop managing this river session WITHOUT ending it: send
+river_window_manager_v1.stop, and when river answers finished,
+destroy the manager and exit — river's WM hot-swap. Another
+window manager (a fresh rhizome build, anything speaking
+river-window-management-v1) can then bind the global and take
+over live. The bar stops (and its supervisor stands down via the
+persisted :enabled intent), WM-owned surfaces close, and every
+identified window's placement is remembered first — no :closed
+events ever arrive after a detach."
+  (message "detaching: another WM may take over")
+  ;; Remember placements while the windows still exist
+  (dolist (win (all-windows))
+    (handler-case (remember-window-state win)
+      (error () nil)))
+  ;; Close in-process layer surfaces (message window, prompts,
+  ;; launcher) — the compositor cleans up the rest on disconnect
+  (handler-case (message-hide) (error () nil))
+  (handler-case (prompt-close) (error () nil))
+  (handler-case (hide-launcher) (error () nil))
+  ;; Stop the bar; persisting :enabled nil also stands the
+  ;; supervisor down (nothing restarts a bar with no WM anyway)
+  (configure '(:bar (:enabled nil)))
+  ;; Tell river we no longer want events; :finished completes this
+  (when *wm-proxy*
+    (setf *detach-pending* t)
+    (rwm:river-window-manager-v1.stop *wm-proxy*)
+    (format t "~&; Rhizome: detach requested; waiting for finished~%"))
+  t)

@@ -208,7 +208,17 @@ One of :idle, :managing, :waiting-render, :rendering.")
      (stop))
 
     (:finished
+     ;; river confirmed our stop request (a detach) or the session is
+     ;; ending. Destroy the manager object before the connection
+     ;; closes, as the protocol's stop/finished handshake requires.
      (format t "~&; Rhizome: server finished~%")
+     (when *detach-pending*
+       (format t "~&; Rhizome: detach confirmed — exiting, another WM may take over~%"))
+     (setf *detach-pending* nil)
+     (handler-case
+         (when *wm-proxy*
+           (rwm:river-window-manager-v1.destroy *wm-proxy*))
+       (error () nil))
      (setf *running* nil))
 
     (:manage-start

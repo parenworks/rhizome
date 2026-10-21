@@ -445,8 +445,17 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
   (toggle-bar)
   "ok")
 
-(define-command :maximize (output args)
-  "Toggle the focused window's maximize (float covering the
+(define-command :detach (output args)
+  "Detach rhizome from the session: stop managing and exit without
+ending the compositor (river's WM hot-swap). Another window
+manager can bind river_window_manager_v1 and take over live;
+restart rhizome itself from a terminal with sbcl --eval
+'(ql:quickload :rhizome)' --eval '(rhizome:run)'."
+  (declare (ignore output args))
+  (detach-wm)
+  "detaching")
+
+(define-command :maximize (output args)  "Toggle the focused window's maximize (float covering the
 output's usable area). Client-initiated maximize requests are
 honored automatically."
   (declare (ignore output args))

@@ -392,6 +392,15 @@ Exercise expose, splits, and workspace switches while the video plays.
   :xcursor-size 32))` before login — compositor-rendered cursors
   (resize edges, window borders) must follow; client-drawn cursors
   may not (per the protocol's own note).
+- *WM hot-swap (detach):* open a few windows, note their
+  workspaces, then `rhizome-cmd detach`. The bar must vanish, the
+  WM process must exit ("detach confirmed" in
+  `~/.cache/rhizome/rhizome.log`), and river must stay up with the
+  windows frozen in place. Then take over again from a terminal:
+  `sbcl --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)' &`
+  — the bar must come back and identified windows must land on
+  their remembered workspaces. This is river's headline feature;
+  if it works, everything above it works.
 
 = Appendix A: capture guide (how to report a failure)
 

@@ -69,6 +69,8 @@ is the interface version that introduced the feature.
 | =set_xcursor_theme= (seat, v2)               | per-seat cursor theme/size from (:pointer :xcursor-theme/:xcursor-size) |
 | =set_presentation_mode= (output, v4)          | VRR: (:output (:presentation-mode :async)) for tearing/lowest latency |
 | =unreliable_pid= (window, v2)                | stored alongside the identifier for future rule matching |
+| =stop= request                               | rhizome-cmd detach: stop managing, wait for =finished=, destroy, exit — the WM hot-swap |
+| =finished= event                             | the other half of every detach and session end |
 | =pointer bindings=, =xkb bindings=               | MOD+click grabs, all key bindings           |
 | river/zwlr layer shells                          | bar, message window, launcher, prompts       |
 | =input_management= + =libinput_config=           | touchpad/pointer config                      |
@@ -78,8 +80,6 @@ is the interface version that introduced the feature.
 
 | Feature                          | v  | What it offers / candidate use                                  |
 |----------------------------------+----+------------------------------------------------------------------|
-| =stop= request                   | 1  | stop receiving events (wait for =finished=, then destroy): the  |
-|                                  |    | primitive a detach command would build on for river's WM hot-swap |
 | =set_clip_box= / content clip    | 2/3| clip windows during animations (expose sliding, bar overlap)     |
 | =show_window_menu_requested=     | 4  | CSD window menus (GTK menu button) — client-side menu support    |
 
@@ -742,6 +742,19 @@ finished event and both shut down cleanly. (Rivers bound below v4
 get SIGTERM — river's clean-shutdown signal — as a fallback.) The
 session script then stops rhizome-session.target, releasing the
 systemd graphical session (piece 4) before the greeter returns.
+
+=rhizome-cmd detach= is logout's sibling: it stops rhizome WITHOUT
+ending the session — river's WM hot-swap. Placements of
+identifier-bearing windows are remembered, the bar stops (and its
+supervisor stands down), in-process surfaces close, and rhizome
+sends =river_window_manager_v1.stop=, waits for =finished=, destroys
+the manager, and exits. The session stays up with windows frozen
+in place; anything speaking =river-window-management-v1= can bind
+and take over live — including a freshly built rhizome:
+
+#+begin_src bash
+sbcl --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)' &
+#+end_src
 
 * Floating windows
 

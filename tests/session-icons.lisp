@@ -103,6 +103,50 @@
     (ok "stale arm re-arms instead of logging out"
         spawned nil)
 
+    ;; --- Detach (WM hot-swap) ---
+
+    ;; Without a WM proxy: detaching still remembers placements and
+    ;; disables the bar, but never sends the stop request.
+    (setf *detach-pending* nil
+          spawned nil)
+    (let ((*window-state-path* #p"/tmp/rhizome-test-detach-state.sexp")
+          (*window-state* (make-hash-table :test 'equal))
+          (stopped 0))
+      (setf (symbol-function 'rwm:river-window-manager-v1.stop)
+            (lambda (&rest args) (declare (ignore args)) (incf stopped)))
+      (let ((win (make-instance 'rhizome-window :proxy :detach-1)))
+        (setf (gethash :detach-1 *windows*) win
+              (window-identifier win) "detach-id"
+              (window-output win) (make-instance 'rhizome-output
+                                                  :proxy :detach-out)
+              (window-x win) 5 (window-y win) 5
+              (window-width win) 50 (window-height win) 50)
+        (assign-window-workspace win 7)
+        (detach-wm)
+        (ok "detach remembers placements before leaving"
+            (getf (gethash "detach-id" *window-state*) :workspace) 7)
+        (ok "detach disables the bar (supervisor stands down)"
+            (config-getf '(:bar) :enabled) nil)
+        (ok "detach without a compositor sends no stop"
+            stopped 0)
+        (ok "detach leaves no pending flag without a proxy"
+            *detach-pending* nil))
+      ;; With a proxy: the stop request goes out and the flag arms
+      (let* ((real-dirty (symbol-function 'request-manage-dirty))
+             (*wm-proxy* :fake-wm))
+        ;; request-manage-dirty would reach wayflan's type assertion
+        (setf (symbol-function 'request-manage-dirty)
+              (lambda (&rest args) (declare (ignore args)) nil))
+        (detach-wm)
+        (ok "detach sends river_window_manager_v1.stop"
+            stopped 1)
+        (ok "detach arms the finished handshake"
+            *detach-pending* t)
+        (setf *detach-pending* nil
+              (symbol-function 'request-manage-dirty) real-dirty)))
+    (setf *config* (default-config))
+    (ignore-errors (delete-file #p"/tmp/rhizome-test-detach-state.sexp"))
+
     ;; --- Bar icons ---
 
     (ok "icons module recognized"
