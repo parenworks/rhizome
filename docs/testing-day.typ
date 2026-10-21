@@ -422,6 +422,14 @@ Exercise expose, splits, and workspace switches while the video plays.
 - *Launcher icons:* every entry must show its .desktop icon left of
   the text, vertically centered, with text aligned across iconless
   entries. (:launcher :icon-size 20) scales them.
+- *Animations:* MOD+2 — the new workspace's windows must glide in
+  from the screen edge (direction follows the switch), landing
+  exactly in place within ~200ms; no window may freeze mid-air
+  (a missed frame snaps to the target). C-t Return (expose) —
+  windows glide into the grid; pick one — it glides back.
+  `rhizome-cmd maximize` glides to full-screen and back. Set
+  `(:animations (:enabled nil))` live and confirm everything
+  becomes instant (the old behavior); re-enable after.
 
 = Appendix A: capture guide (how to report a failure)
 

@@ -108,6 +108,12 @@ Returns (values value found-p)."
            ;; Adjacent windows show twice this between them, screen
            ;; edges once. 0 restores the classic flush tiling.
            )
+    :animations (:enabled t
+                 :duration-ms 200
+                 ;; :easing :ease-out-cubic (default) | :linear |
+                 ;; :ease-in-out — window glide: workspace slide-ins,
+                 ;; expose gliding into the grid, float/maximize
+                 :easing :ease-out-cubic)
     :window-state (:enabled t
                    ;; Remember identifier-based window placements
                    ;; across WM restarts (river v4 identifiers)

@@ -236,6 +236,9 @@ request itself is flushed by the manage pass."
          ;; Remember the placement (identifier windows) before we forget
          (handler-case (remember-window-state win)
            (error () nil))
+         ;; A dying window must not keep the animation pump alive:
+         ;; nothing renders it, so its offset would never clear
+         (remhash win *animations*)
          (remhash (window-proxy win) *windows*)
          (remhash win *window-workspace*)
          (remhash win *minimized-windows*)
@@ -321,17 +324,56 @@ request itself is flushed by the manage pass."
                (not (eq (window-output win) output)))
              (all-windows)))
 
+(defvar *pending-focus-requests* nil
+  "Focus requests queued for the next manage sequence, newest per
+seat. focus_window is a window-management-state request: river 0.5
+TERMINATES the client for sending it outside a manage sequence,
+and switch-workspace (a keybinding path) is always outside one.")
+
 (defun focus-window (win seat)
-  "Give keyboard focus to WIN on SEAT."
+  "Give keyboard focus to WIN on SEAT. The river request is queued
+and flushed during the next manage sequence (flush-focus-requests
+in the manage pass); the internal slots update immediately so
+borders/bars react at once."
   (when (and (window-proxy win) (seat-proxy seat))
     ;; Clear focus on all other windows
     (dolist (w (all-windows))
       (unless (eq w win)
         (setf (window-focused-p w) nil)))
-    (rwm:river-seat-v1.focus-window (seat-proxy seat) (window-proxy win))
+    ;; One queued request per seat, newest wins
+    (setf *pending-focus-requests*
+          (remove-if (lambda (r) (eq (cdr r) seat))
+                     *pending-focus-requests*))
+    (push (cons win seat) *pending-focus-requests*)
     (setf (window-focused-p win) t
           (seat-focused-window seat) win)
     (run-hook :focus-changed win)))
+
+(defvar *pending-pointer-warps* nil
+  "Queued pointer warps ((:warp X Y)), flushed in the manage pass —
+pointer_warp modifies window management state, sequence-only.")
+
+(defun flush-focus-requests ()
+  "Send queued focus requests and pointer warps (manage-sequence
+context — called from the manage pass). Dead windows are dropped."
+  (dolist (r (nreverse *pending-focus-requests*))
+    (let ((win (car r)) (seat (cdr r)))
+      (when (and (gethash (window-proxy win) *windows*)
+                 (seat-proxy seat))
+        (rwm:river-seat-v1.focus-window (seat-proxy seat)
+                                        (window-proxy win)))))
+  (setf *pending-focus-requests* nil)
+  ;; Pointer warps (switch-workspace) — all seats, all queued warps
+  (dolist (w (nreverse *pending-pointer-warps*))
+    (when (eq (first w) :warp)
+      (dolist (seat (all-seats))
+        (handler-case
+            (rwm:river-seat-v1.pointer-warp (seat-proxy seat)
+                                           (second w) (third w))
+          (error ()
+            ;; Pre-v3 river or transient seat state: no warp, no crash
+            nil)))))
+  (setf *pending-pointer-warps* nil))
 
 (defun close-window (win)
   "Request that WIN be closed."

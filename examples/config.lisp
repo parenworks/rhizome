@@ -64,6 +64,17 @@
 
 (configure '(:gaps (:inner 6)))              ; default
 
+;;; --- Animations ------------------------------------------------------
+;;;
+;;; Window glide: workspace slide-ins, expose gliding into the
+;;; overview grid, float/maximize transitions. The layout math is
+;;; untouched — a per-window decaying offset interpolates toward
+;;; the final position, pumped at ~60fps.
+
+(configure '(:animations (:enabled t          ; default
+                         :duration-ms 200
+                         :easing :ease-out-cubic)))
+
 ;;; Breathing room between workspace numbers (px).
 (configure '(:bar (:workspaces (:gap 8))))    ; default
 

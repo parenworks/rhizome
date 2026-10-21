@@ -206,7 +206,8 @@ from its hide logic."
                    (not (window-minimized-p win))
                    (not (window-floating-p win)))
           (make-window-node win)
-          (set-window-position win x y)
+          (multiple-value-bind (ax ay) (animation-position win x y)
+            (set-window-position win ax ay))
           (setf (window-x win) x
                 (window-y win) y)
           (multiple-value-bind (r g b) (theme-border-rgb (window-focused-p win))

@@ -289,6 +289,10 @@ handlers should make window management requests here."
   ;; which loads later — same forward reference as keybindings)
   (enable-pointer-bindings-if-needed)
 
+  ;; Focus requests queued by keybindings/interactions: focus_window
+  ;; is manage-state, only legal inside a sequence
+  (flush-focus-requests)
+
   (maphash (lambda (output-proxy output)
              (declare (ignore output-proxy))
              (format t "~&; Rhizome [debug]: output ~A dims ~Ax~A~%"
@@ -480,8 +484,12 @@ window management updates."
              (message-drain)
              (prompt-drain)
              (prefix-drain)
-             (unless (wl:wl-display-listen display)
-               (sleep 0.05)))
+             (if (animation-drain)
+                 ;; Animating: frame-cap the loop (~60fps) so river
+                 ;; gets a smooth sequence cadence
+                 (sleep 1/60)
+                 (unless (wl:wl-display-listen display)
+                   (sleep 0.05))))
         (format t "~&; Rhizome: shutting down~%")
         (stop-bar)
         (stop-ipc-server))))

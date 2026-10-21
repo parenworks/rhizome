@@ -81,40 +81,50 @@ every unconfigured one."
   "Switch OUTPUT to WORKSPACE (1-based), focusing its newest window."
   (unless (and (<= 1 workspace *workspace-count*) output)
     (return-from switch-workspace))
-  (setf (gethash output *output-workspace*) workspace)
-  ;; The target workspace's layout (or its scroll ribbon) is what
-  ;; the output now shows — layouts are per-workspace
-  (setf (output-current-layout output)
-        (if (scroll-workspace-p output workspace)
-            :scroll
-            (workspace-layout output workspace)))
-  (format t "~&; Rhizome: switched to workspace ~D~%" workspace)
-  (message "workspace ~D" workspace)
-  (run-hook :workspace-changed workspace output)
-  ;; Focus the most recently registered window on the new workspace
-  (let* ((wins (windows-on-workspace output workspace))
-         (newest (if (and *last-registered-window*
-                          (member *last-registered-window* wins))
-                     *last-registered-window*
-                     (first wins))))
-    (when newest
-      (dolist (seat (all-seats))
-        (focus-window newest seat))))
-  ;; The explicit focus stands; don't let a pending auto-focus override it
-  (setf *pending-autofocus* nil)
-  ;; Warp the pointer to the output center so it lands on the new
-  ;; workspace's windows (river_seat_v1.pointer_warp, protocol >= 3).
-  ;; Config: (:pointer (:warp-on-switch t)).
-  (when (config-getf '(:pointer) :warp-on-switch :default t)
-    (let ((cx (+ (output-x output) (floor (output-width output) 2)))
-          (cy (+ (output-y output) (floor (output-height output) 2))))
-      (dolist (seat (all-seats))
-        (handler-case
-            (rwm:river-seat-v1.pointer-warp (seat-proxy seat) cx cy)
-          (error ()
-            ;; Pre-v3 river or transient seat state: no warp, no crash
-            nil)))))
-  (request-manage-dirty))
+  (let ((old-workspace (gethash output *output-workspace*)))
+    (setf (gethash output *output-workspace*) workspace)
+    ;; The target workspace's layout (or its scroll ribbon) is what
+    ;; the output now shows — layouts are per-workspace
+    (setf (output-current-layout output)
+          (if (scroll-workspace-p output workspace)
+              :scroll
+              (workspace-layout output workspace)))
+    ;; Slide-in: the new workspace's windows glide in from the edge
+    ;; (direction = old → new). Pure rendering polish — the layout
+    ;; math is untouched; the animation decays the offset to zero.
+    (when (and (animations-enabled-p) old-workspace)
+      (let ((dir (if (> workspace old-workspace) 1 -1))
+            (slide (output-width output)))
+        (dolist (win (windows-on-workspace output workspace))
+          (unless (or (window-minimized-p win) (window-floating-p win))
+            (animation-start win :dx (- (* dir slide)) :duration 160)))))
+    (format t "~&; Rhizome: switched to workspace ~D~%" workspace)
+    (message "workspace ~D" workspace)
+    (run-hook :workspace-changed workspace output)
+    ;; Focus the most recently registered window on the new workspace
+    (let* ((wins (windows-on-workspace output workspace))
+           (newest (if (and *last-registered-window*
+                            (member *last-registered-window* wins))
+                       *last-registered-window*
+                       (first wins))))
+      (when newest
+        (dolist (seat (all-seats))
+          (focus-window newest seat))))
+    ;; The explicit focus stands; don't let a pending auto-focus override it
+    (setf *pending-autofocus* nil)
+    ;; Warp the pointer to the output center so it lands on the new
+    ;; workspace's windows (river_seat_v1.pointer_warp, protocol >= 3).
+    ;; pointer_warp MODIFIES WINDOW MANAGEMENT STATE — river 0.5
+    ;; terminates the client for sending it outside a manage
+    ;; sequence (the "invalid modification" death), so the request
+    ;; is queued and flushed from the manage pass, like focus.
+    ;; Config: (:pointer (:warp-on-switch t)).
+    (when (config-getf '(:pointer) :warp-on-switch :default t)
+      (let ((cx (+ (output-x output) (floor (output-width output) 2)))
+            (cy (+ (output-y output) (floor (output-height output) 2))))
+        (push (list :warp cx cy)
+              *pending-pointer-warps*)))
+    (request-manage-dirty)))
 
 (defun move-window-to-workspace (win workspace &optional output)
   "Move WIN to WORKSPACE (1-based), switching to it if OUTPUT is given."
@@ -296,15 +306,23 @@ final workspace and the floating state."
 
 (defun restore-window-state (win)
   "Restore WIN's remembered placement, if any. Runs before config
-rules so explicit rules override what was remembered."
+rules so explicit rules override what was remembered. The output
+is stamped too: without it the manage pass treats the window as
+unassigned and re-adopts it onto the CURRENT workspace — the
+takeover/relogin clustering bug."
   (when (and (window-identifier win) (window-state-changed-p))
     (let ((state (gethash (window-identifier win) *window-state*)))
       (when state
-        (when (getf state :float)
-          (float-window win))
+        (when (and (getf state :float)
+                   (not (window-floating-p win)))
+          (float-window win :animate nil))
         (when (getf state :workspace)
           (assign-window-workspace win (getf state :workspace))
-          (setf (window-minimized-p win) nil))
+          (setf (window-minimized-p win) nil)
+          ;; Stamp the output so the manage pass adopts the window
+          ;; onto ITS remembered workspace, not the current one
+          (unless (window-output win)
+            (setf (window-output win) (first (all-outputs)))))
         (request-manage-dirty)
         (format t "~&; Rhizome: restored placement for ~A (workspace ~A)~%"
                 (window-identifier win) (getf state :workspace))))))

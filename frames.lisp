@@ -899,7 +899,10 @@ render pass can exclude them from its hide logic."
                     (bar-reserved-height))))
         (when (and win (not (window-minimized-p win)))
           (make-window-node win)
-          (set-window-position win x y)
+          ;; The animation engine interpolates from a recorded
+          ;; start toward this final position, per frame
+          (multiple-value-bind (ax ay) (animation-position win x y)
+            (set-window-position win ax ay))
           (setf (window-x win) x
                 (window-y win) y)
           (multiple-value-bind (r g b) (theme-border-rgb (window-focused-p win))

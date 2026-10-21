@@ -94,6 +94,11 @@ layout. Returns T if there was anything to expose."
         (dolist (p placements)
           (destructuring-bind (win x y w h) p
             (frame-remove-window win)
+            ;; Glide from the window's current rendered position
+            ;; into its grid slot (expose-begin knows both)
+            (when (animations-enabled-p)
+              (animation-start win :from-x (window-x win)
+                                      :from-y (window-y win)))
             (setf (window-floating-p win) t
                   (window-float-x win) x
                   (window-float-y win) y
@@ -111,6 +116,10 @@ PICKED (the pre-expose focus by default)."
         (destructuring-bind (win frame was-float
                               fx fy fw fh)
                             save
+          ;; Glide back out of the grid slot to the restored position
+          (when (animations-enabled-p)
+            (animation-start win :from-x (window-x win)
+                                    :from-y (window-y win)))
           (setf (window-floating-p win) was-float
                 (window-float-x win) fx
                 (window-float-y win) fy

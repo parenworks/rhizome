@@ -690,6 +690,35 @@ The launcher's selected row carries a 3px accent edge
 ((:launcher :accent ...)). A complete, commented configuration
 covering every group lives in =examples/config.lisp=.
 
+** Animations
+
+River renders, so rhizome animates the only way the protocol
+allows: the layout math computes final positions exactly as
+always, a per-window decaying offset interpolates toward them,
+and a pump in the main loop requests fresh manage/render
+sequences at ~60fps while anything moves (animate.lisp). Two
+start modes: =:absolute= (glide from a recorded position — expose
+gliding windows into the overview grid and back, floats and
+maximize sliding to their spots) and =:relative= (a direction
+offset decaying to zero — workspace slide-ins, direction taken
+from old→new workspace index).
+
+#+begin_src lisp
+(rhizome:configure
+  '(:animations (:enabled t          ; default on
+                :duration-ms 200     ; per transition
+                :easing :ease-out-cubic))) ; or :linear / :ease-in-out
+#+end_src
+
+What glides today: workspace switches (MOD+N), expose (C-t
+Return) in and out, floating at an explicit position
+(maximize/unmaximize, window rules), and returning to the tiling.
+A missed frame never freezes a window mid-air: the offset
+self-clears at =t ≥ 1= and the next render snaps to the exact
+target. Clip boxes (river v2+/v3+) become interesting once
+windows animate ACROSS each other rather than in from edges —
+tracked in the [[Protocol coverage audit][protocol audit]].
+
 * Frame trees (the StumpWM layout model)
 
 The screen is a recursive binary tree of frames (frames.lisp) — the

@@ -26,28 +26,47 @@
 
 ;;; --- Float state ---
 
-(defun float-window (win &key x y width height)
+(defun float-window (win &key x y width height (animate t))
   "Make WIN float, keeping its current geometry by default (a window
 floated from its tiling position must not jump). Explicit :x :y
-:width :height overrides place it precisely."
-  (when (window-floating-p win)
-    (return-from float-window))
-  (setf (window-floating-p win) t
-        (window-float-x win) (or x (window-x win) 0)
-        (window-float-y win) (or y (window-y win) 0)
-        (window-float-width win) (or width
-                                     (when (plusp (window-width win))
-                                       (window-width win)))
-        (window-float-height win) (or height
-                                      (when (plusp (window-height win))
-                                        (window-height win))))
-  ;; Leave the frame tree: a float must not be laid out as tiled
-  (let ((frame (window-frame win)))
-    (when frame
-      (setf (frame-windows frame) (remove win (frame-windows frame))
-            (window-frame win) nil)))
-  (message "floated: ~A" (or (window-title win) (window-app-id win) "window"))
-  (request-manage-dirty))
+:width :height overrides place it precisely. Placing at an
+explicit position glides when the animation engine is on (expose
+and maximize ride this)."
+  (if (window-floating-p win)
+      ;; Already floating: an explicit reposition glides from the
+      ;; current rendered position to the target
+      (when (or x y)
+        (when (and animate (animations-enabled-p))
+          (animation-start win :from-x (window-x win)
+                                  :from-y (window-y win)))
+        (when x (setf (window-float-x win) x))
+        (when y (setf (window-float-y win) y))
+        (message "moved: ~A" (or (window-title win)
+                                 (window-app-id win) "window"))
+        (request-manage-dirty))
+      (progn
+        (setf (window-floating-p win) t
+              (window-float-x win) (or x (window-x win) 0)
+              (window-float-y win) (or y (window-y win) 0)
+              (window-float-width win) (or width
+                                         (when (plusp (window-width win))
+                                           (window-width win)))
+              (window-float-height win) (or height
+                                           (when (plusp (window-height win))
+                                             (window-height win))))
+        ;; Leave the frame tree: a float must not be laid out as tiled
+        (let ((frame (window-frame win)))
+          (when frame
+            (setf (frame-windows frame) (remove win (frame-windows frame))
+                  (window-frame win) nil)))
+        ;; First float at an explicit position glides from the
+        ;; tiling position; keeping geometry is instant
+        (when (and animate (or x y) (animations-enabled-p))
+          (animation-start win :from-x (window-x win)
+                                  :from-y (window-y win)))
+        (message "floated: ~A" (or (window-title win)
+                                   (window-app-id win) "window"))
+        (request-manage-dirty))))
 
 (defun unfloat-window (win)
   "Return WIN to the tiling."
@@ -57,6 +76,10 @@ floated from its tiling position must not jump). Explicit :x :y
         ;; Manual unfloat supersedes any maximize state
         (window-maximized-p win) nil
         (window-maximize-prev win) nil)
+  ;; Glide back to wherever the tiling places it
+  (when (animations-enabled-p)
+    (animation-start win :from-x (window-x win)
+                            :from-y (window-y win)))
   (message "tiled: ~A" (or (window-title win) (window-app-id win) "window"))
   (request-manage-dirty))
 
@@ -258,7 +281,9 @@ exclude them from its hide logic."
       (dolist (win floats)
         (float-clamp-position win)
         (make-window-node win)
-        (set-window-position win (window-float-x win) (window-float-y win))
+        (multiple-value-bind (ax ay)
+            (animation-position win (window-float-x win) (window-float-y win))
+          (set-window-position win ax ay))
         (multiple-value-bind (r g b) (theme-border-rgb (window-focused-p win))
           (set-window-borders win '(:top :bottom :left :right)
                               (if (window-focused-p win) 2 1)
