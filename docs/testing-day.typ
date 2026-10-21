@@ -345,6 +345,15 @@ Exercise expose, splits, and workspace switches while the video plays.
   pre-existing float: maximize must save and restore its exact
   geometry. A client-initiated maximize (terminal set_maximized,
   browser maximize button) must land in the same state.
+- *Theming — fonts and colors:* change
+  `(rhizome:configure '(:theme (:font-size 16)))` live — borders
+  and the in-WM surfaces (message window C-t m, prompt MOD+W,
+  launcher MOD+D) must re-render with the larger font immediately;
+  `toggle-bar` twice must restart the bar with the new font.
+  Set `:theme :font-family "nonexistentxyz"` — fontconfig must fall
+  back to a system font, never a crash or blank bar. Override
+  `:launcher :background` and `:theme :focused-border` and confirm
+  both surfaces picked them up on the next redraw.
 
 = Appendix A: capture guide (how to report a failure)
 

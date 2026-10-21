@@ -449,28 +449,14 @@ the existing click/scroll chain runs each entry's :on-click /
       (setf (cffi:mem-aref ptr :unsigned-int i) pixel))))
 
 (defun bar-draw-text (ptr width height text x y r g b)
-  "Draw TEXT at (X, Y) using the 8x16 bitmap font, in RGB color."
-  (unless (gethash 32 *font-8x16*)
-    (init-font))
-  (loop for char across text
-        for i from 0
-        for gx = (+ x (* i 8))
-        while (< (+ gx 8) width) do
-    (let* ((code (char-code char))
-           (glyph (or (gethash code *font-8x16*)
-                      (gethash 63 *font-8x16*))))
-      (loop for row from 0 below 16
-            for py = (+ y row)
-            while (< py height) do
-        (let ((bits (aref glyph row)))
-          (loop for col from 0 below 8
-                for px = (+ gx col)
-                while (< px width) do
-            (when (logbitp (- 7 col) bits)
-              (bar-set-pixel ptr width px py r g b))))))))
+  "Draw TEXT at (X, Y) — the top of the text box — in RGB color.
+Delegates to the font module: TrueType via freetype when available,
+the 8x16 bitmap font otherwise (identical legacy metrics)."
+  (font-ensure-initialized)
+  (font-draw-text ptr width height text x y r g b))
 
 (defun bar-text-width (text)
-  (* 8 (length text)))
+  (font-text-width text))
 
 (defun bar-draw-module (ptr width height x y parts base-r base-g base-b module)
   "Draw one module's PARTS starting at X, using the base color for
@@ -517,7 +503,7 @@ after it."
                                         (config-getf '(:bar) :foreground
                                                      :default "#c0caf5"))
         (bar-clear ptr width height br bg bb)
-        (let ((y (floor (- height 16) 2)))
+        (let ((y (floor (- height (font-line-height)) 2)))
           (setf *bar-hitboxes* nil)
           ;; Left segment
           (let ((x padding))
@@ -907,6 +893,7 @@ no matter what the user config asks for."
   (setf *bar-process-mode* t)
   (setf *bar-running* t)
   (load-user-config)
+  (font-ensure-initialized)
   ;; The tray lives here: this process owns the StatusNotifierWatcher
   ;; bus name, serves registrations, and renders the items.
   (handler-case (tray-start)

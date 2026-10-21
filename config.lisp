@@ -92,9 +92,28 @@ Returns (values value found-p)."
               :network (:interval 10
                         :on-click "nm-connection-editor"))
     :window-rules ()
+    :theme (:font-family "monospace"
+            :font-size 12
+            :focused-border "#7aa2f7"
+            :unfocused-border "#404040")
+    :launcher (:background "#23142d"
+               :prompt-color "#8c64aa"
+               :query-color "#dcc8f0"
+               :cursor-color "#b4a0d2"
+               :selection-background "#503278"
+               :selected-color "#f0e6ff"
+               :entry-color "#aa96c8")
     :ipc (:enabled t)
     :swank (:enabled t
             :port 4005)))
+
+(defun theme-border-rgb (focused-p)
+  "Focused/unfocused window border color as (values r g b), from
+(:theme :focused-border/:unfocused-border)."
+  (parse-hex-color
+    (config-getf '(:theme)
+                 (if focused-p :focused-border :unfocused-border)
+                 :default (if focused-p "#7aa2f7" "#404040"))))
 
 (defvar *config* (default-config)
   "The current rhizome configuration.")
@@ -121,7 +140,9 @@ runs component restarts inside the bar process (the bar loading the
 user config would otherwise spawn bars — see *bar-process-mode*)."
   (unless (and (boundp '*bar-process-mode*) *bar-process-mode*)
     (when (fboundp 'bar-apply-config)
-      (funcall (symbol-function 'bar-apply-config)))))
+      (funcall (symbol-function 'bar-apply-config)))
+    (when (fboundp 'font-apply-config)
+      (funcall (symbol-function 'font-apply-config)))))
 
 (defun config-pathname ()
   "Pathname of the user config file."

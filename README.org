@@ -618,12 +618,46 @@ Features:
 - Scans XDG =.desktop= files from standard directories (=XDG_DATA_HOME=, =XDG_DATA_DIRS=, =~/.local/share/applications=, =/usr/share/applications=)
 - Filters out =NoDisplay=, =Hidden=, and non-Application entries
 - Strips Exec field codes (=%f=, =%u=, =%F=, etc.) and wraps Terminal=true apps in Alacritty
-- 8x16 bitmap font with full ASCII printable glyph set, rendered directly to shared memory
-- Purple color theme (dark purple background, lavender text, purple selection highlight)
+- TrueType text through the theming engine (font.lisp; 8x16 bitmap fallback without freetype)
+- Colors entirely from the =:launcher= config group (see Theming below)
 - Substring search filtering with live redraw
 - Scrollable list with client-side key repeat (hold down arrow to scroll)
 - Keyboard: type to filter, Up/Down to navigate, Enter to launch, Escape to close, Backspace to delete
 - Reuses shm buffer across redraws for fast rendering (no per-frame mmap/munmap)
+
+** Theming (fonts and colors)
+
+All drawn surfaces — bar, message window, prompts, launcher, and
+window borders — are themed through the config system. Fonts render
+with real TrueType via libfreetype (resolved through fontconfig, so
+plain family names work and a missing family falls back to the
+system's best match); when freetype or fontconfig is unavailable
+everything degrades to the built-in 8x16 bitmap font with the
+original metrics.
+
+#+begin_src lisp
+(rhizome:configure
+  '(:theme (:font-family "JetBrains Mono"   ; any fc-match name
+            :font-size 14
+            :focused-border "#7aa2f7"
+            :unfocused-border "#404040")))
+(rhizome:configure
+  '(:launcher (:background "#23142d"
+               :prompt-color "#8c64aa"
+               :query-color "#dcc8f0"
+               :cursor-color "#b4a0d2"
+               :selection-background "#503278"
+               :selected-color "#f0e6ff"
+               :entry-color "#aa96c8")))
+#+end_src
+
+The bar's own colors live under =:bar= (=:background=, =:foreground=,
+=:accent=, =:muted= — already supported by the module renderer's
+per-part hex colors). Changing =:theme= font keys re-resolves the
+font in the WM process live; the bar restarts (as with any bar
+affecting change) and picks the new font up at startup. Text widths
+are per-glyph advances now, so the bar centers the clock exactly and
+the launcher cursor hugs the typed query.
 
 * Frame trees (the StumpWM layout model)
 

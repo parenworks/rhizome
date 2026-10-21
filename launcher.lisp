@@ -733,75 +733,87 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
       (setf (cffi:mem-aref ptr :unsigned-int i) pixel))))
 
 (defun launcher-draw-text-shm (ptr width text x y r g b)
-  "Draw TEXT at (X, Y) directly to shm with color (R, G, B)."
-  (unless (gethash 32 *font-8x16*)
-    (init-font))
-  (loop for char across text
-        for i from 0
-        for gx = (+ x (* i 8))
-        while (< (+ gx 8) width) do
-    (let* ((code (char-code char))
-           (glyph (or (gethash code *font-8x16*)
-                      (gethash 63 *font-8x16*))))
-      (loop for row from 0 below 16
-            for py = (+ y row)
-            while (< py *launcher-height*) do
-            (let ((bits (aref glyph row)))
-              (loop for col from 0 below 8
-                    for px = (+ gx col)
-                    while (< px width) do
-                (when (logbitp (- 7 col) bits)
-                  (launcher-set-pixel ptr width px py b g r 255))))))))
+  "Draw TEXT at (X, Y) directly to shm with color (R, G, B).
+Delegates to the font module (TrueType or the 8x16 bitmap
+fallback)."
+  (font-ensure-initialized)
+  (font-draw-text ptr width *launcher-height* text x y r g b))
+
+(defun launcher-color (key)
+  "A launcher surface color as (values r g b), from (:launcher KEY)."
+  (parse-hex-color
+    (config-getf '(:launcher) key
+                 :default (case key
+                            (:background "#23142d")
+                            (:prompt-color "#8c64aa")
+                            (:query-color "#dcc8f0")
+                            (:cursor-color "#b4a0d2")
+                            (:selection-background "#503278")
+                            (:selected-color "#f0e6ff")
+                            (:entry-color "#aa96c8")
+                            (otherwise "#ffffff")))))
 
 (defun launcher-render-to-shm (width height)
-  "Render the launcher UI directly to the shared memory buffer."
+  "Render the launcher UI directly to the shared memory buffer.
+All colors come from the (:launcher ...) config group; text goes
+through the font module (see font.lisp)."
   (let ((ptr *launcher-shm-ptr*))
     (when (or (not ptr) (cffi:null-pointer-p ptr))
       (return-from launcher-render-to-shm))
-    ;; Clear to dark purple background
-    (launcher-clear-shm ptr width height 35 20 45 255)
-    ;; Draw query prompt line (muted purple)
-    (launcher-draw-text-shm ptr width "Run: "
-                             *launcher-padding* *launcher-padding*
-                             140 100 170)
-    ;; Draw query text (light lavender)
-    (launcher-draw-text-shm ptr width *launcher-query*
-                             (+ *launcher-padding* 48) *launcher-padding*
-                             220 200 240)
-    ;; Draw cursor (block) after query (light purple)
-    (let ((cursor-x (+ *launcher-padding* 48
-                       (* 8 (length *launcher-query*))))
-          (cursor-y *launcher-padding*))
-      (loop for dy below 16
-            for py = (+ cursor-y dy)
-            while (< py height) do
-        (loop for dx below 8
-              for px = (+ cursor-x dx)
-              while (< px width) do
-          (launcher-set-pixel ptr width px py 180 160 210 255))))
-    ;; Draw filtered entries (scrolled)
-    (let ((y-start (+ *launcher-padding* *launcher-line-height*)))
-      (loop for entry in (nthcdr *launcher-scroll-offset* *launcher-entries*)
-            for i from *launcher-scroll-offset*
-            for y = (+ y-start (* (- i *launcher-scroll-offset*) *launcher-line-height*))
-            while (< (+ y *launcher-line-height*) height) do
-        ;; Highlight selected entry (purple)
-        (when (= i *launcher-selection*)
-          (loop for dy below *launcher-line-height*
-                for py = (+ y dy)
-                while (< py height) do
-            (loop for dx below (- width (* 2 *launcher-padding*))
-                  for px = (+ *launcher-padding* dx)
-                  while (< px width) do
-              (launcher-set-pixel ptr width px py 80 50 120 255))))
-        ;; Draw entry text
-        (multiple-value-bind (tr tg tb)
-            (if (= i *launcher-selection*)
-                (values 240 230 255)   ; selected: white-lavender
-                (values 170 150 200))  ; unselected: muted purple
-          (launcher-draw-text-shm ptr width (car entry)
-                                   *launcher-padding* (+ y 4)
-                                   tr tg tb))))))
+    (font-ensure-initialized)
+    (multiple-value-bind (br bg bb) (launcher-color :background)
+      (launcher-clear-shm ptr width height br bg bb 255)
+      (multiple-value-bind (pr pg pb) (launcher-color :prompt-color)
+        (multiple-value-bind (qr qg qb) (launcher-color :query-color)
+          (multiple-value-bind (cr cg cb) (launcher-color :cursor-color)
+            (let ((prompt-text "Run: ")
+                  (query-x (+ *launcher-padding*
+                              (font-text-width "Run: "))))
+              ;; Draw query prompt line
+              (launcher-draw-text-shm ptr width prompt-text
+                                      *launcher-padding* *launcher-padding*
+                                      pr pg pb)
+              (launcher-draw-text-shm ptr width *launcher-query*
+                                      query-x *launcher-padding*
+                                      qr qg qb)
+              ;; Draw cursor (block) after query
+              (let ((cursor-x (+ query-x (font-text-width *launcher-query*)))
+                    (cursor-y *launcher-padding*))
+                (loop for dy below (font-line-height)
+                      for py = (+ cursor-y dy)
+                      while (< py height) do
+                  (loop for dx below 8
+                        for px = (+ cursor-x dx)
+                        while (< px width) do
+                    (launcher-set-pixel ptr width px py cr cg cb 255))))
+              ;; Draw filtered entries (scrolled)
+              (multiple-value-bind (selr selg selb)
+                  (launcher-color :selection-background)
+                (multiple-value-bind (str stg stb) (launcher-color :selected-color)
+                  (multiple-value-bind (etr etg etb) (launcher-color :entry-color)
+                    (let ((y-start (+ *launcher-padding* *launcher-line-height*)))
+                      (loop for entry in (nthcdr *launcher-scroll-offset* *launcher-entries*)
+                            for i from *launcher-scroll-offset*
+                            for y = (+ y-start (* (- i *launcher-scroll-offset*) *launcher-line-height*))
+                            while (< (+ y *launcher-line-height*) height) do
+                        ;; Highlight selected entry
+                        (when (= i *launcher-selection*)
+                          (loop for dy below *launcher-line-height*
+                                for py = (+ y dy)
+                                while (< py height) do
+                            (loop for dx below (- width (* 2 *launcher-padding*))
+                                  for px = (+ *launcher-padding* dx)
+                                  while (< px width) do
+                              (launcher-set-pixel ptr width px py selr selg selb 255))))
+                        ;; Draw entry text, centered in the row
+                        (multiple-value-bind (tr tg tb)
+                            (if (= i *launcher-selection*)
+                                (values str stg stb)
+                                (values etr etg etb))
+                          (launcher-draw-text-shm ptr width (car entry)
+                                                  *launcher-padding*
+                                                  (+ y 4)
+                                                  tr tg tb))))))))))))))
 
 (defun launcher-destroy-shm ()
   "Destroy the shared memory resources."

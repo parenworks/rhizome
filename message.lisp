@@ -12,8 +12,6 @@
   "Universal time when the current message hides.")
 (defparameter *message-width* 700)
 (defparameter *message-height* 22)
-(defparameter *message-line-height* 20
-  "Pixels per message line (16px glyphs + 4px gap).")
 (defparameter *last-message* nil
   "The most recently shown message text (lastmsg, copy-last-message).")
 
@@ -21,10 +19,15 @@
   "TEXT split into its display lines."
   (cl-ppcre:split "\\n" text))
 
+(defun message-line-height ()
+  "Row height for one message line: the font's line height plus a
+4px gap (was a fixed 20 for the 8x16 bitmap font)."
+  (+ 4 (font-line-height)))
+
 (defun message-height-for (text)
   "Surface height needed to display TEXT (all of its lines)."
   (max 22 (+ 4 (* (length (message-lines text))
-                  *message-line-height*))))
+                  (message-line-height)))))
 
 (defun show-message (text &optional (seconds 3))
   "Show TEXT on screen for SECONDS (default 3). If a message is
@@ -98,7 +101,7 @@ already showing, replace it. Newlines start new lines."
               (loop for line in (message-lines text)
                     for i from 0
                     do (bar-draw-text ptr width height line
-                                      8 (+ 2 (* i *message-line-height*))
+                                      8 (+ 2 (* i (message-line-height)))
                                       ar ag ab)))
             (wl:wl-surface.attach (gethash :surface state)
                                   (gethash :wl-buffer state) 0 0)

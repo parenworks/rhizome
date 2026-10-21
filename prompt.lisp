@@ -113,8 +113,8 @@ order, case-insensitive; substring matches rank first)."
                 (parse-hex-color (config-getf '(:bar) :background
                                              :default "#1a1b26"))
               (bar-clear ptr width height br bg bb))
-            (let ((y (floor (- height 16) 2))
-                  (row-height 16)
+            (let ((y (floor (- height (font-line-height)) 2))
+                  (row-height (font-line-height))
                   (row-count 0))
               ;; Title and query on the input line
               (multiple-value-bind (ar ag ab)

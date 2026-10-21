@@ -358,6 +358,10 @@ window management updates."
 
   ;; Load user configuration (~/.config/rhizome/config.lisp)
   (load-user-config)
+  ;; Resolve the configured TrueType font for the in-process surfaces
+  ;; (launcher, message window, prompts); falls back to the bitmap
+  ;; font when freetype/fontconfig is unavailable.
+  (font-ensure-initialized)
 
   (wl:with-open-display (display)
     (setf *display* display)
