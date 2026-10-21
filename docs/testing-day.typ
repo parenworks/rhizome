@@ -378,6 +378,20 @@ Exercise expose, splits, and workspace switches while the video plays.
 - *Recording indicator:* if `:recording` is in a bar segment,
   start a screencast (portal-based screen recorder) — a red REC
   must appear within one bar poll and vanish when it stops.
+- *Remembered placements (v4 identifiers):* open an app, move it
+  to workspace 5, float it, close it — then reopen it: it must
+  land back on workspace 5, floating, without any rule. Log out
+  and back in with it open: same result. `cat
+  ~/.local/share/rhizome/window-state.sexp` after closing shows
+  the entry.
+- *Presentation mode:* `(rhizome:configure '(:output
+  (:presentation-mode :async)))` — the log must show the mode sent
+  on the next render; a fast-scrolling page should now tear.
+  Revert to `:vsync` and confirm the resend in the log.
+- *xcursor theme:* set `(:pointer (:xcursor-theme "Adwaita"
+  :xcursor-size 32))` before login — compositor-rendered cursors
+  (resize edges, window borders) must follow; client-drawn cursors
+  may not (per the protocol's own note).
 
 = Appendix A: capture guide (how to report a failure)
 

@@ -5,6 +5,48 @@
 
 (in-package #:rhizome)
 
+;;; --- Presentation mode (VRR / tearing, river_output_v1 v4) ---
+;;;
+;;; river_output_v1.set_presentation_mode is a RENDER-sequence
+;;; request: :vsync (0, default) page-flips at vblank; :async (1)
+;;; flips immediately — tearing with lowest latency, what gamers
+;;; want on a 144Hz panel. The WM sends it once per output and
+;;; resends whenever the config changes.
+
+(defparameter *presentation-mode-sent* (make-hash-table)
+  "Output → the presentation mode last sent to river. DEFVAR:
+reloading this file must not cause a re-send storm.")
+
+(defun apply-presentation-mode (output)
+  "Send the configured presentation mode for OUTPUT if it differs
+from what river last received. Called from the render sequence
+(set_presentation_mode may only be made there)."
+  (when (and (boundp '*wm-proxy-version*) (>= *wm-proxy-version* 4))
+    (let* ((desired (config-getf '(:output) :presentation-mode
+                                 :default :vsync))
+           (value (ecase desired
+                    ((:vsync 0) 0)
+                    ((:async 1) 1)))
+           (sent (gethash output *presentation-mode-sent*)))
+      (unless (eql sent value)
+        (handler-case
+            (progn
+              (rwm:river-output-v1.set-presentation-mode
+                (output-proxy output) value)
+              (setf (gethash output *presentation-mode-sent*) value)
+              (format t "~&; Rhizome: presentation mode ~A on output~%"
+                      desired))
+          (error ()
+            ;; Transient (no proxy yet): retry on the next render
+            nil))))))
+
+(defun output-apply-config ()
+  "React to (:output ...) config changes: the next render sequence
+re-sends the presentation mode (apply-presentation-mode diffs it)."
+  (clrhash *presentation-mode-sent*)
+  (when *wm-proxy*
+    (request-manage-dirty)))
+
 (defclass rhizome-output ()
   ((proxy    :initarg :proxy    :accessor output-proxy)
    (x        :initarg :x        :accessor output-x :initform 0)

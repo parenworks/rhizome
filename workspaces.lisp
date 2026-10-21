@@ -151,6 +151,7 @@ because they are on another workspace.")
                  (case key
                    (:app-id (list (window-app-id win)))
                    (:title (list (window-title win)))
+                   (:identifier (list (window-identifier win)))
                    (:any (list (window-app-id win) (window-title win)))
                    (t (list (window-app-id win))))))
               (and pattern
@@ -208,3 +209,76 @@ window. Returns the matched rule, if any."
   (typecase layout
     (string (intern (string-upcase layout) :keyword))
     (t layout)))
+
+;;; --- Window state persistence (identifier-based) ---
+;;;
+;;; river v4 gives each window a stable identifier, sent once at
+;;; creation. Rhizome remembers where such windows were placed
+;;; (workspace, floating state) and restores the placement after a
+;;; WM restart or relogin — the "rules survive restarts" mechanism.
+;;; Config rules still win: restore runs first, rules second.
+
+(defparameter *window-state* (make-hash-table :test 'equal)
+  "Identifier → plist (:workspace N :float T) for remembered
+windows. DEFVAR: reloading this file must not forget placements.")
+
+(defparameter *window-state-path*
+  (merge-pathnames #P".local/share/rhizome/window-state.sexp"
+                   (user-homedir-pathname))
+  "Where the remembered window placements live. LET-bindable for
+tests.")
+
+(defun window-state-changed-p ()
+  "Whether (:window-state :enabled) is on."
+  (config-getf '(:window-state) :enabled :default t))
+
+(defun save-window-state ()
+  "Persist remembered placements (atomic write, like the snapshot)."
+  (when (window-state-changed-p)
+    (handler-case
+        (let ((entries
+                (loop for id being the hash-keys of *window-state*
+                      collect (cons id (gethash id *window-state*)))))
+          (ensure-directories-exist *window-state-path*)
+          (with-open-file (s *window-state-path*
+                             :direction :output :if-exists :supersede)
+            (write entries :stream s)))
+      (error (e)
+        (format t "~&; Rhizome: window state save failed: ~A~%" e)))))
+
+(defun load-window-state ()
+  "Load remembered placements. Missing file = nothing remembered."
+  (when (window-state-changed-p)
+    (handler-case
+        (when (probe-file *window-state-path*)
+          (clrhash *window-state*)
+          (with-open-file (s *window-state-path*)
+            (dolist (entry (read s))
+              (setf (gethash (car entry) *window-state*) (cdr entry)))))
+      (error (e)
+        (format t "~&; Rhizome: window state load failed: ~A~%" e)))))
+
+(defun remember-window-state (win)
+  "Record WIN's placement under its identifier (v4 windows only).
+Called when the window closes — one hook point captures both the
+final workspace and the floating state."
+  (when (and (window-identifier win) (window-state-changed-p))
+    (setf (gethash (window-identifier win) *window-state*)
+          (list :workspace (window-workspace win)
+                :float (window-floating-p win)))
+    (save-window-state)))
+
+(defun restore-window-state (win)
+  "Restore WIN's remembered placement, if any. Runs before config
+rules so explicit rules override what was remembered."
+  (when (and (window-identifier win) (window-state-changed-p))
+    (let ((state (gethash (window-identifier win) *window-state*)))
+      (when state
+        (when (getf state :float)
+          (float-window win))
+        (when (getf state :workspace)
+          (assign-window-workspace win (getf state :workspace))
+          (setf (window-minimized-p win) nil))
+        (request-manage-dirty)
+        (format t "~&; Rhizome: restored placement for ~A (workspace ~A)~%"
+                (window-identifier win) (getf state :workspace))))))

@@ -342,6 +342,8 @@ window positions, borders, and z-ordering here."
           (hash-table-count *outputs*) (hash-table-count *windows*))
   (maphash (lambda (output-proxy output)
              (declare (ignore output-proxy))
+             ;; Render-sequence requests: presentation mode (VRR)
+             (apply-presentation-mode output)
              (render-layout-for-output output))
            *outputs*))
 
@@ -391,6 +393,8 @@ window management updates."
   ;; (launcher, message window, prompts); falls back to the bitmap
   ;; font when freetype/fontconfig is unavailable.
   (font-ensure-initialized)
+  ;; Remembered window placements (identifier-based)
+  (load-window-state)
   ;; Keep the bar alive: river closing its layer surface (or any
   ;; other silent death) used to leave no bar until a manual toggle
   (start-bar-supervisor)

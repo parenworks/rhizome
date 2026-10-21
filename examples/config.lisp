@@ -99,7 +99,23 @@
   '(:window-rules ((:match "vivaldi" :workspace 2 :follow t)
                    (:match "emacs" :workspace 3 :layout :monocle)
                    (:match "spotify" :key :title :workspace 4)
+                   (:match "known-id" :key :identifier :workspace 5)
                    (:match "gimp" :float t))))
+
+;;; Windows with a stable identifier (river v4) are remembered:
+;;; their workspace and float state survive WM restarts and
+;;; relogins, restored before the rules above run. Disable if you
+;;; want every login to start fresh:
+
+(configure '(:window-state (:enabled t)))      ; default
+
+;;; --- Presentation mode (VRR / tearing) -----------------------------
+;;;
+;;; :vsync (default) page-flips at vblank; :async flips immediately
+;;; — visible tearing in exchange for the lowest latency. Per-output,
+;;; a render-sequence request (river v4).
+
+(configure '(:output (:presentation-mode :vsync)))   ; default
 
 ;;; --- Idle lock -------------------------------------------------------
 ;;;
@@ -118,3 +134,9 @@
 ;;; workspace's windows. Some people find pointer jumps jarring:
 
 (configure '(:pointer (:warp-on-switch t)))  ; default
+
+;;; Compositor-rendered cursor theme and size; defaults come from
+;;; the XCURSOR_THEME/XCURSOR_SIZE the session exports.
+#-(and) (configure
+  '(:pointer (:xcursor-theme "Bibata-Modern-Classic"
+              :xcursor-size 24)))

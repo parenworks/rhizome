@@ -96,6 +96,24 @@ during the expose overview a click picks the window)."
             (apply #'handle-seat-event seat event-name args))
           (wl:wl-proxy-hooks proxy))
     (format t "~&; Rhizome: new seat registered~%")
+    ;; xcursor theme through the protocol (river_seat_v1 v2+): the
+    ;; compositor-rendered cursors follow the config (or the
+    ;; XCURSOR_THEME/SIZE environment the session exports).
+    (let* ((env-theme (uiop:getenv "XCURSOR_THEME"))
+           (env-size (ignore-errors
+                       (parse-integer
+                         (or (uiop:getenv "XCURSOR_SIZE") "")
+                         :junk-allowed t)))
+           (theme (config-getf '(:pointer) :xcursor-theme
+                               :default (or env-theme "")))
+           (size (config-getf '(:pointer) :xcursor-size
+                              :default (or env-size 24))))
+      (when (and (stringp theme) (plusp (length theme)))
+        (handler-case
+            (rwm:river-seat-v1.set-xcursor-theme proxy theme size)
+          (error ()
+            ;; Pre-v2 river: cursors fall back to river's default
+            nil))))
     ;; MOD+drag move/resize bindings (enabled during manage sequences)
     (handler-case
         (progn

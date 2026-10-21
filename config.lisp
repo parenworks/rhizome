@@ -92,9 +92,18 @@ Returns (values value found-p)."
               :network (:interval 10
                         :on-click "nm-connection-editor"))
     :window-rules ()
+    :window-state (:enabled t
+                   ;; Remember identifier-based window placements
+                   ;; across WM restarts (river v4 identifiers)
+                   )
+    :output (:presentation-mode :vsync
+             ;; :async for tearing/lowest latency on high-refresh
+             ;; panels; a render-sequence request (river v4)
+             )
     ;; :warp-on-switch t warps the pointer to the output center on
     ;; workspace switch (river_seat_v1.pointer_warp); set it nil if
-    ;; pointer jumps bother you.
+    ;; pointer jumps bother you. xcursor theme/size default to the
+    ;; XCURSOR_THEME/XCURSOR_SIZE the session exports.
     :pointer (:warp-on-switch t)
     :theme (:font-family "monospace"
             :font-size 12
@@ -147,7 +156,9 @@ user config would otherwise spawn bars — see *bar-process-mode*)."
     (when (fboundp 'bar-apply-config)
       (funcall (symbol-function 'bar-apply-config)))
     (when (fboundp 'font-apply-config)
-      (funcall (symbol-function 'font-apply-config)))))
+      (funcall (symbol-function 'font-apply-config)))
+    (when (fboundp 'output-apply-config)
+      (funcall (symbol-function 'output-apply-config)))))
 
 (defun config-pathname ()
   "Pathname of the user config file."

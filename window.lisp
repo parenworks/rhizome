@@ -32,7 +32,11 @@
    (hint-max-width  :initarg :hint-max-width  :accessor window-hint-max-width :initform nil)
    (hint-max-height :initarg :hint-max-height :accessor window-hint-max-height :initform nil)
    (capture-sessions :initarg :capture-sessions
-                     :accessor window-capture-sessions :initform 0))
+                     :accessor window-capture-sessions :initform 0)
+   (identifier :initarg :identifier :accessor window-identifier
+               :initform nil)
+   (unreliable-pid :initarg :unreliable-pid :accessor window-unreliable-pid
+                   :initform nil))
   (:documentation "Represents a managed window in the river compositor."))
 
 (defvar *last-registered-window* nil
@@ -229,6 +233,9 @@ request itself is flushed by the manage pass."
         (:closed
          (format t "~&; Rhizome: window closed~%")
          (run-hook :window-closed win)
+         ;; Remember the placement (identifier windows) before we forget
+         (handler-case (remember-window-state win)
+           (error () nil))
          (remhash (window-proxy win) *windows*)
          (remhash win *window-workspace*)
          (remhash win *minimized-windows*)
@@ -264,6 +271,27 @@ request itself is flushed by the manage pass."
          (destructuring-bind (count) args
            (setf (window-capture-sessions win) count)
            (request-manage-dirty)))
+
+        (:identifier
+         ;; v4: a stable identifier for this window, sent once at
+         ;; creation. Remembers the window across WM restarts:
+         ;; restore the previously saved placement first, then let
+         ;; config rules override if they match.
+         (destructuring-bind (id) args
+           (setf (window-identifier win) id)
+           (handler-case
+               (progn
+                 (restore-window-state win)
+                 (apply-window-rules win))
+             (error (e)
+               (format t "~&; Rhizome: window state restore failed: ~A~%"
+                       e)))))
+
+        (:unreliable-pid
+         ;; v2: the creating process's PID — racy (PID reuse), kept
+         ;; only for potential future rule/debug matching.
+         (destructuring-bind (pid) args
+           (setf (window-unreliable-pid win) pid)))
 
         (:pointer-move-requested
          (destructuring-bind (seat-proxy) args

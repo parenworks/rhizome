@@ -65,6 +65,10 @@ is the interface version that introduced the feature.
 | =set_dimension_bounds= (v4)                   | new windows get a configure_bounds hint of the output's usable area |
 | =pointer_warp= (seat, v3)                     | pointer to the output center on workspace switch ((:pointer :warp-on-switch)) |
 | =capture_sessions= (v5)                       | feeds the bar's =:recording= indicator via the snapshot |
+| =identifier= (window, v4)                     | stable IDs: rules via (:key :identifier) and remembered placements across WM restarts ((:window-state)) |
+| =set_xcursor_theme= (seat, v2)               | per-seat cursor theme/size from (:pointer :xcursor-theme/:xcursor-size) |
+| =set_presentation_mode= (output, v4)          | VRR: (:output (:presentation-mode :async)) for tearing/lowest latency |
+| =unreliable_pid= (window, v2)                | stored alongside the identifier for future rule matching |
 | =pointer bindings=, =xkb bindings=               | MOD+click grabs, all key bindings           |
 | river/zwlr layer shells                          | bar, message window, launcher, prompts       |
 | =input_management= + =libinput_config=           | touchpad/pointer config                      |
@@ -77,12 +81,6 @@ is the interface version that introduced the feature.
 | =stop= request                   | 1  | stop receiving events (wait for =finished=, then destroy): the  |
 |                                  |    | primitive a detach command would build on for river's WM hot-swap |
 | =set_clip_box= / content clip    | 2/3| clip windows during animations (expose sliding, bar overlap)     |
-| =unreliable_pid=                 | 2  | pid tracking fallback when the pid can't be trusted               |
-| =set_xcursor_theme= (seat)       | 2  | rhizome relies on XCURSOR_THEME env; per-seat request is finer    |
-| =identifier= (window)            | 4  | stable IDs across WM restarts — window-rules that survive       |
-|                                  |    | restarts, "reattach" semantics                                    |
-| =presentation_hint= (window) /   | 4  | tearing/VRR: let apps request immediate presentation, set the    |
-| =set_presentation_mode= (output) |    | output mode per hint (default vsync)                             |
 | =show_window_menu_requested=     | 4  | CSD window menus (GTK menu button) — client-side menu support    |
 
 Screencasting today works through wlroots' =wlr-screencopy= via
@@ -776,6 +774,14 @@ float apps automatically with a window rule:
 (rhizome:configure
   '(:window-rules ((:match "gimp" :float t))))
 #+end_src
+
+Rules match =:key :app-id= (default), =:title=, =:any=, or
+=:identifier= (river v4's stable window IDs). Windows WITH an
+identifier are also *remembered*: their workspace and float state
+persist across WM restarts and relogins
+(~/.local/share/rhizome/window-state.sexp=), restored before rules
+run so explicit rules still win. Disable with
+=(configure '(:window-state (:enabled nil)))=.
 
 Maximize is float-based too: a client's =maximize_requested=
 (terminal full-grid, browser buttons) is honored as a float covering
