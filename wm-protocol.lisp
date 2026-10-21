@@ -359,9 +359,17 @@ window positions, borders, and z-ordering here."
              ;; Render-sequence requests: presentation mode (VRR)
              (apply-presentation-mode output)
              (render-layout-for-output output))
-           *outputs*))
+           *outputs*)
+  ;; Pseudo-shadows on floating windows (river_decoration_v1).
+  ;; Placeholder: redefined by decorations.lisp, which loads later.
+  (decorations-render-pass))
 
 ;;; --- Manage dirty --
+
+(defun decorations-render-pass ()
+  "Decoration surfaces (placeholder: redefined by
+decorations.lisp)."
+  nil)
 
 (defun request-manage-dirty ()
   "Request that the compositor start a new manage sequence.

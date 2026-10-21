@@ -464,6 +464,16 @@ Exercise expose, splits, and workspace switches while the video plays.
   + MOD+D launcher with a filter typed in) before the timer fires.
   Flameshot on river is best-effort only: its editor floats via
   window rule; prefer the built-in path for anything important.
+- *Pseudo-shadows on floats (river_decoration_v1):* MOD+drag a
+  tiled window to float it — a soft shadow band must appear around
+  it immediately (12px default, accent-tinted when focused: focus
+  another window and the shadow's color shifts). Resize the float
+  (MOD+Right-drag) — the shadow follows with no flicker. Un-float
+  (menu → Tile, or `C-t f`) — the shadow must vanish. Close a
+  floated window — the WM survives; `grep decoration
+  ~/.cache/rhizome/rhizome.log` stays clean of errors. Tweak via
+  `(:decorations (:radius 14 :alpha 0.5 :focused-alpha 0.7))`;
+  `(:enabled nil)` makes floats flat again.
 
 = Appendix A: capture guide (how to report a failure)
 
