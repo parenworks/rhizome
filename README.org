@@ -542,10 +542,14 @@ through the scripting menu (StumpWM's select-from-menu):
 Nine StumpWM-style workspaces per output. Windows open on the current
 workspace; =MOD+1..9= switches workspaces, =MOD+Shift+1..9= moves the focused
 window (and follows it). Windows on other workspaces are hidden and reappear
-on return. The current workspace is shown in the bar's =:workspaces= module
-with the active number highlighted in the accent color. The WM exports its
-state (layout, window count, workspace, focused title) to the bar via an
-atomic snapshot file, ~~/.cache/rhizome/snapshot.sexp~.
+on return. The current workspace is shown in the bar's =:workspaces=
+module with the active number underlined in the accent color,
+occupied workspaces in the foreground color, empty ones muted, and
+configurable breathing room between numbers
+((:bar :workspaces :gap 8), default 8px). The WM exports its
+state (layout, window count, workspace, per-workspace occupancy,
+focused title) to the bar via an atomic snapshot file,
+~~/.cache/rhizome/snapshot.sexp~.
 
 ** Status bar
 
@@ -565,13 +569,16 @@ exclusive zone, the WM reserves the bar's space itself in its layout math.
 (rhizome:reload-config)                             ; reset + reload user file
 #+end_src
 
-Bar modules: =:workspaces= (numbers, current highlighted), =:layout= (current
-layout), =:windows= (window count), =:focused= (focused window title),
-=:clock= (strftime-like format), =:battery= (/sys), =:volume= (wpctl),
-=:network= (nmcli). Each rate-limited module takes an =:interval= (seconds).
-The bar's own =:bar :interval= (default 0.15s) is the poll rate for change
-detection: the bar re-renders only when a module's output actually changed,
-so workspace switches and volume changes appear within one poll.
+Bar modules: =:workspaces= (numbers — active underlined in accent,
+occupied in foreground, empty muted, with per-number gaps),
+=:layout= (current layout), =:windows= (window count), =:focused=
+(focused window title), =:clock= (strftime-like format), =:battery=
+(/sys), =:volume= (wpctl), =:network= (nmcli). Each rate-limited
+module takes an =:interval= (seconds). The bar's own
+=:bar :interval= (default 0.15s) is the poll rate for change
+detection: the bar re-renders only when a module's output actually
+changed, so workspace switches and volume changes appear within one
+poll.
 
 Modules are clickable: the bar process binds a =wl_pointer= and records each
 module's rendered area as a click target. Modules can define shell-command
@@ -653,11 +660,19 @@ original metrics.
 
 The bar's own colors live under =:bar= (=:background=, =:foreground=,
 =:accent=, =:muted= — already supported by the module renderer's
-per-part hex colors). Changing =:theme= font keys re-resolves the
-font in the WM process live; the bar restarts (as with any bar
-affecting change) and picks the new font up at startup. Text widths
-are per-glyph advances now, so the bar centers the clock exactly and
-the launcher cursor hugs the typed query.
+per-part hex colors). The workspace module's spacing is
+(:bar :workspaces :gap 8) (default 8px). Changing =:theme= font keys
+re-resolves the font in the WM process live; the bar restarts (as
+with any bar affecting change) and picks the new font up at startup.
+Text widths are per-glyph advances now, so the bar centers the clock
+exactly and the launcher cursor hugs the typed query.
+
+Module parts can carry render flags: =:gap N= (extra pixels after
+the part) and =:underline t= (a 2px line in the part's color under
+the text) — the mechanism behind the active-workspace underline.
+The launcher's selected row carries a 3px accent edge
+((:launcher :accent ...)). A complete, commented configuration
+covering every group lives in =examples/config.lisp=.
 
 * Frame trees (the StumpWM layout model)
 

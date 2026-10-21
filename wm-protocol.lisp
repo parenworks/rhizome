@@ -66,7 +66,12 @@ feedback storm)."
         (with-open-file (s tmp :direction :output
                            :if-exists :supersede)
           (write snapshot :stream s))
-        (rename-file tmp (snapshot-pathname) :if-exists :supersede))
+        ;; Plain POSIX rename (replaces atomically). Note: SBCL's
+        ;; RENAME-FILE takes no :if-exists keyword — the previous
+        ;; call errored on every write and the handler-case swallowed
+        ;; it, so the snapshot file never actually existed and the
+        ;; bar ran on its fallback forever.
+        (rename-file tmp (snapshot-pathname)))
     (error (e)
       (declare (ignore e))
       nil)))
@@ -89,6 +94,12 @@ answered with another sequence — a self-sustaining churn."
                 :workspace (let ((outs (all-outputs)))
                              (when outs (current-workspace (first outs))))
                 :workspace-count *workspace-count*
+                :occupied (let ((occ nil))
+                            (dolist (win (all-windows))
+                              (let ((ws (window-workspace win)))
+                                (when (and ws (not (window-minimized-p win)))
+                                  (pushnew ws occ))))
+                            (sort occ #'<))
                 :focused (let ((focused (find-if #'window-focused-p (all-windows))))
                            (when focused (window-title focused))))))
     (unless (equal snapshot *wm-snapshot*)

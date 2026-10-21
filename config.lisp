@@ -97,6 +97,7 @@ Returns (values value found-p)."
             :focused-border "#7aa2f7"
             :unfocused-border "#404040")
     :launcher (:background "#23142d"
+               :accent "#7aa2f7"
                :prompt-color "#8c64aa"
                :query-color "#dcc8f0"
                :cursor-color "#b4a0d2"

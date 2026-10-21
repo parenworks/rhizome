@@ -745,6 +745,7 @@ fallback)."
     (config-getf '(:launcher) key
                  :default (case key
                             (:background "#23142d")
+                            (:accent "#7aa2f7")
                             (:prompt-color "#8c64aa")
                             (:query-color "#dcc8f0")
                             (:cursor-color "#b4a0d2")
@@ -804,7 +805,19 @@ through the font module (see font.lisp)."
                             (loop for dx below (- width (* 2 *launcher-padding*))
                                   for px = (+ *launcher-padding* dx)
                                   while (< px width) do
-                              (launcher-set-pixel ptr width px py selr selg selb 255))))
+                              (launcher-set-pixel ptr width px py selr selg selb 255)))
+                          ;; Accent edge: a 3px marker strip on the
+                          ;; selected row, the launcher's underline.
+                          (multiple-value-bind (acr acg acb)
+                              (launcher-color :accent)
+                            (loop for dy below *launcher-line-height*
+                                  for py = (+ y dy)
+                                  while (< py height) do
+                              (loop for dx below 3
+                                    for px = (+ *launcher-padding* dx)
+                                    while (< px width) do
+                                (launcher-set-pixel ptr width px py
+                                                     acr acg acb 255)))))
                         ;; Draw entry text, centered in the row
                         (multiple-value-bind (tr tg tb)
                             (if (= i *launcher-selection*)

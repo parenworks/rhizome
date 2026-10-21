@@ -57,6 +57,70 @@
     (ok "message line height positive"
         (> (message-line-height) 0) t)
 
+    ;; --- module part protocol (gap / underline flags) ---
+
+    (ok "dotted part has no flags"
+        (bar-part-flags '("1" . "#7aa2f7")) nil)
+    (ok "bare part has no flags"
+        (bar-part-flags '("2")) nil)
+    (ok "flagged part reads its tail"
+        (bar-part-flags '("1" "#7aa2f7" :underline t :gap 8))
+        '(:underline t :gap 8))
+    (ok "part width includes its gap"
+        (- (bar-part-width '("ab" nil :gap 7))
+           (bar-text-width "ab"))
+        7)
+    (ok "part width without gap is the text width"
+        (bar-part-width '("ab")) (bar-text-width "ab"))
+
+    ;; --- workspaces module: occupancy, underline, gaps ---
+
+    (let ((real-snapshot (symbol-function 'bar-snapshot)))
+      (setf (symbol-function 'bar-snapshot)
+            (lambda () '(:workspace 3 :workspace-count 9
+                         :occupied (2 3 5))))
+      (let ((parts (bar-module-parts :workspaces)))
+        (ok "workspaces count"
+            (length parts) 9)
+        (ok "active workspace underlined with accent"
+            (third parts) '("3" "#7aa2f7" :underline t :gap 8))
+        (ok "occupied workspace in foreground, no underline"
+            (second parts) '("2" "#c0caf5" :gap 8))
+        (ok "empty workspace muted"
+            (first parts) '("1" "#565f89" :gap 8))
+        (ok "every workspace part carries the gap"
+            (every (lambda (p)
+                     (= (getf (bar-part-flags p) :gap 0) 8))
+                   parts)
+            t))
+      (setf (symbol-function 'bar-snapshot) real-snapshot))
+
+    ;; --- snapshot occupancy ---
+
+    (let ((real-write (symbol-function 'bar-write-snapshot)))
+      (setf (symbol-function 'bar-write-snapshot)
+            (lambda (snapshot) (declare (ignore snapshot)) nil)
+            *windows* (make-hash-table)
+            *window-workspace* (make-hash-table)
+            *minimized-windows* (make-hash-table))
+      (let ((w1 (make-instance 'rhizome-window :proxy :occ-1))
+            (w2 (make-instance 'rhizome-window :proxy :occ-2))
+            (w3 (make-instance 'rhizome-window :proxy :occ-3)))
+        (setf (gethash :occ-1 *windows*) w1
+              (gethash :occ-2 *windows*) w2
+              (gethash :occ-3 *windows*) w3
+              (gethash w1 *window-workspace*) 2
+              (gethash w2 *window-workspace*) 5
+              (gethash w3 *window-workspace*) 5
+              (gethash w3 *minimized-windows*) t)
+        (update-wm-snapshot)
+        (ok "snapshot occupancy lists visible windows sorted"
+            (getf *wm-snapshot* :occupied) '(2 5))
+        (ok "snapshot occupancy skips minimized windows"
+            (and (member 5 (getf *wm-snapshot* :occupied)) t)
+            t))
+      (setf (symbol-function 'bar-write-snapshot) real-write))
+
     ;; --- TrueType path (machine-dependent; skipped assertions if
     ;; freetype/fontconfig is unavailable) ---
 

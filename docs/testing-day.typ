@@ -354,6 +354,19 @@ Exercise expose, splits, and workspace switches while the video plays.
   back to a system font, never a crash or blank bar. Override
   `:launcher :background` and `:theme :focused-border` and confirm
   both surfaces picked them up on the next redraw.
+- *Workspace indicator:* with windows on workspaces 1 and 2 only,
+  the bar must show 1 and 2 in the foreground color, 3-9 muted,
+  and the active workspace underlined in accent with visible gaps
+  between numbers. Switch workspaces (MOD+N and MOD+J/K chains) —
+  the underline must follow within one bar poll (0.15s), the
+  occupancy colors must track window opens/closes/moves, and
+  minimizing the only window on a workspace must mute it.
+- *Bar desync soak (the v5 cap):* after a bar restart, run
+  `grep -c Malformed ~/.cache/rhizome/bar.log` after 5 minutes of
+  normal use — must read 0. The bar process binds wl_compositor
+  at v5 (wm-protocol.lisp has the same cap) because wayflan cannot
+  demarshal wl_surface v6 events; a single v6 event desyncs the
+  bar's stream and kills it.
 
 = Appendix A: capture guide (how to report a failure)
 

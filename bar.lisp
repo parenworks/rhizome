@@ -34,7 +34,7 @@
 ;;; wm-protocol.lisp.
 
 (defvar *wm-snapshot* '(:layout nil :windows 0 :workspace 1
-                        :workspace-count 9 :focused nil)
+                        :workspace-count 9 :occupied nil :focused nil)
   "Fallback snapshot, used until the WM writes a real one.")
 
 (defun bar-snapshot ()
@@ -157,14 +157,26 @@ after the module plus gap. Structure mirrors bar-draw-icons."
   (getf (bar-snapshot) :focused))
 
 (defun bar-module-workspaces ()
-  "Workspace numbers, with the current one in the accent color."
+  "Workspace numbers with breathing room: the active workspace in
+the accent color, underlined; occupied workspaces in the
+foreground color; empty ones muted. Occupancy comes from the WM
+snapshot's :occupied list (workspace numbers with visible
+windows)."
   (let* ((snapshot (bar-snapshot))
          (current (getf snapshot :workspace 1))
          (count (getf snapshot :workspace-count 9))
-         (accent (config-getf '(:bar) :accent :default "#7aa2f7")))
+         (occupied (getf snapshot :occupied))
+         (accent (config-getf '(:bar) :accent :default "#7aa2f7"))
+         (fg (config-getf '(:bar) :foreground :default "#c0caf5"))
+         (muted (config-getf '(:bar) :muted :default "#565f89"))
+         (gap (config-getf '(:bar :workspaces) :gap :default 8)))
     (loop for i from 1 to count
-          collect (cons (format nil "~A" i)
-                        (if (= i current) accent nil)))))
+          collect (list* (format nil "~A" i)
+                        (cond ((= i current) accent)
+                              ((member i occupied) fg)
+                              (t muted))
+                        (append (when (= i current) '(:underline t))
+                                (list :gap gap))))))
 
 (defun bar-module-battery ()
   "Battery percentage from /sys/class/power_supply, e.g. \"75%\"."
@@ -279,8 +291,12 @@ strftime subset: %H %M %S %d %m %y %Y %a %A %b %B."
   "Pixels of empty space between modules.")
 
 (defun bar-module-parts (module)
-  "Render one module to a list of (text . color) parts (color NIL =
-the segment's base color). Unknown or failing modules render empty."
+  "Render one module to a list of parts. A part is
+(text color . plist): color NIL means the segment's base color,
+and the plist tail carries render flags — :gap N adds N pixels of
+breathing room after the part, :underline T draws the part's color
+as a 2px line under the text (the active-workspace marker).
+Unknown or failing modules render empty."
   (let ((fn (cdr (assoc module *bar-modules*))))
     (when fn
       (handler-case
@@ -291,27 +307,42 @@ the segment's base color). Unknown or failing modules render empty."
               (t nil)))
         (error () nil)))))
 
+(defun bar-part-flags (part)
+  "The plist tail of a part. NIL for the classic dotted shape
+((text . color)) — (cdr part) being an atom, not a list, is the
+telltale."
+  (let ((rest (cdr part)))
+    (when (listp rest) (cddr part))))
+
+(defun bar-part-width (part)
+  "Pixel width of one part: the text's rendered advance plus its gap."
+  (+ (bar-text-width (first part))
+     (or (getf (bar-part-flags part) :gap 0) 0)))
+
 (defun bar-segment-modules (position)
   "The configured module list for :left, :center or :right."
   (config-getf '(:bar :modules) position :default nil))
 
 (defun bar-segment-width (modules)
-  "Total pixel width of a module list, including inter-module gaps."
-  (+ (reduce #'+
-             (mapcar (lambda (module)
-                       (cond
-                         ((icons-module-p module)
-                          (bar-icons-width module))
-                         ((tray-module-p module)
-                          (bar-tray-width))
-                         (t
-                          (* 8 (reduce #'+
-                                        (mapcar (lambda (part)
-                                                  (length (first part)))
-                                                (bar-module-parts module)))))))
-                     modules)
-             :initial-value 0)
-     (* *bar-module-gap* (length modules))))
+  "Total pixel width of a module list, including inter-module gaps
+and per-part :gap flags, so centered/right segments line up with
+what is actually drawn."
+  (let ((content
+          (reduce #'+
+                  (mapcar (lambda (module)
+                            (cond
+                              ((icons-module-p module)
+                               (bar-icons-width module))
+                              ((tray-module-p module)
+                               (bar-tray-width))
+                              (t
+                               (reduce #'+
+                                       (mapcar #'bar-part-width
+                                               (bar-module-parts module))
+                                       :initial-value 0))))
+                          modules)
+                  :initial-value 0)))
+    (+ content (* *bar-module-gap* (length modules)))))
 
 ;;; --- Icons module (application icons with click actions) ---
 ;;;
@@ -460,17 +491,30 @@ the 8x16 bitmap font otherwise (identical legacy metrics)."
 
 (defun bar-draw-module (ptr width height x y parts base-r base-g base-b module)
   "Draw one module's PARTS starting at X, using the base color for
-parts without an explicit color. Records a click hitbox for MODULE.
-Returns the x after the module plus gap."
+parts without an explicit color. Parts may carry :gap and
+:underline flags (see bar-module-parts). Records a click hitbox
+for MODULE. Returns the x after the module plus gap."
   (let ((start x))
     (dolist (part parts)
       (let* ((text (first part))
-             (color (rest part))
+             (color (second part))
+             (flags (bar-part-flags part))
              (r base-r) (g base-g) (b base-b))
         (when color
           (setf (values r g b) (parse-hex-color color)))
         (bar-draw-text ptr width height text x y r g b)
-        (incf x (bar-text-width text))))
+        (let ((tw (bar-text-width text)))
+          ;; The active-workspace marker: a 2px line in the part's
+          ;; color, flush under the text box.
+          (when (getf flags :underline)
+            (loop for uy below 2
+                  for py = (+ y (font-line-height) uy)
+                  while (< py height) do
+              (loop for uxx below tw
+                    for px = (+ x uxx)
+                    while (< px width) do
+                (bar-set-pixel ptr width px py r g b))))
+          (incf x (+ tw (or (getf flags :gap 0) 0))))))
     (let ((end x))
       (when (and module (> end start))
         (push (list module start end) *bar-hitboxes*)))
@@ -608,8 +652,16 @@ font.lisp's *font-lock*).")
     (when iface-class
       (cond
         ((string= interface "wl_compositor")
-         (setf (gethash :compositor state)
-               (wl:wl-registry.bind registry name iface-class version)))
+         ;; Cap at version 5, mirroring the WM's bind: wl_surface v6
+         ;; added preferred_buffer_scale/transform events our wayflan
+         ;; bindings cannot demarshal — one such event desyncs the
+         ;; bar's whole event stream ("Malformed Wayland message",
+         ;; destroyed proxies, a dead bar). This was the WM-side fix
+         ;; (wm-protocol.lisp) that the bar's own connection never
+         ;; got.
+         (let ((v (min version 5)))
+           (setf (gethash :compositor state)
+                 (wl:wl-registry.bind registry name iface-class v))))
         ((string= interface "wl_shm")
          (setf (gethash :shm state)
                (wl:wl-registry.bind registry name iface-class version)))
