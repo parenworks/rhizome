@@ -178,11 +178,9 @@ scaled by the alpha, so c* ≤ a always holds."
                                     (dist (sqrt (+ (* dx dx) (* dy dy)))))
                               (if (>= dist radius)
                                   ;; Outside the band: transparent
-                                  (setf (cffi:mem-aref ptr :unsigned-int
-                                                       (+ (* width py) px))
-                                        0)
+                                  (put-pixel-argb ptr width height px py 0)
                                   ;; Inside: falloff over the band,
-                                  ;; eased quadratic
+                                  ;; eased quadratic — premultiplied
                                   (let* ((fall (if (zerop radius)
                                                    0.0
                                                    (- 1.0 (/ dist radius))))
@@ -192,12 +190,11 @@ scaled by the alpha, so c* ≤ a always holds."
                                          (sr (min 255 (round (* cr a) 255)))
                                          (sg (min 255 (round (* cg a) 255)))
                                          (sb (min 255 (round (* cb a) 255))))
-                                    (setf (cffi:mem-aref ptr :unsigned-int
-                                                         (+ (* width py) px))
-                                          (logior (ash a 24)
-                                                  (ash sr 16)
-                                                  (ash sg 8)
-                                                  sb))))))))))))
+                                    (put-pixel-argb ptr width height px py
+                                                    (logior (ash a 24)
+                                                            (ash sr 16)
+                                                            (ash sg 8)
+                                                            sb))))))))))))
 
 ;;; --- Render pass (render-sequence only) ---
 

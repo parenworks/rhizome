@@ -180,13 +180,14 @@ edge; every row's label draws through the font module."
                                   (ash (round (* r sa) 255) 16)
                                   (ash (round (* g sa) 255) 8)
                                   (round (* b sa) 255)))))
-      ;; Background (or hover fill per row)
+      ;; Background (or hover fill per row) — through the shared
+      ;; bounds-checked helper: this exact loop was transposed once
+      ;; (y + W·x), a latent segfault for wide menus
       (loop for y below h
             for row = (menu-row-at 0 y)
             for pixel = (if (= row *menu-hover*) hover-pixel bg-pixel)
             do (loop for x below w
-                     do (setf (cffi:mem-aref ptr :unsigned-int (+ y (* w x)))
-                              pixel)))
+                     do (put-pixel-argb ptr w h x y pixel)))
       ;; Accent edge on the hovered row
       (when (>= *menu-hover* 0)
         (multiple-value-bind (r g b) (menu-color :accent)
@@ -201,8 +202,7 @@ edge; every row's label draws through the font module."
               (loop for dx below 3
                     for px = (+ *menu-padding* dx)
                     while (< px w) do
-                (setf (cffi:mem-aref ptr :unsigned-int (+ py (* w px)))
-                      edge-pixel))))))
+                (put-pixel-argb ptr w h px py edge-pixel))))))
       ;; Labels
       (multiple-value-bind (ir ig ib) (menu-color :item-color)
         (multiple-value-bind (hvr hvg hvb) (menu-color :hover-color)
