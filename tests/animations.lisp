@@ -38,6 +38,27 @@
     (ok "easing clamps beyond 1"
         (ease :ease-out-cubic 5) 1.0)
 
+    ;; --- wire safety: positions must be whole pixels ---
+    ;; SBCL's internal-real-time is exact rational arithmetic; a
+    ;; rational easing leaks fractional positions into river's
+    ;; int32 set_position args, which type-errors wayflan MID-REQUEST,
+    ;; corrupts the wire, and gets the client terminated.
+    (ok "easing never returns rationals"
+        (loop for k in (mapcar (lambda (n) (ease :linear (/ n 7)))
+                               '(0 1 2 3 5 7))
+              always (typep k 'single-float))
+        t)
+    (let ((win (make-instance 'rhizome-window :proxy :anim-int))
+          (*animations* (make-hash-table)))
+      (setf (window-x win) 0 (window-y win) 0)
+      (animation-start win :from-x 0 :from-y 0
+                            :duration 7 :easing :linear)
+      (multiple-value-bind (x y)
+          (animation-position win 1376 0)
+        (ok "interpolated positions are integers"
+            (list (typep x 'integer) (typep y 'integer))
+            '(t t))))
+
     ;; --- position interpolation, absolute mode ---
 
     (let ((win (make-instance 'rhizome-window :proxy :anim-1))

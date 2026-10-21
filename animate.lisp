@@ -39,8 +39,12 @@ millisecond, so animations work off INTERNAL-REAL-TIME."
   (config-getf '(:animations) :easing :default :ease-out-cubic))
 
 (defun ease (name t*)
-  "Easing functions over normalized T* in [0,1] → [0,1]."
-  (let ((t* (min 1.0 (max 0.0 t*))))
+  "Easing functions over normalized T* in [0,1] → [0,1]. T* is
+coerced to a float first: SBCL's internal-real-time arithmetic is
+EXACT RATIONAL, and rational easings leak fractional pixel
+positions into river's int32 request args — a mid-request type
+error that corrupts the wire and gets the client terminated."
+  (let ((t* (coerce (min 1.0 (max 0.0 t*)) 'single-float)))
     (ecase name
       (:linear t*)
       ((:ease-out-cubic)
@@ -105,11 +109,12 @@ missed frame never freezes a window mid-air."
                      (fy (getf anim :from-y)))
                 (ecase (getf anim :mode)
                   (:absolute
-                   (values (+ fx (* (- x fx) k))
-                           (+ fy (* (- y fy) k))))
+                   ;; Whole pixels: river's set_position takes int32
+                   (values (round (+ fx (* (- x fx) k)))
+                           (round (+ fy (* (- y fy) k)))))
                   (:relative
-                   (values (+ x (* (getf anim :dx) (- 1 k)))
-                           (+ y (* (getf anim :dy) (- 1 k))))))))))))
+                   (values (round (+ x (* (getf anim :dx) (- 1 k))))
+                           (round (+ y (* (getf anim :dy) (- 1 k)))))))))))))
 
 (defun animation-drain ()
   "Main-loop pump: while anything animates, request fresh
