@@ -865,13 +865,16 @@ propose each leaf's visible window its rectangle."
         (if (floating-workspace-p output workspace)
             (float-adopt-window win output workspace)
             (frame-adopt-window win output workspace))))
-    ;; Each frame proposes its rectangle for its visible window
+    ;; Each frame proposes its rectangle for its visible window,
+    ;; inset by the configured gap (:gaps :inner)
     (dolist (leaf leaves)
       (let ((win (frame-current-window leaf)))
         (when (and win (not (window-minimized-p win)))
-          (propose-window-dimensions win
-                                      (frame-width leaf)
-                                      (frame-height leaf)))))))
+          (multiple-value-bind (_x _y w h)
+              (gaps-inset-rect (frame-x leaf) (frame-y leaf)
+                               (frame-width leaf) (frame-height leaf))
+            (declare (ignore _x _y))
+            (propose-window-dimensions win w h)))))))
 
 (defun frames-render-decisions (output workspace wins)
   "Render-sequence decisions for the frame tree: place each leaf's
@@ -887,22 +890,25 @@ render pass can exclude them from its hide logic."
       (unless (window-frame win)
         (frame-push-window win (current-frame-for output workspace))))
     (dolist (leaf leaves)
-      (let ((win (frame-current-window leaf)))
+      (let* ((win (frame-current-window leaf))
+             (i (min (gaps-inner)
+                     (floor (frame-width leaf) 2)
+                     (floor (frame-height leaf) 2)))
+             (x (+ (frame-x leaf) i (output-x output)))
+             (y (+ (frame-y leaf) i (output-y output)
+                    (bar-reserved-height))))
         (when (and win (not (window-minimized-p win)))
-          (let ((x (+ (frame-x leaf) (output-x output)))
-                (y (+ (frame-y leaf) (output-y output)
-                      (bar-reserved-height))))
-            (make-window-node win)
-            (set-window-position win x y)
-            (setf (window-x win) x
-                  (window-y win) y)
-            (multiple-value-bind (r g b) (theme-border-rgb (window-focused-p win))
-              (set-window-borders win '(:top :bottom :left :right)
-                                  (if (window-focused-p win) 2 1)
-                                  r g b #xff))
-            ;; Show only on transition: river treats every show/hide
-            ;; as a state change and starts a new sequence for it.
-            (when (window-hidden-p win)
-              (show-window win))
-            (push win rendered)))))
+          (make-window-node win)
+          (set-window-position win x y)
+          (setf (window-x win) x
+                (window-y win) y)
+          (multiple-value-bind (r g b) (theme-border-rgb (window-focused-p win))
+            (set-window-borders win '(:top :bottom :left :right)
+                                (if (window-focused-p win) 2 1)
+                                r g b #xff))
+          ;; Show only on transition: river treats every show/hide
+          ;; as a state change and starts a new sequence for it.
+          (when (window-hidden-p win)
+            (show-window win))
+          (push win rendered))))
     (nreverse rendered)))

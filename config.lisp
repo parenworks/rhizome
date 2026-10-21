@@ -76,6 +76,7 @@ Returns (values value found-p)."
           :height 20
           :interval 0.15
           :padding 6
+          :opacity 0.9
           :background "#1a1b26"
           :foreground "#c0caf5"
           :accent "#7aa2f7"
@@ -92,11 +93,21 @@ Returns (values value found-p)."
               :network (:interval 10
                         :on-click "nm-connection-editor"))
     :window-rules ()
-    :workspaces (:modes nil
-                 ;; (2 :float 5 :float) — per-workspace TYPES:
-                 ;; :tile (frame trees, default) or :float
-                 ;; (StumpWM's floating group: every window floats)
+    :workspaces (:types nil
+                 ;; (2 :floating 5 :scroll) — per-workspace GROUP
+                 ;; TYPES: :tile (frame trees, default), :floating
+                 ;; (StumpWM's floating group), :scroll (the
+                 ;; ribbon). Also set-workspace-type /
+                 ;; cycle-workspace-type (C-t l)
+                 :default-layout :master-stack
+                 ;; the layout untouched workspaces use;
+                 ;; switch-layout stores per-workspace
                  )
+    :gaps (:inner 6
+           ;; Pixels of breathing room around each tiled window.
+           ;; Adjacent windows show twice this between them, screen
+           ;; edges once. 0 restores the classic flush tiling.
+           )
     :window-state (:enabled t
                    ;; Remember identifier-based window placements
                    ;; across WM restarts (river v4 identifiers)
@@ -115,6 +126,8 @@ Returns (values value found-p)."
             :focused-border "#7aa2f7"
             :unfocused-border "#404040")
     :launcher (:background "#23142d"
+               :opacity 0.9
+               :icon-size 20
                :accent "#7aa2f7"
                :prompt-color "#8c64aa"
                :query-color "#dcc8f0"

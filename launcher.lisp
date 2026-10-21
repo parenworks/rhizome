@@ -78,13 +78,15 @@ entries like a freshly installed Variety)."
       (remove-duplicates xdg-dirs :test #'equal))))
 
 (defun launcher-parse-desktop-file (path)
-  "Parse a .desktop file, return (display-name . command) if it should be shown.
-Returns NIL for NoDisplay=true, Hidden=true, or Type != Application."
+  "Parse a .desktop file, return (name command icon) if it should
+be shown — icon is the Icon= spec (may be NIL). Returns NIL for
+NoDisplay=true, Hidden=true, or Type != Application."
   (handler-case
       (with-open-file (f path :direction :input :external-format :utf-8)
         (let ((in-desktop-entry nil)
               (name nil)
               (exec nil)
+              (icon nil)
               (no-display nil)
               (hidden nil)
               (entry-type nil)
@@ -101,6 +103,7 @@ Returns NIL for NoDisplay=true, Hidden=true, or Type != Application."
                  (cond
                    ((string-equal key "Name") (setf name value))
                    ((string-equal key "Exec") (setf exec value))
+                   ((string-equal key "Icon") (setf icon value))
                    ((string-equal key "NoDisplay") (setf no-display (string-equal value "true")))
                    ((string-equal key "Hidden") (setf hidden (string-equal value "true")))
                    ((string-equal key "Type") (setf entry-type value))
@@ -112,9 +115,10 @@ Returns NIL for NoDisplay=true, Hidden=true, or Type != Application."
             ;; Clean up Exec: remove field codes like %f, %u, %F, %U, etc.
             (let ((clean-exec (ppcre:regex-replace-all
                                 " %([fFuUickdDvVmM])" exec "")))
-              (cons name (if terminal
+              (list name (if terminal
                              (format nil "alacritty --command ~A" clean-exec)
-                             clean-exec))))))
+                             clean-exec)
+                    icon)))))
     (error (e)
       (declare (ignore e))
       nil)))
@@ -709,7 +713,7 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
       (setf *launcher-wl-buffer* (wl:wl-shm-pool.create-buffer
                                    *launcher-wl-pool* 0 width height
                                    (* width 4)  ; stride
-                                   :xrgb8888))  ; WL_SHM_FORMAT_XRGB8888
+                                   :argb8888))  ; premultiplied alpha
       t)))
 
 (defun launcher-copy-to-shm (buffer)
@@ -718,26 +722,86 @@ Sets up *launcher-shm-fd*, *launcher-shm-ptr*, *launcher-wl-pool*,
     (loop for i below (length buffer) do
       (setf (cffi:mem-aref *launcher-shm-ptr* :unsigned-char i) (aref buffer i)))))
 
+(defun launcher-surface-alpha ()
+  "The launcher surface's alpha byte ((:launcher :opacity 1.0 =
+opaque). The buffer is premultiplied ARGB — callers scale colors
+by this."
+  (round (* 255 (min 1.0 (max 0.0
+            (config-getf '(:launcher) :opacity :default 0.9))))))
+
 (defun launcher-set-pixel (ptr width px py b g r a)
-  "Set pixel at (px, py) in the shm buffer to BGRA."
-  (let ((offset (* (+ (* py width) px) 4)))
-    (setf (cffi:mem-aref ptr :unsigned-char offset) b
-          (cffi:mem-aref ptr :unsigned-char (1+ offset)) g
-          (cffi:mem-aref ptr :unsigned-char (+ offset 2)) r
+  "Set pixel at (PX, PY) to BGRA, premultiplying RGB by A (the
+buffer is premultiplied ARGB per the Wayland requirement)."
+  (let ((offset (* 4 (+ py (* width px)))))
+    (setf (cffi:mem-aref ptr :unsigned-char offset)
+            (round (* b a) 255)
+          (cffi:mem-aref ptr :unsigned-char (1+ offset))
+            (round (* g a) 255)
+          (cffi:mem-aref ptr :unsigned-char (+ offset 2))
+            (round (* r a) 255)
           (cffi:mem-aref ptr :unsigned-char (+ offset 3)) a)))
 
 (defun launcher-clear-shm (ptr width height b g r a)
-  "Fill the entire shm buffer with a solid BGRA color."
-  (let ((pixel (logior (ash a 24) (ash r 16) (ash g 8) b)))
+  "Fill the entire shm buffer with a solid, translucent-capable
+BGRA color (premultiplied: RGB scaled by A)."
+  (let ((pixel (logior (ash a 24)
+                       (ash (round (* r a) 255) 16)
+                       (ash (round (* g a) 255) 8)
+                       (round (* b a) 255))))
     (loop for i below (* width height) do
       (setf (cffi:mem-aref ptr :unsigned-int i) pixel))))
 
 (defun launcher-draw-text-shm (ptr width text x y r g b)
   "Draw TEXT at (X, Y) directly to shm with color (R, G, B).
 Delegates to the font module (TrueType or the 8x16 bitmap
-fallback)."
+fallback); the buffer is premultiplied ARGB, so the text color is
+scaled by the launcher's surface alpha down in the font module."
   (font-ensure-initialized)
-  (font-draw-text ptr width *launcher-height* text x y r g b))
+  (font-draw-text ptr width *launcher-height* text x y r g b
+                  :alpha (launcher-surface-alpha)))
+
+(defun launcher-icon-size ()
+  "The launcher's rendered icon size ((:launcher :icon-size))."
+  (config-getf '(:launcher) :icon-size :default 20))
+
+(defun launcher-icon-spacing ()
+  "Pixels between an entry's icon and its text."
+  8)
+
+(defun launcher-draw-icon (ptr width height spec x y)
+  "Draw SPEC's icon (name or path) at (X, Y), alpha-blended into
+the premultiplied launcher surface, vertically centered on the
+row. Reuses the bar's icon discovery/scaling (bar.lisp)."
+  (let* ((size (launcher-icon-size))
+         (icon (load-icon spec :size size)))
+    (when icon
+      (destructuring-bind (iw ih idata) icon
+        (declare (ignore iw))
+        (let ((sa (launcher-surface-alpha)))
+          (loop for iy below ih
+                for py = (+ y iy)
+                while (< py height) do
+            (loop for ix below size
+                  for px = (+ x ix)
+                  while (< px width) do
+              (let* ((sidx (+ (* iy size) (* 4 ix)))
+                     (a (row-major-aref idata (+ sidx 3))))
+                (when (plusp a)
+                  (let ((offset (* 4 (+ py (* width px)))))
+                    (flet ((over (idx c)
+                             (let ((bg (cffi:mem-aref
+                                         ptr :unsigned-char
+                                         (+ offset idx)))
+                                   (fgp (round (* c a sa) 255)))
+                               (setf (cffi:mem-aref
+                                       ptr :unsigned-char (+ offset idx))
+                                     (round (+ (* bg (- 255 a))
+                                               (* fgp 255))
+                                            255)))))
+                      ;; straight RGBA over premultiplied bg
+                      (over 0 (row-major-aref idata (+ sidx 2)))
+                      (over 1 (row-major-aref idata (+ sidx 1)))
+                      (over 2 (row-major-aref idata sidx)))))))))))))
 
 (defun launcher-color (key)
   "A launcher surface color as (values r g b), from (:launcher KEY)."
@@ -763,7 +827,7 @@ through the font module (see font.lisp)."
       (return-from launcher-render-to-shm))
     (font-ensure-initialized)
     (multiple-value-bind (br bg bb) (launcher-color :background)
-      (launcher-clear-shm ptr width height br bg bb 255)
+      (launcher-clear-shm ptr width height br bg bb (launcher-surface-alpha))
       (multiple-value-bind (pr pg pb) (launcher-color :prompt-color)
         (multiple-value-bind (qr qg qb) (launcher-color :query-color)
           (multiple-value-bind (cr cg cb) (launcher-color :cursor-color)
@@ -786,7 +850,7 @@ through the font module (see font.lisp)."
                   (loop for dx below 8
                         for px = (+ cursor-x dx)
                         while (< px width) do
-                    (launcher-set-pixel ptr width px py cr cg cb 255))))
+                    (launcher-set-pixel ptr width px py cr cg cb (launcher-surface-alpha)))))
               ;; Draw filtered entries (scrolled)
               (multiple-value-bind (selr selg selb)
                   (launcher-color :selection-background)
@@ -805,7 +869,7 @@ through the font module (see font.lisp)."
                             (loop for dx below (- width (* 2 *launcher-padding*))
                                   for px = (+ *launcher-padding* dx)
                                   while (< px width) do
-                              (launcher-set-pixel ptr width px py selr selg selb 255)))
+                              (launcher-set-pixel ptr width px py selr selg selb (launcher-surface-alpha))))
                           ;; Accent edge: a 3px marker strip on the
                           ;; selected row, the launcher's underline.
                           (multiple-value-bind (acr acg acb)
@@ -817,16 +881,28 @@ through the font module (see font.lisp)."
                                     for px = (+ *launcher-padding* dx)
                                     while (< px width) do
                                 (launcher-set-pixel ptr width px py
-                                                     acr acg acb 255)))))
-                        ;; Draw entry text, centered in the row
+                                                     acr acg acb
+                                                     (launcher-surface-alpha)))))
+                        ;; Draw entry text, centered in the row, past
+                        ;; the entry's icon (aligned even when an
+                        ;; entry has no icon)
                         (multiple-value-bind (tr tg tb)
                             (if (= i *launcher-selection*)
                                 (values str stg stb)
                                 (values etr etg etb))
-                          (launcher-draw-text-shm ptr width (car entry)
-                                                  *launcher-padding*
-                                                  (+ y 4)
-                                                  tr tg tb))))))))))))))
+                          (launcher-draw-icon
+                            ptr width height (third entry)
+                            *launcher-padding*
+                            (+ y (floor (- *launcher-line-height*
+                                           (launcher-icon-size))
+                                        2)))
+                          (launcher-draw-text-shm
+                            ptr width (car entry)
+                            (+ *launcher-padding*
+                               (launcher-icon-size)
+                               (launcher-icon-spacing))
+                            (+ y 4)
+                            tr tg tb)))))))))))))))
 
 (defun launcher-destroy-shm ()
   "Destroy the shared memory resources."
@@ -976,8 +1052,8 @@ Returns T if the key was consumed, NIL if not."
     ((= keysym 65293)
      (let ((entry (nth *launcher-selection* *launcher-entries*)))
        (when entry
-         (format t "~&; Rhizome: launching ~A~%" (cdr entry))
-         (uiop:launch-program (list "bash" "-c" (cdr entry))))
+         (format t "~&; Rhizome: launching ~A~%" (second entry))
+         (uiop:launch-program (list "bash" "-c" (second entry))))
        (hide-launcher))
      (launcher-redraw)
      t)

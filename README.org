@@ -549,11 +549,11 @@ focused title) to the bar via an atomic snapshot file,
 Each workspace has its own TYPE and its own LAYOUT:
 
 #+begin_src lisp
-;; Type: :tile (frame trees, the default) or :float — StumpWM's
-;; floating group: every window on it floats, new ones auto-float
-(rhizome-cmd set-workspace-mode float 4)     ; or from the REPL:
-(rhizome:set-workspace-mode :float 4)
-(rhizome:configure '(:workspaces (:modes (2 :float 5 :float))))
+;; Type: :tile (frame trees, the default), :floating — StumpWM's
+;; floating group: every window on it floats, arrivals cascade —
+;; or :scroll (the ribbon). C-t l cycles tile→scroll→floating;
+;; rhizome-cmd set-workspace-type <type> [N]; config:
+(rhizome:configure '(:workspaces (:types (2 :floating 5 :floating))))
 
 ;; Layout: per-workspace now — switching layouts on one workspace
 ;; no longer clobbers the rest; unconfigured ones fall back to
@@ -561,9 +561,8 @@ Each workspace has its own TYPE and its own LAYOUT:
 (rhizome:switch-layout out :even)           ; this workspace only
 #+end_src
 
-The scroll ribbon (C-t v) remains per-workspace, and rhizome's
-tiling is the dynamic (dwm-style) type by construction: new windows
-auto-insert into the frame tree without frame surgery.
+Rhizome's tiling is the dynamic (dwm-style) type by construction:
+new windows auto-insert into the frame tree without frame surgery.
 
 ** Status bar
 
@@ -990,14 +989,15 @@ manual, 180 commands). Where rhizome stands:
       scope to C-t, where C-t h b lists them. IPC: enable-minor-mode
       / disable-minor-mode <name>
 - [X] Multiple workspace types: workspaces are no longer uniform.
-      Each has its own TYPE (:tile frame trees, the default, or
-      :float — StumpWM's floating group, where every window floats
-      and new ones auto-float: rhizome-cmd set-workspace-mode
-      float [N], config (:workspaces (:modes (2 :float)))) and
-      its own LAYOUT name — switch-layout now stores per-workspace
-      (the frame trees and scroll ribbons always were), falling
-      back to (:workspaces :default-layout). Rhizome's tiling is
-      the dynamic (dwm-style) type by construction: new windows
+      Each has its own TYPE — :tile frame trees (the default),
+      :floating (StumpWM's floating group, where every window
+      floats and arrivals cascade), or :scroll (the ribbon) —
+      via set-workspace-type / cycle-workspace-type (C-t l) and
+      config (:workspaces (:types (2 :floating))); and its own
+      LAYOUT name — switch-layout stores per-workspace (the frame
+      trees and scroll ribbons always were), falling back to
+      (:workspaces :default-layout). Rhizome's tiling is the
+      dynamic (dwm-style) type by construction: new windows
       auto-insert without frame surgery.
 - [X] Expose-style window overview (C-t Return): every window on the
       workspace — including ones hidden in monocle frames — floats

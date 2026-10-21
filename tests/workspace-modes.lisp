@@ -29,39 +29,41 @@
     (let ((out (make-instance 'rhizome-output :proxy :modes-out
                               :width 1920 :height 1080))
           (*workspace-layouts* (make-hash-table :test 'equal))
-          (*workspace-modes* (make-hash-table :test 'equal)))
+          (*workspace-types* (make-hash-table :test 'equal))
+          (*output-workspace* (make-hash-table)))
       (setf (gethash out *output-workspace*) 1
             (output-current-layout out) :master-stack)
 
-      ;; --- mode accessor: defaults ---
+      ;; --- group type accessor: defaults ---
 
-      (ok "workspace mode defaults to :tile"
-          (workspace-mode out 3) :tile)
+      (ok "workspace type defaults to :tile"
+          (workspace-type out 3) :tile)
       (ok "workspace layout falls back to the configured default"
           (workspace-layout out 3) :master-stack)
 
-      ;; --- config-declared float modes ---
+      ;; --- config-declared group types ---
 
-      (let ((*config* '(:workspaces (:modes (2 :float 5 :float)))))
-        (ok "config declares workspace 2 as :float"
-            (workspace-mode out 2) :float)
-        (ok "config-declared mode for workspace 5"
-            (workspace-mode out 5) :float)
+      (let ((*config* '(:workspaces (:types (2 :floating 5 :floating)))))
+        (ok "config declares workspace 2 as :floating"
+            (workspace-type out 2) :floating)
+        (ok "config-declared type for workspace 5"
+            (workspace-type out 5) :floating)
         (ok "undeclared workspaces stay :tile"
-            (workspace-mode out 3) :tile))
-      (ok "hash modes win over config"
-          (let ((*config* '(:workspaces (:modes (2 :float)))))
-            (setf (workspace-mode out 2) :tile)
-            (prog1 (workspace-mode out 2)
-              (setf (workspace-mode out 2) :float)))
-          :tile)
+            (workspace-type out 3) :tile))
+      (ok "hash types win over config"
+          (let ((*config* '(:workspaces (:types (2 :floating)))))
+            (setf (gethash (frame-key out 2) *workspace-types*) :floating)
+            (let ((result (workspace-type out 2)))
+              (remhash (frame-key out 2) *workspace-types*)
+              result))
+          :floating)
 
-      ;; --- set-workspace-mode sweeps windows ---
+      ;; --- set-workspace-type sweeps windows ---
 
-      (let ((win1 (make-instance 'rhizome-window :proxy :mode-w1))
-            (win2 (make-instance 'rhizome-window :proxy :mode-w2)))
-        (setf (gethash :mode-w1 *windows*) win1
-              (gethash :mode-w2 *windows*) win2
+      (let ((win1 (make-instance 'rhizome-window :proxy :type-w1))
+            (win2 (make-instance 'rhizome-window :proxy :type-w2)))
+        (setf (gethash :type-w1 *windows*) win1
+              (gethash :type-w2 *windows*) win2
               (window-output win1) out
               (window-output win2) out
               (window-x win1) 10 (window-y win1) 10
@@ -71,18 +73,18 @@
         (assign-window-workspace win1 4)
         (assign-window-workspace win2 4)
         (setf dirty 0)
-        (set-workspace-mode :float 4 out)
-        (ok "float mode floats every window on the workspace"
+        (set-workspace-type out 4 :floating)
+        (ok "floating type floats every window on the workspace"
             (list (window-floating-p win1) (window-floating-p win2))
             '(t t))
-        (ok "tile mode returns them to the grid"
-            (progn (set-workspace-mode :tile 4 out)
+        (ok "tile type returns them to the grid"
+            (progn (set-workspace-type out 4 :tile)
                    (list (window-floating-p win1)
                          (window-floating-p win2)))
             '(nil nil))
-        (ok "mode changes request relayout"
+        (ok "type changes request relayout"
             (> (dirty-calls) 0) t)
-        (set-workspace-mode :tile 4 out))
+        (set-workspace-type out 4 :tile)))
 
       ;; --- per-workspace layouts ---
 

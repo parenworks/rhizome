@@ -426,21 +426,22 @@ nearest-neighbor. Returns (width height data)."
                                      (row-major-aref source-data (+ sidx c))))))
     (list target-size target-size out)))
 
-(defun load-icon (spec)
-  "SPEC's icon, decoded and scaled to the bar size; cached. NIL if
-the icon cannot be found or decoded."
-  (or (gethash spec *bar-icon-cache*)
+(defun load-icon (spec &key (size *bar-icon-size*))
+  "SPEC's icon, decoded and scaled to SIZE px; cached. NIL if the
+icon cannot be found or decoded."
+  (or (gethash (cons spec size) *bar-icon-cache*)
       (let ((file (find-icon-file spec)))
         (when file
-          (setf (gethash spec *bar-icon-cache*)
+          (setf (gethash (cons spec size) *bar-icon-cache*)
                 (handler-case
                     (let ((png (pngload:load-file file :flatten t)))
                       (scale-icon (pngload:width png)
                                   (pngload:height png)
                                   (pngload:data png)
-                                  *bar-icon-size*))
+                                  size))
                   (error ()
-                    (setf (gethash spec *bar-icon-cache*) nil))))))))
+                    (setf (gethash (cons spec size) *bar-icon-cache*)
+                          nil))))))))
 
 (defun bar-draw-icons (ptr width height x y module base-r base-g base-b)
   "Draw an icons module's entries at (X, Y); one hitbox per entry so
@@ -478,25 +479,45 @@ the existing click/scroll chain runs each entry's :on-click /
 ;;; --- Rendering ---
 
 (defun bar-set-pixel (ptr width px py r g b)
-  "Set pixel at (PX, PY) to RGB color (BGRA layout in the buffer)."
-  (let ((offset (* (+ (* py width) px) 4)))
-    (setf (cffi:mem-aref ptr :unsigned-char offset) b
-          (cffi:mem-aref ptr :unsigned-char (1+ offset)) g
-          (cffi:mem-aref ptr :unsigned-char (+ offset 2)) r
-          (cffi:mem-aref ptr :unsigned-char (+ offset 3)) 255)))
+  "Set pixel at (PX, PY) to RGB color (BGRA layout in the buffer),
+premultiplied by the surface alpha (ARGB buffers)."
+  (let* ((a (bar-surface-alpha))
+         (offset (* (+ (* py width) px) 4)))
+    (setf (cffi:mem-aref ptr :unsigned-char offset)
+            (round (* b a) 255)
+          (cffi:mem-aref ptr :unsigned-char (1+ offset))
+            (round (* g a) 255)
+          (cffi:mem-aref ptr :unsigned-char (+ offset 2))
+            (round (* r a) 255)
+          (cffi:mem-aref ptr :unsigned-char (+ offset 3)) a)))
+
+(defun bar-surface-alpha ()
+  "The bar/message/prompt surfaces' alpha byte. (:bar :opacity
+1.0) = opaque; the buffers are ARGB8888, which Wayland requires
+PREMULTIPLIED — every writer premultiplies by this."
+  (round (* 255 (min 1.0 (max 0.0
+            (config-getf '(:bar) :opacity :default 0.9))))))
 
 (defun bar-clear (ptr width height r g b)
-  "Fill the bar buffer with a solid color."
-  (let ((pixel (logior (ash 255 24) (ash r 16) (ash g 8) b)))
+  "Fill the bar buffer with a solid, translucent-capable color
+(premultiplied ARGB)."
+  (let* ((a (bar-surface-alpha))
+         (pixel (logior (ash a 24)
+                        (ash (round (* r a) 255) 16)
+                        (ash (round (* g a) 255) 8)
+                        (round (* b a) 255))))
     (loop for i below (* width height) do
       (setf (cffi:mem-aref ptr :unsigned-int i) pixel))))
 
 (defun bar-draw-text (ptr width height text x y r g b)
   "Draw TEXT at (X, Y) — the top of the text box — in RGB color.
 Delegates to the font module: TrueType via freetype when available,
-the 8x16 bitmap font otherwise (identical legacy metrics)."
+the 8x16 bitmap font otherwise (identical legacy metrics). The
+buffer is premultiplied ARGB, so the color is scaled by the
+surface alpha down in the font module."
   (font-ensure-initialized)
-  (font-draw-text ptr width height text x y r g b))
+  (font-draw-text ptr width height text x y r g b
+                  :alpha (bar-surface-alpha)))
 
 (defun bar-text-width (text)
   (font-text-width text))
@@ -653,7 +674,8 @@ font.lisp's *font-lock*).")
             (wl:wl-shm.create-pool (gethash :shm state) fd size))
       (setf (gethash :wl-buffer state)
             (wl:wl-shm-pool.create-buffer
-              (gethash :wl-pool state) 0 width height (* width 4) :xrgb8888))
+              (gethash :wl-pool state) 0 width height (* width 4)
+              :argb8888))                    ; premultiplied alpha
       t)))
 
 ;;; --- Connection lifecycle ---

@@ -155,6 +155,19 @@ frame, extras onto the last). The layout belongs to the WORKSPACE
 
 ;;; --- Manage/render sequence integration ---
 
+(defun gaps-inner ()
+  "The configured window gap: (:gaps :inner) pixels around each
+tiled window (Hyprland-style breathing room; 0 = flush)."
+  (max 0 (floor (config-getf '(:gaps) :inner :default 6))))
+
+(defun gaps-inset-rect (x y w h)
+  "The window rectangle inside a frame with the gap applied:
+(values x y width height). Never collapses below 1x1."
+  (let ((i (min (gaps-inner) (floor w 2) (floor h 2))))
+    (values (+ x i) (+ y i)
+            (max 1 (- w (* 2 i)))
+            (max 1 (- h (* 2 i))))))
+
 (defun apply-layout-for-output (output)
   "Manage-sequence pass for OUTPUT: stamp new windows onto this
 output/workspace, let the frame tree propose dimensions, and let
@@ -180,10 +193,11 @@ floats manage themselves."
     (dolist (win wins)
       (setf (window-output win) output)
       (assign-window-workspace win workspace))
-    ;; Float-mode workspaces (StumpWM's floating group type) never
-    ;; tile: new and returning windows float. Converges — already
-    ;; floating windows are skipped on the next pass.
-    (when (eq (workspace-mode output workspace) :float)
+    ;; Floating-type workspaces (StumpWM's floating group) never
+    ;; tile — not just new arrivals (groups.lisp's float-adopt
+    ;; handles those) but windows MOVED here while framed. Converges:
+    ;; already floating windows are skipped on the next pass.
+    (when (floating-workspace-p output workspace)
       (dolist (win wins)
         (unless (window-floating-p win)
           (float-window win))))

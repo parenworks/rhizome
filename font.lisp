@@ -363,24 +363,33 @@ characters count a generic advance."
 ;;; --- blitting ---
 
 (declaim (inline font-blend-pixel))
-(defun font-blend-pixel (ptr offset r g b a)
+(defun font-blend-pixel (ptr offset r g b a surface-alpha)
   "Alpha-blend the BGRA pixel at byte OFFSET in PTR:
-out = bg + (fg - bg) * a / 255. The alpha byte is left alone (the
-buffers are always opaque)."
-  (flet ((blend (idx fg)
-           (let ((bg (cffi:mem-aref ptr :unsigned-char (+ offset idx))))
-             (setf (cffi:mem-aref ptr :unsigned-char (+ offset idx))
-                   (round (+ (* bg 255) (* (- fg bg) a)) 255)))))
-    (blend 0 b)                          ; B
-    (blend 1 g)                          ; G
-    (blend 2 r)))                        ; R
+out = bg + (fg - bg) * a / 255. The buffer is premultiplied ARGB
+(the Wayland requirement), so the foreground is scaled by
+SURFACE-ALPHA before the blend — compositing is linear in
+premultiplied space. The alpha byte is left alone (the surfaces
+carry one uniform alpha)."
+  (let ((sa surface-alpha))
+    (flet ((blend (idx fg)
+             (let ((bg (cffi:mem-aref ptr :unsigned-char (+ offset idx)))
+                   (fgp (round (* fg sa) 255)))
+               (setf (cffi:mem-aref ptr :unsigned-char (+ offset idx))
+                     (round (+ (* bg 255) (* (- fgp bg) a)) 255)))))
+      (blend 0 b)                          ; B
+      (blend 1 g)                          ; G
+      (blend 2 r))))                       ; R
 
-(defun font-draw-text (ptr width height text x y r g b)
+(defun font-draw-text (ptr width height text x y r g b
+                       &key (alpha 255))
   "Draw TEXT into the BGRA buffer PTR at (X, Y) in color (R G B).
 
 Y is the TOP of the text box in both modes (the legacy bitmap
 semantics every caller already uses); the TrueType path converts
-to a baseline internally. Text is clipped at the buffer edges."
+to a baseline internally. Text is clipped at the buffer edges.
+ALPHA is the surface alpha (the buffers are premultiplied ARGB):
+255 renders opaque, lower values scale the text color to match a
+translucent surface."
   (if *ft-face*
       (let ((baseline (+ y (font-ascent))))
         (loop with cx = x
@@ -407,7 +416,7 @@ to a baseline internally. Text is clipped at the buffer edges."
                                      (when (plusp a)
                                        (font-blend-pixel
                                          ptr (* 4 (+ (* py width) px))
-                                         r g b a))))))))))
+                                         r g b a alpha))))))))))
                    ;; Spaces advance even though they draw nothing;
                    ;; unmappable characters get a generic fallback.
                    (incf cx (if glyph
@@ -433,7 +442,11 @@ to a baseline internally. Text is clipped at the buffer edges."
                       while (< px width) do
                   (when (logbitp (- 7 col) bits)
                     (let ((offset (* 4 (+ (* py width) px))))
-                      (setf (cffi:mem-aref ptr :unsigned-char offset) b
-                            (cffi:mem-aref ptr :unsigned-char (+ offset 1)) g
-                            (cffi:mem-aref ptr :unsigned-char (+ offset 2)) r
-                            (cffi:mem-aref ptr :unsigned-char (+ offset 3)) 255)))))))))))
+                      (setf (cffi:mem-aref ptr :unsigned-char offset)
+                              (round (* b alpha) 255)
+                            (cffi:mem-aref ptr :unsigned-char (+ offset 1))
+                              (round (* g alpha) 255)
+                            (cffi:mem-aref ptr :unsigned-char (+ offset 2))
+                              (round (* r alpha) 255)
+                            (cffi:mem-aref ptr :unsigned-char (+ offset 3))
+                              alpha)))))))))))

@@ -31,7 +31,8 @@
 ;;; :clock, :battery, :volume, :network, :tray, and (:icons (...))
 ;;; blocks with PNG app icons and click actions.
 
-(configure '(:bar (:height 20                 ; px; match :font-size + headroom
+(configure '(:bar (:opacity 0.9                 ; translucent surfaces
+                  :height 20                 ; px; match :font-size + headroom
                   :padding 6                  ; px at the segment edges
                   :background "#1a1b26"
                   :foreground "#c0caf5"
@@ -44,16 +45,24 @@
 ;;; --- Workspaces ------------------------------------------------------
 ;;;
 ;;; Each workspace has its own TYPE and LAYOUT. Types:
-;;;   :tile  — frame trees (the default)
-;;;   :float — StumpWM's floating group: every window floats and
-;;;            new ones auto-float (rhizome-cmd set-workspace-mode
-;;;            float 4 toggles it live)
+;;;   :tile     — frame trees (the default)
+;;;   :floating — StumpWM's floating group: every window floats,
+;;;               arrivals cascade (C-t l cycles live, or
+;;;               rhizome-cmd set-workspace-type <type> [N])
+;;;   :scroll   — the ribbon
 
-(configure '(:workspaces (:modes nil
-                         ;; (2 :float 5 :float)
+(configure '(:workspaces (:types nil
+                         ;; (2 :floating 5 :scroll)
                          :default-layout :master-stack)))
                          ;; the layout untouched workspaces use;
                          ;; switch-layout stores per-workspace
+
+;;; --- Gaps ------------------------------------------------------------
+;;;
+;;; Breathing room around each tiled window: adjacent windows show
+;;; twice this between them, screen edges once. 0 = flush tiling.
+
+(configure '(:gaps (:inner 6)))              ; default
 
 ;;; Breathing room between workspace numbers (px).
 (configure '(:bar (:workspaces (:gap 8))))    ; default
@@ -85,9 +94,13 @@
 ;;; --- App launcher (MOD+D) --------------------------------------------
 ;;;
 ;;; Every surface color is configurable; the selected row also gets
-;;; a 3px accent edge (the launcher's underline).
+;;; a 3px accent edge (the launcher's underline). Entries render
+;;; their .desktop icons; surfaces are translucent (premultiplied
+;;; ARGB).
 
 (configure '(:launcher (:background "#23142d"    ; deep purple
+                       :opacity 0.9
+                       :icon-size 20
                        :accent "#7aa2f7"          ; selected-row edge
                        :prompt-color "#8c64aa"    ; "Run: " label
                        :query-color "#dcc8f0"     ; typed text

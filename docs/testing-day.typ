@@ -401,14 +401,27 @@ Exercise expose, splits, and workspace switches while the video plays.
   — the bar must come back and identified windows must land on
   their remembered workspaces. This is river's headline feature;
   if it works, everything above it works.
-- *Workspace types:* `rhizome-cmd set-workspace-mode float 4` —
+- *Workspace types:* `rhizome-cmd set-workspace-type floating 4` —
   every window on workspace 4 must float immediately; opening new
-  windows there must float them too. `set-workspace-mode tile 4`
+  windows there must float them too. `set-workspace-type tile 4`
   must return them all to the grid. Per-workspace layouts: MOD+Space
   to :even on workspace 1, switch to workspace 2 — it must still
   show its own layout; switch back — :even must be waiting. A
-  restart of the WM must remember both (config-declared modes via
-  (:workspaces (:modes ...)) and layouts per-workspace in-session).
+  restart of the WM must remember both (config-declared types via
+  (:workspaces (:types ...)) and layouts per-workspace in-session).
+- *Gaps:* tiled windows must show breathing room ((:gaps :inner 6),
+  default): twice the gap between adjacent windows, once at screen
+  edges, none around floats. Set (:gaps (:inner 0)) and confirm the
+  classic flush tiling returns on the next manage pass.
+- *Translucency:* the bar, launcher (MOD+D), message window (C-t m)
+  and prompts (MOD+W) must render translucent ((:bar :opacity 0.9)
+  and (:launcher :opacity 0.9), default) with correctly-weighted
+  text — no washed-out colors (the buffers are premultiplied
+  ARGB). Set (:bar (:opacity 1.0)) live and confirm surfaces go
+  opaque without a restart (next redraw).
+- *Launcher icons:* every entry must show its .desktop icon left of
+  the text, vertically centered, with text aligned across iconless
+  entries. (:launcher :icon-size 20) scales them.
 
 = Appendix A: capture guide (how to report a failure)
 

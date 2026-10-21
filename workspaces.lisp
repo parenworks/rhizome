@@ -20,11 +20,6 @@ even, monocle). Per-workspace: switching layouts no longer
 clobbers every workspace on the output. DEFVAR: reloading must
 not forget layouts.")
 
-(defparameter *workspace-modes* (make-hash-table :test 'equal)
-  "Frame-key → the workspace's TYPE: :tile (frame trees, the
-default) or :float (every window floats — StumpWM's floating
-group). DEFVAR: reloading must not forget modes.")
-
 (defvar *output-workspace* (make-hash-table)
   "Maps outputs to their current workspace index (1..*workspace-count*).")
 
@@ -61,35 +56,6 @@ every unconfigured one."
 (defun (setf workspace-layout) (layout output workspace)
   (setf (gethash (frame-key output workspace) *workspace-layouts*)
         layout))
-
-(defun workspace-mode (output workspace)
-  "The workspace's TYPE: :tile (frame trees, the default) or
-:float (StumpWM's floating group). Config defaults via
-(:workspaces (:modes (2 :float 5 :float)))."
-  (or (gethash (frame-key output workspace) *workspace-modes*)
-      (let ((modes (config-getf '(:workspaces) :modes)))
-        (getf modes workspace))
-      :tile))
-
-(defun (setf workspace-mode) (mode output workspace)
-  (setf (gethash (frame-key output workspace) *workspace-modes*) mode))
-
-(defun set-workspace-mode (mode &optional (workspace nil) (output nil))
-  "Set a workspace's TYPE (:tile or :float) and sweep immediately:
-float mode floats every window on it, tile mode returns them to
-the grid. IPC: rhizome-cmd set-workspace-mode float [N]."
-  (setf output (or output (first (all-outputs)))
-        workspace (or workspace
-                      (and output (current-workspace output))))
-  (unless (and output workspace (<= 1 workspace *workspace-count*))
-    (return-from set-workspace-mode))
-  (setf (workspace-mode output workspace) mode)
-  (dolist (win (windows-on-workspace output workspace))
-    (case mode
-      (:float (unless (window-floating-p win) (float-window win)))
-      (:tile (when (window-floating-p win) (unfloat-window win)))))
-  (message "workspace ~A: ~A mode" workspace mode)
-  (request-manage-dirty))
 
 (defun window-minimized-p (win)
   "Whether WIN was minimized by the user."
