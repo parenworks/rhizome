@@ -411,19 +411,26 @@ in the standard theme directories (PNG only)."
 
 (defun scale-icon (source-w source-h source-data target-size)
   "Scale decoded RGBA data to TARGET-SIZE x TARGET-SIZE,
-nearest-neighbor. Returns (width height data)."
+nearest-neighbor. Returns (width height data). Handles any source
+bit depth — some .desktop icons are 16-bit PNGs, whose samples
+exceed 255; those shift down to 8 bits."
   (let ((out (make-array (* target-size target-size 4)
                          :element-type '(unsigned-byte 8)
                          :initial-element 0)))
-    (loop for ty below target-size
-          for sy = (floor (* ty source-h) target-size)
-          do (loop for tx below target-size
-                   for sx = (floor (* tx source-w) target-size)
-                   for sidx = (* (+ (* sy source-w) sx) 4)
-                   for tidx = (* (+ (* ty target-size) tx) 4)
-                   do (loop for c below 4
-                            do (setf (aref out (+ tidx c))
-                                     (row-major-aref source-data (+ sidx c))))))
+    (flet ((sample (idx)
+             (let ((v (row-major-aref source-data idx)))
+               (if (> v 255)
+                   (ash v -8)             ; 16-bit PNG: shift to 8-bit
+                   v))))
+      (loop for ty below target-size
+            for sy = (floor (* ty source-h) target-size)
+            do (loop for tx below target-size
+                     for sx = (floor (* tx source-w) target-size)
+                     for sidx = (* (+ (* sy source-w) sx) 4)
+                     for tidx = (* (+ (* ty target-size) tx) 4)
+                     do (loop for c below 4
+                              do (setf (aref out (+ tidx c))
+                                       (sample (+ sidx c)))))))
     (list target-size target-size out)))
 
 (defun load-icon (spec &key (size *bar-icon-size*))

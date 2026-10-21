@@ -732,7 +732,7 @@ by this."
 (defun launcher-set-pixel (ptr width px py b g r a)
   "Set pixel at (PX, PY) to BGRA, premultiplying RGB by A (the
 buffer is premultiplied ARGB per the Wayland requirement)."
-  (let ((offset (* 4 (+ py (* width px)))))
+  (let ((offset (* 4 (+ (* py width) px))))
     (setf (cffi:mem-aref ptr :unsigned-char offset)
             (round (* b a) 255)
           (cffi:mem-aref ptr :unsigned-char (1+ offset))
@@ -784,20 +784,27 @@ row. Reuses the bar's icon discovery/scaling (bar.lisp)."
             (loop for ix below size
                   for px = (+ x ix)
                   while (< px width) do
-              (let* ((sidx (+ (* iy size) (* 4 ix)))
+              (let* ((sidx (* 4 (+ (* iy size) ix)))
                      (a (row-major-aref idata (+ sidx 3))))
                 (when (plusp a)
-                  (let ((offset (* 4 (+ py (* width px)))))
+                  (let ((offset (* 4 (+ (* py width) px))))
                     (flet ((over (idx c)
+                             ;; straight RGBA icon over the premultiplied
+                             ;; surface: the fg scales by BOTH alphas
+                             ;; (icon edge + surface) — divide by 255
+                             ;; twice; a single division let values past
+                             ;; 255 and type-errored the byte store
                              (let ((bg (cffi:mem-aref
                                          ptr :unsigned-char
                                          (+ offset idx)))
-                                   (fgp (round (* c a sa) 255)))
+                                   (fgp (round (* c a sa) 65025)))
                                (setf (cffi:mem-aref
                                        ptr :unsigned-char (+ offset idx))
-                                     (round (+ (* bg (- 255 a))
-                                               (* fgp 255))
-                                            255)))))
+                                     (min 255
+                                          (max 0
+                                               (round (+ (* bg (- 255 a))
+                                                         (* fgp 255))
+                                                      255)))))))
                       ;; straight RGBA over premultiplied bg
                       (over 0 (row-major-aref idata (+ sidx 2)))
                       (over 1 (row-major-aref idata (+ sidx 1)))
@@ -882,7 +889,7 @@ through the font module (see font.lisp)."
                                     while (< px width) do
                                 (launcher-set-pixel ptr width px py
                                                      acr acg acb
-                                                     (launcher-surface-alpha)))))
+                                                     (launcher-surface-alpha))))))
                         ;; Draw entry text, centered in the row, past
                         ;; the entry's icon (aligned even when an
                         ;; entry has no icon)
@@ -902,7 +909,7 @@ through the font module (see font.lisp)."
                                (launcher-icon-size)
                                (launcher-icon-spacing))
                             (+ y 4)
-                            tr tg tb)))))))))))))))
+                            tr tg tb))))))))))))))
 
 (defun launcher-destroy-shm ()
   "Destroy the shared memory resources."

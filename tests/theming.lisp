@@ -250,6 +250,24 @@
             t)
         (cffi:foreign-free buf)))
 
-    (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
+      ;; --- launcher pixel writes stay in bounds ---
+    ;; The transposed-offset regression: (+ py (* width px)) instead
+    ;; of (+ (* py width) px) wrote past the buffer for px > ~7 and
+    ;; SIGSEGVed the launcher render. A draw at (99,10) in a
+    ;; 100x50 buffer must land at byte 4396 — or fault the process.
+    (let* ((w 100) (h 50)
+           (buf (cffi:foreign-alloc :unsigned-char :count (* w h 4))))
+      (dotimes (i (* w h 4))
+        (setf (cffi:mem-aref buf :unsigned-char i) 0))
+      (launcher-set-pixel buf w 99 10 255 255 255 255)
+      (ok "launcher-set-pixel writes the correct pixel"
+          (cffi:mem-aref buf :unsigned-char 4396) 255)
+      (ok "launcher-set-pixel touches only its pixel"
+          (loop for i below (* w h 4)
+                count (plusp (cffi:mem-aref buf :unsigned-char i)))
+          4)
+      (cffi:foreign-free buf))
+
+  (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
     (when (plusp fail)
       (uiop:quit 1))))
