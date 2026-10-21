@@ -7,9 +7,9 @@
 ;;; Or as a script:
 ;;;   ./rhizome.lisp
 ;;;
-;;; Configure river to send commands:
-;;;   riverctl send-layout-cmd rhizome "switch-layout :even"
-;;;   riverctl send-layout-cmd rhizome "split-horizontal"
+;;; Send commands to a running WM via the IPC socket:
+;;;   rhizome-cmd switch-layout :even
+;;;   rhizome-cmd "(* 2 21)"        ; any Lisp form, evaluated live
 
 (in-package #:rhizome)
 

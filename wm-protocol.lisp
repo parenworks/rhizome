@@ -19,6 +19,9 @@
 
 (defvar *display* nil)
 (defvar *wm-proxy* nil)
+(defvar *wm-proxy-version* 0
+  "river_window_manager_v1 version river advertised at bind time.
+Gates versioned requests (exit_session needs >= 4).")
 (defvar *running* nil)
 (defvar *registry* nil
   "The wl_registry proxy, kept for binding new globals.")
@@ -118,7 +121,8 @@ One of :idle, :managing, :waiting-render, :rendering.")
          (format t "~&; Rhizome: interface ~A not found!~%" interface)
          (return-from handle-registry-global))
        (setf *wm-proxy*
-             (wl:wl-registry.bind registry name iface-class version))
+             (wl:wl-registry.bind registry name iface-class version)
+             *wm-proxy-version* version)
        (format t "~&; Rhizome: bound river_window_manager_v1 (version ~D)~%" version)
        (setup-wm-hooks *wm-proxy*)))
     ((string= interface "river_xkb_bindings_v1")

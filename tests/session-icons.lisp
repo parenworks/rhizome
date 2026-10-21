@@ -71,13 +71,24 @@
 
     ;; --- Logout ---
 
-    (setf spawned nil)
-    (logout-session)
-    (ok "logout tries riverctl then SIGTERMs river"
-        (and (search "riverctl" (third (first spawned)))
-             (search "pkill -TERM -x river" (third (first spawned)))
-             t)
-        t)
+    ;; exit_session needs a live compositor; test the dispatch only.
+    (let ((*wm-proxy* nil) (*wm-proxy-version* 0))
+      (ok "logout method falls back to SIGTERM without a v4+ compositor"
+          (logout-method) :sigterm))
+    (let ((*wm-proxy* t) (*wm-proxy-version* 4))
+      (ok "logout method uses exit_session on a v4 compositor"
+          (logout-method) :exit-session))
+    (let ((*wm-proxy* t) (*wm-proxy-version* 5))
+      (ok "logout method uses exit_session on a v5 compositor"
+          (logout-method) :exit-session))
+    (let ((*wm-proxy* nil) (*wm-proxy-version* 0))
+      (setf spawned nil)
+      (logout-session)
+      (ok "fallback logout SIGTERMs river (no river-classic riverctl)"
+          (and (search "pkill" (first (first spawned)))
+               (not (search "riverctl" (first (first spawned))))
+               t)
+          t))
     (setf *logout-armed-at* 0)
     (setf spawned nil)
     (logout-confirm)

@@ -43,6 +43,52 @@ This gives StumpWM-style live REPL control — you can redefine layouts, switch 
 - =wl_shm= — shared memory buffers for rendering
 - =wl_seat= — raw keyboard input for the launcher
 
+** Protocol coverage audit
+
+Audited against =protocol/river-window-management-v1.xml= (interface
+v5, river 0.5): every request/event and where rhizome stands. "vN"
+is the interface version that introduced the feature.
+
+*** Used as intended
+
+| Feature                                          | Where                                        |
+|--------------------------------------------------+----------------------------------------------|
+| manage/render sequence loop, =manage_dirty=      | wm-protocol.lisp (the core of everything)    |
+| =exit_session= (v4)                              | logout (MOD+Shift+E, rhizome-cmd logout)     |
+| =propose_dimensions=, =focus_window=, =clear_focus= | tiling, focus handling                    |
+| =fullscreen= / =exit_fullscreen= + =inform_*=    | C-t F11 toggle, client-requested fullscreen  |
+| =set_borders=, river decorations, =place_above/below= | borders, z-order, message window       |
+| =hide= / =show= (minimize), =minimize_requested= | minimized windows, expose filtering         |
+| =op_start_pointer= / =op_end= (seat)             | interactive float move/resize (MOD+drag)     |
+| =pointer bindings=, =xkb bindings=               | MOD+click grabs, all key bindings           |
+| river/zwlr layer shells                          | bar, message window, launcher, prompts       |
+| =input_management= + =libinput_config=           | touchpad/pointer config                      |
+| =session_locked= / =session_unlocked=            | logged; river paints the lock surface       |
+
+*** Not yet used (deliberate or roadmap)
+
+| Feature                          | v  | What it offers / candidate use                                  |
+|----------------------------------+----+------------------------------------------------------------------|
+| =stop= request                   | 1  | stop managing: the foundation of river's WM hot-swap; a detach   |
+|                                  |    | command could hand the session to another WM                     |
+| =maximize_requested=             | 1  | rhizome only re-manages; honor it as float-maximized to output   |
+| =set_clip_box= / content clip    | 2/3| clip windows during animations (expose sliding, bar overlap)     |
+| =unreliable_pid=                 | 2  | pid tracking fallback when the pid can't be trusted               |
+| =set_xcursor_theme= (seat)       | 2  | rhizome relies on XCURSOR_THEME env; per-seat request is finer    |
+| =pointer_warp= (seat)            | 3  | programmatic cursor moves (warp on workspace switch, focus warps)|
+| =identifier= (window)            | 4  | stable IDs across WM restarts — window-rules that survive       |
+|                                  |    | restarts, "reattach" semantics                                    |
+| =set_dimension_bounds=           | 4  | honor client min/max size hints during interactive resize        |
+| =presentation_hint= (window) /   | 4  | tearing/VRR: let apps request immediate presentation, set the    |
+| =set_presentation_mode= (output) |    | output mode per hint (default vsync)                             |
+| =show_window_menu_requested=     | 4  | CSD window menus (GTK menu button) — client-side menu support    |
+| =capture_sessions= (v5)          | 5  | active screencast awareness: bar could show a "recording"        |
+|                                  |    | indicator per window/output (grim/screencast portals)             |
+
+Screencasting today works through wlroots' =wlr-screencopy= via
+=grim= (screenshots) and anything using pipewire; =capture_sessions=
+is about *awareness* of those sessions, not capture itself.
+
 ** Key Wayflan quirks discovered
 
 - Bitfield enums expect keyword lists, not integers (e.g. =(:mod1)= for Alt, =(:keyboard)= for seat capabilities)
@@ -621,11 +667,15 @@ seconds of inactivity.
 
 MOD+Shift+E (or =rhizome-cmd logout=) ends the river session and
 returns to the display manager's greeter — press twice within three
-seconds to confirm. River 0.4.x ships no riverctl, so rhizome
-SIGTERMs the compositor, which triggers its clean shutdown path (the
-WM receives the finished event and exits with it). The session
-script then stops rhizome-session.target, releasing the systemd
-graphical session (piece 4) before the greeter returns.
+seconds to confirm. Logout goes through the protocol itself:
+=river_window_manager_v1.exit_session= (v4+), the compositor's own
+session-exit path — the XML says WMs "should only make this request
+if the user explicitly asks to exit the Wayland session", which is
+exactly what the double-press confirm guards. River sends the WM its
+finished event and both shut down cleanly. (Rivers bound below v4
+get SIGTERM — river's clean-shutdown signal — as a fallback.) The
+session script then stops rhizome-session.target, releasing the
+systemd graphical session (piece 4) before the greeter returns.
 
 * Floating windows
 

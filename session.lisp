@@ -10,9 +10,11 @@
 ;;;              :idle-seconds 600)))                  ; swayidle auto-lock
 ;;;
 ;;; Logout ends the river session and returns to the display
-;;; manager's greeter. River 0.4.x ships no riverctl, so rhizome
-;;; sends the compositor SIGTERM — river then sends the WM its
-;;; finished event and both shut down cleanly.
+;;; manager's greeter via river_window_manager_v1.exit_session
+;;; (protocol >= 4) — the compositor's own session-exit path:
+;;; river disconnects all clients, sends the WM its finished event,
+;;; and shuts down cleanly. Rivers bound below v4 fall back to
+;;; SIGTERM, which river treats as a clean shutdown request.
 
 (in-package #:rhizome)
 
@@ -52,18 +54,30 @@ of inactivity. Called at WM startup; config changes need a restart."
 (defparameter *logout-armed-at* 0
   "Universal time logout was last armed (logout-confirm).")
 
+(defun logout-method ()
+  "The logout mechanism available on this compositor:
+:exit-session (river_window_manager_v1 v4+) or :sigterm."
+  (if (and *wm-proxy* (>= *wm-proxy-version* 4))
+      :exit-session
+      :sigterm))
+
 (defun logout-session ()
   "End the river session: the display manager's greeter returns.
-Prefers riverctl exit (river < 0.4 ships it); river 0.4.x sends the
-compositor SIGTERM, which triggers its clean shutdown path (the WM
-receives the finished event and exits with it)."
+exit_session is the protocol's own way out (the XML: 'window
+managers should only make this request if the user explicitly asks
+to exit the Wayland session' — which is exactly what the
+logout-confirm double-press guards). Pre-v4 rivers get SIGTERM,
+river's clean shutdown signal; the WM exits on the finished event
+either way."
   (message "logging out")
-  (if (uiop:launch-program (list "bash" "-c"
-                                 "command -v riverctl >/dev/null \
-                                  && riverctl exit \
-                                  || pkill -TERM -x river"))
-      t
-      (progn (message "cannot find a way to log out") nil)))
+  (case (logout-method)
+    (:exit-session
+     (rwm:river-window-manager-v1.exit-session *wm-proxy*)
+     t)
+    (t
+     (if (uiop:launch-program (list "pkill" "-TERM" "-x" "river"))
+         t
+         (progn (message "cannot find a way to log out") nil)))))
 
 (defun logout-confirm ()
   "Log out only on a second press within 3 seconds."
