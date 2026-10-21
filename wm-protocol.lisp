@@ -46,6 +46,14 @@ Gates versioned requests (exit_session needs >= 4).")
 (defvar *wm-snapshot* '(:layout nil :windows 0 :focused nil)
   "Cached WM state for the bar thread, refreshed by update-wm-snapshot.")
 
+(defvar *wm-process-mode* nil
+  "T only in the window manager process (set by run). Guards bar
+process management: a test process loading rhizome and calling
+(rhizome:configure '(:bar (:enabled nil))) used to flow through
+apply-config into stop-bar's `pkill -f rhizome:run-bar` — silently
+killing the user's live bar on every test run. Only the WM process
+may start, stop, or reap bars.")
+
 (defun snapshot-pathname ()
   "Pathname of the WM snapshot file read by the bar process."
   (merge-pathnames #P".cache/rhizome/snapshot.sexp"
@@ -101,7 +109,13 @@ answered with another sequence — a self-sustaining churn."
                                   (pushnew ws occ))))
                             (sort occ #'<))
                 :focused (let ((focused (find-if #'window-focused-p (all-windows))))
-                           (when focused (window-title focused))))))
+                           (when focused (window-title focused)))
+                :recording (or (some (lambda (win)
+                                       (plusp (window-capture-sessions win)))
+                                     (all-windows))
+                               (some (lambda (out)
+                                       (plusp (output-capture-sessions out)))
+                                     (all-outputs))))))
     (unless (equal snapshot *wm-snapshot*)
       (setf *wm-snapshot* snapshot)
       (bar-write-snapshot snapshot))))
@@ -367,12 +381,19 @@ window management updates."
   (format t "~&; Rhizome: starting window manager~%")
   (format t "~&; Rhizome: connecting to river compositor...~%")
 
+  ;; This process is the WM: only it may manage bar processes, and
+  ;; the supervisor below keeps the bar alive
+  (setf *wm-process-mode* t)
+
   ;; Load user configuration (~/.config/rhizome/config.lisp)
   (load-user-config)
   ;; Resolve the configured TrueType font for the in-process surfaces
   ;; (launcher, message window, prompts); falls back to the bitmap
   ;; font when freetype/fontconfig is unavailable.
   (font-ensure-initialized)
+  ;; Keep the bar alive: river closing its layer surface (or any
+  ;; other silent death) used to leave no bar until a manual toggle
+  (start-bar-supervisor)
 
   (wl:with-open-display (display)
     (setf *display* display)

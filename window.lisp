@@ -30,7 +30,9 @@
    (hint-min-width  :initarg :hint-min-width  :accessor window-hint-min-width :initform nil)
    (hint-min-height :initarg :hint-min-height :accessor window-hint-min-height :initform nil)
    (hint-max-width  :initarg :hint-max-width  :accessor window-hint-max-width :initform nil)
-   (hint-max-height :initarg :hint-max-height :accessor window-hint-max-height :initform nil))
+   (hint-max-height :initarg :hint-max-height :accessor window-hint-max-height :initform nil)
+   (capture-sessions :initarg :capture-sessions
+                     :accessor window-capture-sessions :initform 0))
   (:documentation "Represents a managed window in the river compositor."))
 
 (defvar *last-registered-window* nil
@@ -256,6 +258,13 @@ request itself is flushed by the manage pass."
          (setf (window-minimized-p win) t)
          (request-manage-dirty))
 
+        (:capture-sessions
+         ;; v5: how many active screen captures (screencasts, portals)
+         ;; target this window. Feeds the bar's recording indicator.
+         (destructuring-bind (count) args
+           (setf (window-capture-sessions win) count)
+           (request-manage-dirty)))
+
         (:pointer-move-requested
          (destructuring-bind (seat-proxy) args
            (let ((seat (gethash seat-proxy *seats*)))
@@ -303,6 +312,19 @@ request itself is flushed by the manage pass."
 (defun propose-window-dimensions (win width height)
   "Propose dimensions for WIN during a manage sequence."
   (rwm:river-window-v1.propose-dimensions (window-proxy win) width height))
+
+(defun recommend-dimension-bounds (win)
+  "Recommend that WIN keep within its output's usable area
+(manage-sequence request, river_window_v1 >= 4). River forwards it
+to the window as xdg_toplevel configure_bounds, so apps stop
+opening larger than the screen. A hint — windows may ignore it."
+  (when (and (boundp '*wm-proxy-version*)
+             (>= *wm-proxy-version* 4)
+             (window-output win))
+    (multiple-value-bind (ux uy uw uh) (output-usable-area (window-output win))
+      (declare (ignore ux uy))
+      (when (and (plusp uw) (plusp uh))
+        (rwm:river-window-v1.set-dimension-bounds (window-proxy win) uw uh)))))
 
 (defun set-window-position (win x y)
   "Set the render position of WIN during a render sequence.

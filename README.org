@@ -62,6 +62,9 @@ is the interface version that introduced the feature.
 | =maximize_requested= / =unmaximize_requested= | honored: float covering the output's usable area, prior state restored (=rhizome-cmd maximize= toggles) |
 | =dimensions_hint= (min/max size hints)        | stored per window; clamps float resize and maximize |
 | =op_start_pointer= / =op_end= (seat)             | interactive float move/resize (MOD+drag)     |
+| =set_dimension_bounds= (v4)                   | new windows get a configure_bounds hint of the output's usable area |
+| =pointer_warp= (seat, v3)                     | pointer to the output center on workspace switch ((:pointer :warp-on-switch)) |
+| =capture_sessions= (v5)                       | feeds the bar's =:recording= indicator via the snapshot |
 | =pointer bindings=, =xkb bindings=               | MOD+click grabs, all key bindings           |
 | river/zwlr layer shells                          | bar, message window, launcher, prompts       |
 | =input_management= + =libinput_config=           | touchpad/pointer config                      |
@@ -76,17 +79,11 @@ is the interface version that introduced the feature.
 | =set_clip_box= / content clip    | 2/3| clip windows during animations (expose sliding, bar overlap)     |
 | =unreliable_pid=                 | 2  | pid tracking fallback when the pid can't be trusted               |
 | =set_xcursor_theme= (seat)       | 2  | rhizome relies on XCURSOR_THEME env; per-seat request is finer    |
-| =pointer_warp= (seat)            | 3  | programmatic cursor moves (warp on workspace switch, focus warps)|
 | =identifier= (window)            | 4  | stable IDs across WM restarts — window-rules that survive       |
 |                                  |    | restarts, "reattach" semantics                                    |
-| =set_dimension_bounds=           | 4  | recommend max dims to the *window* (forwarded as xdg            |
-|                                  |    | configure_bounds): keeps apps from opening larger than the      |
-|                                  |    | output in the first place                                        |
 | =presentation_hint= (window) /   | 4  | tearing/VRR: let apps request immediate presentation, set the    |
 | =set_presentation_mode= (output) |    | output mode per hint (default vsync)                             |
 | =show_window_menu_requested=     | 4  | CSD window menus (GTK menu button) — client-side menu support    |
-| =capture_sessions= (v5)          | 5  | active screencast awareness: bar could show a "recording"        |
-|                                  |    | indicator per window/output (grim/screencast portals)             |
 
 Screencasting today works through wlroots' =wlr-screencopy= via
 =grim= (screenshots) and anything using pipewire; =capture_sessions=
@@ -572,8 +569,11 @@ exclusive zone, the WM reserves the bar's space itself in its layout math.
 Bar modules: =:workspaces= (numbers — active underlined in accent,
 occupied in foreground, empty muted, with per-number gaps),
 =:layout= (current layout), =:windows= (window count), =:focused=
-(focused window title), =:clock= (strftime-like format), =:battery=
-(/sys), =:volume= (wpctl), =:network= (nmcli). Each rate-limited
+(focused window title), =:recording= (a red =REC= marker while any
+screen capture session is active — river v5 =capture_sessions=,
+colors via =:bar :recording-color=), =:clock= (strftime-like
+format), =:battery= (/sys), =:volume= (wpctl), =:network=
+(nmcli). Each rate-limited
 module takes an =:interval= (seconds). The bar's own
 =:bar :interval= (default 0.15s) is the poll rate for change
 detection: the bar re-renders only when a module's output actually

@@ -176,6 +176,10 @@ floats manage themselves."
     (dolist (win wins)
       (setf (window-output win) output)
       (assign-window-workspace win workspace))
+    ;; Fresh windows get a configure_bounds hint (protocol >= 4):
+    ;; apps stop opening larger than the output's usable area
+    (dolist (win unassigned)
+      (recommend-dimension-bounds win))
     (if (scroll-workspace-p output workspace)
         (scroll-manage-decisions output workspace wins)
         (frames-manage-decisions output workspace wins))

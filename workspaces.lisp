@@ -76,6 +76,18 @@ because they are on another workspace.")
         (focus-window newest seat))))
   ;; The explicit focus stands; don't let a pending auto-focus override it
   (setf *pending-autofocus* nil)
+  ;; Warp the pointer to the output center so it lands on the new
+  ;; workspace's windows (river_seat_v1.pointer_warp, protocol >= 3).
+  ;; Config: (:pointer (:warp-on-switch t)).
+  (when (config-getf '(:pointer) :warp-on-switch :default t)
+    (let ((cx (+ (output-x output) (floor (output-width output) 2)))
+          (cy (+ (output-y output) (floor (output-height output) 2))))
+      (dolist (seat (all-seats))
+        (handler-case
+            (rwm:river-seat-v1.pointer-warp (seat-proxy seat) cx cy)
+          (error ()
+            ;; Pre-v3 river or transient seat state: no warp, no crash
+            nil)))))
   (request-manage-dirty))
 
 (defun move-window-to-workspace (win workspace &optional output)

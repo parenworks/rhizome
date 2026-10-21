@@ -156,6 +156,17 @@ after the module plus gap. Structure mirrors bar-draw-icons."
 (defun bar-module-focused ()
   (getf (bar-snapshot) :focused))
 
+(defun bar-module-recording ()
+  "A REC marker while any screen capture session is active
+(screencasts, portals; v5 capture_sessions events via the
+snapshot's :recording flag). Add :recording to a bar segment to
+use it."
+  (if (getf (bar-snapshot) :recording)
+      (let ((color (config-getf '(:bar) :recording-color
+                                :default "#f7768e")))
+        (list (list* "REC " color)))
+      ""))
+
 (defun bar-module-workspaces ()
   "Workspace numbers with breathing room: the active workspace in
 the accent color, underlined; occupied workspaces in the
@@ -281,6 +292,7 @@ strftime subset: %H %M %S %d %m %y %Y %a %A %b %B."
     (:layout . bar-module-layout)
     (:windows . bar-module-windows)
     (:focused . bar-module-focused)
+    (:recording . bar-module-recording)
     (:clock . bar-module-clock)
     (:battery . bar-module-battery)
     (:volume . bar-module-volume)
@@ -693,6 +705,10 @@ font.lisp's *font-lock*).")
            (bar-render state)
            (setf (gethash :mapped state) t)))))
     (:closed
+     ;; River closed our layer surface. This is how the bar dies
+     ;; silently — say so before *bar-running* stops the loop (the
+     ;; WM's supervisor will restart us within 15s).
+     (format t "~&; Rhizome: bar: layer surface closed by compositor, exiting~%")
      (setf *bar-running* nil))))
 
 ;;; --- Change detection ---
@@ -965,7 +981,8 @@ no matter what the user config asks for."
   (let ((state (make-hash-table)))
     (setf *bar-state* state)
     (bar-run-loop state)
-    (setf *bar-state* nil)))
+    (setf *bar-state* nil)
+    (format t "~&; Rhizome: bar loop ended~%")))
 
 ;;; --- Process lifecycle (the bar runs as its own process) ---
 
@@ -988,6 +1005,8 @@ no matter what the user config asks for."
   "Start the bar as its own process (no-op if already running). The
 WM process only — and it first reaps any orphan bars left behind by
 past incidents (they would stack on screen)."
+  (unless (and (boundp '*wm-process-mode*) *wm-process-mode*)
+    (return-from start-bar))
   (when *bar-process-mode*
     (return-from start-bar))
   (when (bar-alive-p)
@@ -1013,6 +1032,8 @@ past incidents (they would stack on screen)."
 (defun stop-bar ()
   "Stop the bar process. Kills tracked AND orphan bars (the latter
 left by past incidents); WM process only."
+  (unless (and (boundp '*wm-process-mode*) *wm-process-mode*)
+    (return-from stop-bar))
   (when *bar-process-mode*
     (return-from stop-bar))
   (when (and *bar-process* (uiop:process-alive-p *bar-process*))
@@ -1043,24 +1064,49 @@ under the bar, their menus hidden behind it)."
       0))
 
 (defun toggle-bar ()
-  "Toggle the status bar on/off."
+  "Toggle the status bar on/off. Persists the intent into
+(:bar :enabled) so the supervisor honors it — a toggle-off must not
+be undone fifteen seconds later. bar-apply-config handles the
+start/stop and the reserved-space re-tiling."
   (when *bar-process-mode*
     (return-from toggle-bar))
-  (if (bar-alive-p)
-      (stop-bar)
-      (start-bar))
-  ;; Re-tile windows into the (un)reserved space: frame trees cache
-  ;; their geometry, so rescale them first
-  (dolist (out (all-outputs))
-    (refit-output-frame-trees out))
-  (when *wm-proxy*
-    (request-manage-dirty)))
+  (unless (and (boundp '*wm-process-mode*) *wm-process-mode*)
+    (return-from toggle-bar))
+  (configure (list :bar (list :enabled (not (bar-alive-p))))))
+
+(defvar *bar-supervisor* nil
+  "The WM's bar supervisor thread. The bar's deaths were silent and
+manual for far too long.")
+
+(defun start-bar-supervisor ()
+  "Keep the bar alive (WM process only, idempotent): every 15
+seconds, when the config wants a bar and none is alive, start one
+and say why. Honors a deliberate toggle-off because toggle-bar
+persists the intent in (:bar :enabled)."
+  (when (or *bar-process-mode* *bar-supervisor*)
+    (return-from start-bar-supervisor))
+  (setf *bar-supervisor*
+        (bt:make-thread
+          (lambda ()
+            (loop
+              (handler-case
+                  (progn
+                    (sleep 15)
+                    (when (and (config-getf '(:bar) :enabled :default t)
+                               (not (bar-alive-p)))
+                      (format t "~&; Rhizome: bar supervisor: bar is down, restarting~%")
+                      (start-bar)))
+                (error () nil))))
+          :name "rhizome-bar-supervisor")))
 
 (defun bar-apply-config ()
   "Apply the current config to the bar: start, stop or restart as
 needed. WM-process only — the bar process itself never manages bar
-processes (see *bar-process-mode*): its config load must not spawn
-bars."
+processes (see *bar-process-mode*), and neither does anything else:
+a TEST process whose (configure '(:bar (:enabled nil))) used to
+flow into stop-bar's pkill and reap the user's live bar."
+  (unless (and (boundp '*wm-process-mode*) *wm-process-mode*)
+    (return-from bar-apply-config))
   (when *bar-process-mode*
     (return-from bar-apply-config))
   (let ((before (bar-reserved-height)))

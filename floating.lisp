@@ -229,6 +229,8 @@ dimensions of floats on the current workspace."
                ;; Adopt: same as the tiling path stamping placements
                (setf (window-output win) output)
                (assign-window-workspace win workspace)
+               ;; configure_bounds hint for fresh floats too
+               (recommend-dimension-bounds win)
                (float-propose win))
               ((and (eq (window-output win) output)
                     (eql (window-workspace win) workspace))

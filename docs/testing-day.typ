@@ -367,6 +367,17 @@ Exercise expose, splits, and workspace switches while the video plays.
   at v5 (wm-protocol.lisp has the same cap) because wayflan cannot
   demarshal wl_surface v6 events; a single v6 event desyncs the
   bar's stream and kills it.
+- *Pointer warp on switch:* MOD+2 — the pointer must jump to the
+  output's center within the same frame as the workspace change.
+  Disable it live (`(rhizome:configure '(:pointer (:warp-on-switch nil)))`)
+  and confirm MOD+3 leaves the pointer where it was. Re-enable after.
+- *configure_bounds (new windows):* open an app that tends to come
+  up huge (an image viewer with a large image, some terminal
+  profiles) — its initial size must stay within the screen even
+  before rhizome proposes tiled dimensions.
+- *Recording indicator:* if `:recording` is in a bar segment,
+  start a screencast (portal-based screen recorder) — a red REC
+  must appear within one bar poll and vanish when it stops.
 
 = Appendix A: capture guide (how to report a failure)
 

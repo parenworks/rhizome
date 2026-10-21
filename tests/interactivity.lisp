@@ -50,10 +50,15 @@
         (message-lines "hello") '("hello"))
     (ok "newlines split lines"
         (message-lines (format nil "one~%two~%three")) '("one" "two" "three"))
+    ;; The message window's height follows the font's line height
+    ;; (font-dependent since the theming engine), so assert the
+    ;; arithmetic, not magic pixel values.
     (ok "height for one line"
-        (message-height-for "hello") 24)
+        (message-height-for "hello")
+        (max 22 (+ 4 (message-line-height))))
     (ok "height grows with lines"
-        (message-height-for (format nil "a~%b~%c")) 64)
+        (message-height-for (format nil "a~%b~%c"))
+        (max 22 (+ 4 (* 3 (message-line-height)))))
 
     ;; --- which-key text ---
 

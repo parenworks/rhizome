@@ -118,8 +118,62 @@
             (getf *wm-snapshot* :occupied) '(2 5))
         (ok "snapshot occupancy skips minimized windows"
             (and (member 5 (getf *wm-snapshot* :occupied)) t)
-            t))
+            t)
+        ;; Recording flag: capture sessions on windows or outputs
+        (setf (window-capture-sessions w1) 1)
+        (update-wm-snapshot)
+        (ok "snapshot recording follows window capture sessions"
+            (getf *wm-snapshot* :recording) t)
+        (setf (window-capture-sessions w1) 0)
+        (update-wm-snapshot)
+        (ok "snapshot recording clears when sessions end"
+            (getf *wm-snapshot* :recording) nil))
       (setf (symbol-function 'bar-write-snapshot) real-write))
+
+    ;; --- recording bar module ---
+
+    (let ((real-snapshot (symbol-function 'bar-snapshot)))
+      (setf (symbol-function 'bar-snapshot)
+            (lambda () '(:recording t)))
+      (ok "recording module renders a flagged part"
+          (bar-module-recording) '(("REC " . "#f7768e")))
+      (setf (symbol-function 'bar-snapshot)
+            (lambda () '(:recording nil)))
+      (ok "recording module renders nothing when idle"
+          (bar-module-recording) "")
+      (setf (symbol-function 'bar-snapshot) real-snapshot))
+
+    ;; --- dimension bounds recommendation ---
+
+    (let ((sent '())
+          (real-request
+            (symbol-function 'rwm:river-window-v1.set-dimension-bounds))
+          (out (make-instance 'rhizome-output :proxy :bounds-out
+                              :width 1920 :height 1080))
+          (win (make-instance 'rhizome-window :proxy :bounds-win)))
+      (setf (window-output win) out)
+      (setf (symbol-function 'rwm:river-window-v1.set-dimension-bounds)
+            (lambda (proxy w h)
+              (push (list proxy w h) sent)
+              nil))
+      (let ((*wm-proxy-version* 0))
+        (recommend-dimension-bounds win)
+        (ok "bounds request skipped below protocol v4" sent nil))
+      (let ((*wm-proxy-version* 5))
+        (recommend-dimension-bounds win)
+        (ok "bounds request carries the usable area"
+            (first sent)
+            (list :bounds-win 1920 (- 1080 (bar-reserved-height)))))
+      (setf (symbol-function 'rwm:river-window-v1.set-dimension-bounds)
+            real-request))
+
+    ;; --- pointer warp config ---
+
+    (ok "pointer warp defaults on"
+        (config-getf '(:pointer) :warp-on-switch :default t) t)
+    (configure '(:pointer (:warp-on-switch nil)))
+    (ok "pointer warp can be disabled"
+        (config-getf '(:pointer) :warp-on-switch) nil)
 
     ;; --- TrueType path (machine-dependent; skipped assertions if
     ;; freetype/fontconfig is unavailable) ---

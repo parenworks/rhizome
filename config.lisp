@@ -92,6 +92,10 @@ Returns (values value found-p)."
               :network (:interval 10
                         :on-click "nm-connection-editor"))
     :window-rules ()
+    ;; :warp-on-switch t warps the pointer to the output center on
+    ;; workspace switch (river_seat_v1.pointer_warp); set it nil if
+    ;; pointer jumps bother you.
+    :pointer (:warp-on-switch t)
     :theme (:font-family "monospace"
             :font-size 12
             :focused-border "#7aa2f7"

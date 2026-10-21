@@ -44,6 +44,13 @@
 ;;; Breathing room between workspace numbers (px).
 (configure '(:bar (:workspaces (:gap 8))))    ; default
 
+;;; Recording indicator: a red REC marker while a screencast or
+;;; portal capture session is active (river v5). Opt in by adding
+;;; :recording to a bar segment:
+#-(and) (configure
+  '(:bar (:modules (:right (:recording :tray :network :volume :battery))
+          :recording-color "#f7768e")))
+
 (configure '(:modules (:clock (:format "%a %d %b %H:%M")  ; default
               :battery (:interval 5)
               :volume (:interval 5
@@ -77,6 +84,11 @@
 
 ;;; --- Window rules ----------------------------------------------------
 ;;;
+;;; New windows (tiled or floated) automatically get a
+;;; configure_bounds hint of the output's usable area
+;;; (river_window_v1.set_dimension_bounds), so apps stop opening
+;;; larger than the screen.
+;;;
 ;;; :match is a case-insensitive regex against the app-id (use
 ;;; :key :title or :key :any for titles). :float t starts the
 ;;; window floating; :workspace N + :follow t opens it on that
@@ -98,3 +110,11 @@
   '(:lock (:command "swaylock"
             :args ("--daemonize")
             :idle-seconds 600)))
+
+;;; --- Pointer ---------------------------------------------------------
+;;;
+;;; On workspace switch the pointer warps to the output's center
+;;; (river_seat_v1.pointer_warp) so it lands on the new
+;;; workspace's windows. Some people find pointer jumps jarring:
+
+(configure '(:pointer (:warp-on-switch t)))  ; default

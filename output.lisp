@@ -13,6 +13,8 @@
    (height   :initarg :height   :accessor output-height :initform 0)
    (wl-output-name :initarg :wl-output-name :accessor output-wl-output-name :initform nil)
    (current-layout :initarg :current-layout :accessor output-current-layout :initform :master-stack)
+   (capture-sessions :initarg :capture-sessions
+                     :accessor output-capture-sessions :initform 0)
    (windows  :initarg :windows  :accessor output-windows :initform nil))
   (:documentation "Represents a logical output (monitor) managed by rhizome."))
 
@@ -48,6 +50,14 @@
      (destructuring-bind (x y) args
        (setf (output-x output) x
              (output-y output) y)))
+
+    (:capture-sessions
+     ;; v5: active screen captures (screencasts, portals) on this
+     ;; output. Feeds the bar's recording indicator via the snapshot.
+     (destructuring-bind (count) args
+       (setf (output-capture-sessions output) count)
+       (when *wm-proxy*
+         (request-manage-dirty))))
 
     (:dimensions
      (destructuring-bind (width height) args
