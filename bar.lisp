@@ -488,14 +488,14 @@ after it."
                          (bar-module-parts module)
                          fr fg fb module))))
 
-(defun bar-render (state)
+(defun %bar-render (state)
   "Render the bar content into the shm buffer and commit the surface."
   (let* ((ptr (gethash :shm-ptr state))
          (width (gethash :width state))
          (height (gethash :height state))
          (padding (config-getf '(:bar) :padding :default 6)))
     (when (or (null ptr) (cffi:null-pointer-p ptr))
-      (return-from bar-render))
+      (return-from %bar-render))
     (multiple-value-bind (br bg bb) (parse-hex-color
                                        (config-getf '(:bar) :background
                                                     :default "#1a1b26"))
@@ -524,10 +524,21 @@ after it."
             (dolist (module modules)
               (setf x (bar-draw-segment-item ptr width height x y module
                                             fr fg fb br bg bb)))))))
-    ;; Attach, damage, commit
     (wl:wl-surface.attach (gethash :surface state) (gethash :wl-buffer state) 0 0)
     (wl:wl-surface.damage (gethash :surface state) 0 0 width height)
     (wl:wl-surface.commit (gethash :surface state))))
+
+(defvar *bar-render-lock* (bt:make-lock "bar-render")
+  "Serializes bar rendering. Two threads call bar-render: the main
+tick loop and the dbus-thread redraws (tray registrations).
+Concurrent renders on one shm buffer were always a latent race —
+visual glitches and double commits — that the font engine turned
+fatal (a freetype face corrupts under concurrent FT_Load_Char, see
+font.lisp's *font-lock*).")
+
+(defun bar-render (state)
+  (bt:with-lock-held (*bar-render-lock*)
+    (%bar-render state)))
 
 ;;; --- Shm buffer management ---
 

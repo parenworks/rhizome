@@ -78,6 +78,15 @@
               (eq (font-glyph (char-code #\A))
                   (font-glyph (char-code #\A)))
               t)
+          (let ((space (font-glyph 32)))
+            (ok "space glyph cached (empty bitmap, real advance)"
+                (and space
+                     (plusp (getf space :advance))
+                     (zerop (getf space :width)))
+                t))
+          (ok "space advances text width"
+              (> (font-text-width "a b") (font-text-width "ab"))
+              t)
           (ok "text width positive"
               (> (font-text-width "Hello") 0) t)
           (ok "wider text is wider"

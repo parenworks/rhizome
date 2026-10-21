@@ -168,49 +168,60 @@ is irrelevant."
 
 (defun font-shutdown ()
   "Drop the freetype face and glyph cache (bitmap fallback active)."
-  (setf *ft-face* nil
-        *ft-font-size* 0
-        *ft-font-family* nil)
-  (clrhash *font-glyph-cache*))
+  (bt:with-lock-held (*font-lock*)
+    (setf *ft-face* nil
+          *ft-font-size* 0
+          *ft-font-family* nil)
+    (clrhash *font-glyph-cache*)))
 
 (defun font-init (&key (force nil))
   "Open the configured font (:theme :font-family/:font-size) in
 freetype. Returns T on success; on any failure the bitmap font
-stays active and NIL is returned. Idempotent unless FORCE."
-  (when (and *ft-face* (not force))
-    (return-from font-init t))
-  (font-shutdown)
-  (block init
-    (handler-case
-        (progn
-          (unless *ft-library*
-            (cffi:use-foreign-library libfreetype)
-            (cffi:with-foreign-object (lib :pointer)
-              (unless (zerop (ft-init-freetype lib))
-                (return-from init nil))
-              (setf *ft-library* (cffi:mem-ref lib :pointer))))
-          (let* ((family (config-getf '(:theme) :font-family
-                                      :default "monospace"))
-                 (size (config-getf '(:theme) :font-size :default 12))
-                 (path (fontconfig-resolve family size)))
-            (unless path
-              (return-from init nil))
-            (cffi:with-foreign-object (face :pointer)
-              (unless (zerop (ft-new-face *ft-library* path 0 face))
-                (return-from init nil))
-              (setf *ft-face* (cffi:mem-ref face :pointer)))
-            (unless (zerop (ft-set-pixel-sizes *ft-face* 0 size))
-              (return-from init nil))
-            (setf *ft-font-size* size
-                  *ft-font-family* family)
-            (clrhash *font-glyph-cache*)
-            (format t "~&; Rhizome: font: ~A at ~Apx (freetype)~%"
-                    family size)
-            t))
-      (error (e)
-        (declare (ignore e))
-        (font-shutdown)
-        nil))))
+stays active and NIL is returned. Idempotent unless FORCE.
+
+Runs under *font-lock*; the cleanup is inlined because
+font-shutdown takes the same (non-recursive) lock."
+  (bt:with-lock-held (*font-lock*)
+    (flet ((drop-face ()
+             (setf *ft-face* nil
+                   *ft-font-size* 0
+                   *ft-font-family* nil)
+             (clrhash *font-glyph-cache*)))
+      (when (and *ft-face* (not force))
+        (return-from font-init t))
+      (drop-face)
+      (block init
+        (handler-case
+            (progn
+              (unless *ft-library*
+                (cffi:use-foreign-library libfreetype)
+                (cffi:with-foreign-object (lib :pointer)
+                  (unless (zerop (ft-init-freetype lib))
+                    (return-from init nil))
+                  (setf *ft-library* (cffi:mem-ref lib :pointer))))
+              (let* ((family (config-getf '(:theme) :font-family
+                                          :default "monospace"))
+                     (size (config-getf '(:theme) :font-size :default 12))
+                     (path (fontconfig-resolve family size)))
+                (unless path
+                  (return-from init nil))
+                (cffi:with-foreign-object (face :pointer)
+                  (unless (zerop (ft-new-face *ft-library* path 0 face))
+                    (return-from init nil))
+                  (setf *ft-face* (cffi:mem-ref face :pointer)))
+                (unless (zerop (ft-set-pixel-sizes *ft-face* 0 size))
+                  (drop-face)
+                  (return-from init nil))
+                (setf *ft-font-size* size
+                      *ft-font-family* family)
+                (clrhash *font-glyph-cache*)
+                (format t "~&; Rhizome: font: ~A at ~Apx (freetype)~%"
+                        family size)
+                t))
+          (error (e)
+            (declare (ignore e))
+            (drop-face)
+            nil))))))
 
 (defun font-active-p ()
   "Whether TrueType rendering is live (vs. the bitmap fallback)."
@@ -245,24 +256,35 @@ own startup). Skips the resolution when nothing changed."
 
 ;;; --- glyph rendering ---
 
+(defvar *font-lock* (bt:make-lock "rhizome font")
+  "Serializes all freetype access and the glyph cache. An FT_Face is
+NOT thread-safe, and rhizome draws from more than one thread: the
+bar renders from its main loop AND from dbus-thread redraws (tray
+registrations), the WM renders from its main loop AND from the IPC
+accept thread's evals. Concurrent FT_Load_Char corrupts freetype's
+memory — this lock is what keeps that a non-event.")
+
 (defun font-glyph (code)
   "Render and cache glyph CODE from the active face. A plist with
 :width :height :left :top :advance :data (a (unsigned-byte 8)
 vector of alpha values), or NIL without a face / for an
 unmappable character."
-  (or (gethash code *font-glyph-cache*)
-      (when *ft-face*
-        (when (zerop (ft-load-char *ft-face* code +ft-load-render+))
-          ;; glyph is a POINTER field: read its VALUE (the slot), not
-          ;; the field's address — foreign-slot-value, not -pointer.
-          (let* ((slot (cffi:foreign-slot-value
-                         *ft-face* '(:struct ft-face-rec) 'glyph))
+  (bt:with-lock-held (*font-lock*)
+    (or (gethash code *font-glyph-cache*)
+        (when *ft-face*
+          (when (zerop (ft-load-char *ft-face* code +ft-load-render+))
+            ;; glyph is a POINTER field: read its VALUE (the slot), not
+            ;; the field's address — foreign-slot-value, not -pointer.
+            (let* ((slot (cffi:foreign-slot-value
+                           *ft-face* '(:struct ft-face-rec) 'glyph))
                  (bmp (cffi:foreign-slot-pointer
                         slot '(:struct ft-glyph-slot) 'bitmap))
                  (rows (cffi:foreign-slot-value
                          bmp '(:struct ft-bitmap) 'rows))
                  (cols (cffi:foreign-slot-value
                          bmp '(:struct ft-bitmap) 'width))
+                 (pitch (cffi:foreign-slot-value
+                          bmp '(:struct ft-bitmap) 'pitch))
                  (mode (cffi:foreign-slot-value
                          bmp '(:struct ft-bitmap) 'pixel-mode))
                  (left (cffi:foreign-slot-value
@@ -276,17 +298,23 @@ unmappable character."
                                -6))
                  (buffer (cffi:foreign-slot-value
                            bmp '(:struct ft-bitmap) 'buffer)))
-            (when (and (plusp rows) (plusp cols)
-                       (= mode +ft-pixel-mode-gray+))
-              (let ((data (make-array (* rows cols)
-                                      :element-type '(unsigned-byte 8))))
-                (dotimes (i (* rows cols))
+            (when (or (and (plusp rows) (plusp cols)
+                           (= mode +ft-pixel-mode-gray+))
+                      ;; An empty bitmap (space) carries the advance
+                      ;; that gives words their gaps — cache it too.
+                      (and (zerop rows) (zerop cols)))
+              ;; row-major with PITCH bytes per row (pitch >= width).
+              (let* ((stride (max pitch cols))
+                     (data (make-array (* rows stride)
+                                       :element-type '(unsigned-byte 8))))
+                (dotimes (i (* rows stride))
                   (setf (aref data i)
                         (cffi:mem-aref buffer :unsigned-char i)))
                 (setf (gethash code *font-glyph-cache*)
                       (list :width cols :height rows
+                            :stride stride
                             :left left :top top
-                            :advance advance :data data)))))))))
+                            :advance advance :data data))))))))))
 
 ;;; --- metrics ---
 
@@ -359,25 +387,32 @@ to a baseline internally. Text is clipped at the buffer edges."
               for ch across text
               for glyph = (font-glyph (char-code ch))
               while (< cx width)
-              do (when glyph
-                   (let* ((gw (getf glyph :width))
-                          (gh (getf glyph :height))
-                          (data (getf glyph :data))
-                          (gx (+ cx (getf glyph :left)))
-                          (gy (+ baseline (- (getf glyph :top)))))
-                     (dotimes (row gh)
-                       (let ((py (+ gy row)))
-                         (when (and (>= py 0) (< py height))
-                           (dotimes (col gw)
-                             (let ((px (+ gx col)))
-                               (when (and (>= px 0) (< px width))
-                                 (let ((a (aref data (+ row (* gh col)))))
-                                   (declare (type (unsigned-byte 8) a))
-                                   (when (plusp a)
-                                     (font-blend-pixel
-                                       ptr (* 4 (+ py (* width px)))
-                                       r g b a)))))))))
-                   (incf cx (getf glyph :advance))))))
+              do (progn
+                   (when glyph
+                     (let* ((gw (getf glyph :width))
+                            (gh (getf glyph :height))
+                            (stride (getf glyph :stride))
+                            (data (getf glyph :data))
+                            (gx (+ cx (getf glyph :left)))
+                            (gy (+ baseline (- (getf glyph :top)))))
+                       (dotimes (row gh)
+                         (let ((py (+ gy row)))
+                           (when (and (>= py 0) (< py height))
+                             (dotimes (col gw)
+                               (let ((px (+ gx col)))
+                                 (when (and (>= px 0) (< px width))
+                                   (let ((a (aref data
+                                                  (+ (* row stride) col))))
+                                     (declare (type (unsigned-byte 8) a))
+                                     (when (plusp a)
+                                       (font-blend-pixel
+                                         ptr (* 4 (+ (* py width) px))
+                                         r g b a))))))))))
+                   ;; Spaces advance even though they draw nothing;
+                   ;; unmappable characters get a generic fallback.
+                   (incf cx (if glyph
+                                (getf glyph :advance)
+                                (max 4 (floor (* *ft-font-size* 2) 3))))))))
       ;; Bitmap fallback: byte-for-byte the legacy renderer
       (progn
         (unless (gethash 32 *font-8x16*)
@@ -397,7 +432,7 @@ to a baseline internally. Text is clipped at the buffer edges."
                       for px = (+ gx col)
                       while (< px width) do
                   (when (logbitp (- 7 col) bits)
-                    (let ((offset (* 4 (+ py (* width px)))))
+                    (let ((offset (* 4 (+ (* py width) px))))
                       (setf (cffi:mem-aref ptr :unsigned-char offset) b
                             (cffi:mem-aref ptr :unsigned-char (+ offset 1)) g
                             (cffi:mem-aref ptr :unsigned-char (+ offset 2)) r
