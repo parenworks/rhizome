@@ -156,6 +156,67 @@
       (ok "unfloat glides back"
           (animation-active-p win) t))
 
+    ;; --- clip boxes: glides never overdraw the bar ---
+    (let* ((*animations* (make-hash-table))
+           (*clipped-windows* (make-hash-table))
+           (clip-calls nil)
+           (out (make-instance 'rhizome-output :proxy :clip-out
+                               :width 1920 :height 1080))
+           (win (make-instance 'rhizome-window :proxy :anim-5)))
+      ;; stub the river wrapper; record calls
+      (setf (symbol-function 'set-window-clip-box)
+            (lambda (w x y wd ht)
+              (declare (ignore w))
+              (push (list x y wd ht) clip-calls)))
+      (configure '(:bar (:enabled t :height 20)))
+      (setf (window-output win) out
+            (window-x win) 0 (window-y win) 0
+            (window-width win) 100 (window-height win) 80)
+      ;; absolute animation gliding toward (400, 300), at k=0 the
+      ;; window renders at (0,0): its top 20px would overdraw the
+      ;; bar → clipped to the usable area below y=20
+      (animation-start win :from-x 0 :from-y 0
+                            :duration 1000 :easing :linear)
+      (multiple-value-bind (ax ay) (animation-apply win 400 300)
+        (ok "apply returns the animated position"
+            (list ax ay) '(0 0))
+        (ok "in-flight clip excludes the bar zone"
+            (first clip-calls) '(0 20 100 60)))
+      (ok "window tracked as clipped"
+          (and (gethash win *clipped-windows*) t) t)
+      ;; finish the animation: fake a long-elapsed start
+      (setf (getf (gethash win *animations*) :start)
+            (- (get-internal-real-time)
+               (round (* 2 internal-time-units-per-second))))
+      (multiple-value-bind (ax ay) (animation-apply win 400 300)
+        (ok "landed frame snaps to the destination"
+            (list ax ay) '(400 300))
+        (ok "clip clears when the animation lands"
+            (first clip-calls) '(0 0 0 0)))
+      (ok "clip tracking cleared"
+          (gethash win *clipped-windows*) nil))
+
+    ;; relative animations (workspace slide-ins) clip too
+    (let* ((*animations* (make-hash-table))
+           (*clipped-windows* (make-hash-table))
+           (clip-calls nil)
+           (out (make-instance 'rhizome-output :proxy :clip-out2
+                               :width 1920 :height 1080))
+           (win (make-instance 'rhizome-window :proxy :anim-6)))
+      (setf (symbol-function 'set-window-clip-box)
+            (lambda (&rest args) (declare (ignore args))
+              (push args clip-calls)))
+      (configure '(:bar (:enabled t :height 20)))
+      (setf (window-output win) out
+            (window-x win) 0 (window-y win) 30
+            (window-width win) 100 (window-height win) 80)
+      (animation-start win :dx -1920 :duration 1000 :easing :linear)
+      (animation-apply win 400 300)
+      (ok "relative animations clip to the usable area too"
+          (and clip-calls t) t)
+      ;; restore the disabled-bar default for later tests
+      (configure '(:bar (:enabled nil))))
+
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
   (unless (zerop fail) (uiop:quit 1))))
 

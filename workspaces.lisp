@@ -92,11 +92,13 @@ every unconfigured one."
     ;; Slide-in: the new workspace's windows glide in from the edge
     ;; (direction = old → new). Pure rendering polish — the layout
     ;; math is untouched; the animation decays the offset to zero.
+    ;; Floating windows glide too: the float render path runs the
+    ;; same animation-apply (and its clip math) as the tiling.
     (when (and (animations-enabled-p) old-workspace)
       (let ((dir (if (> workspace old-workspace) 1 -1))
             (slide (output-width output)))
         (dolist (win (windows-on-workspace output workspace))
-          (unless (or (window-minimized-p win) (window-floating-p win))
+          (unless (window-minimized-p win)
             (animation-start win :dx (- (* dir slide)) :duration 160)))))
     (format t "~&; Rhizome: switched to workspace ~D~%" workspace)
     (message "workspace ~D" workspace)

@@ -282,7 +282,7 @@ exclude them from its hide logic."
         (float-clamp-position win)
         (make-window-node win)
         (multiple-value-bind (ax ay)
-            (animation-position win (window-float-x win) (window-float-y win))
+            (animation-apply win (window-float-x win) (window-float-y win))
           (set-window-position win ax ay))
         (multiple-value-bind (r g b) (theme-border-rgb (window-focused-p win))
           (set-window-borders win '(:top :bottom :left :right)

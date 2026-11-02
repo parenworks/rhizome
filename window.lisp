@@ -435,6 +435,17 @@ Requires that the window's node has been created."
   "Set borders on WIN during a render sequence."
   (rwm:river-window-v1.set-borders (window-proxy win) edges width r g b a))
 
+(defun set-window-clip-box (win x y width height)
+  "Clip WIN (content + borders + decorations) to a box in
+WINDOW-LOCAL coordinates, during a render sequence
+(river_window_v1 v5). A 0 width or height DISABLES clipping. The
+clip is ignored while the window is fullscreen."
+  (when (and (boundp '*wm-proxy-version*)
+             (>= *wm-proxy-version* 5)
+             (window-proxy win))
+    (rwm:river-window-v1.set-clip-box (window-proxy win)
+                                       x y width height)))
+
 (defun show-window (win)
   "Show WIN (un-hide it) during a render sequence."
   (rwm:river-window-v1.show (window-proxy win))

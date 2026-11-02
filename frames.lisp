@@ -901,7 +901,7 @@ render pass can exclude them from its hide logic."
           (make-window-node win)
           ;; The animation engine interpolates from a recorded
           ;; start toward this final position, per frame
-          (multiple-value-bind (ax ay) (animation-position win x y)
+          (multiple-value-bind (ax ay) (animation-apply win x y)
             (set-window-position win ax ay))
           (setf (window-x win) x
                 (window-y win) y)

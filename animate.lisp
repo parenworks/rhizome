@@ -124,3 +124,51 @@ instead)."
   (when (and *wm-proxy* (animations-running-p))
     (request-manage-dirty)
     t))
+
+;;; --- Clip boxes: glides never overdraw the bar ---
+
+(defvar *clipped-windows* (make-hash-table :test #'eq)
+  "Windows with a clip box currently set on river — so the clip
+can be cleared (0 0 0 0) once the animation lands. Cleared on
+window close via the :window-closed hook.")
+
+(defun animation-apply (win x y)
+  "Render-pass entry: the position WIN should draw at this frame
+for layout target (X Y) — animation-position's math, plus clip
+box management (set_clip_box is render-sequence-legal; this runs
+only from render paths). While ANY animation glides the window,
+it is clipped to its output's usable area (below the bar), so
+intermediate positions never overdraw the bar. When the
+animation lands, the clip clears."
+  (multiple-value-bind (ax ay) (animation-position win x y)
+    (let ((anim (gethash win *animations*)))
+      (cond
+        ;; In-flight animation: clip to the usable area
+        ((and anim (window-output win))
+         (let* ((out (window-output win))
+                (uy (bar-reserved-height))
+                (uw (or (output-width out) 1920))
+                (uh (max 1 (- (or (output-height out) 1080) uy)))
+                (w (or (window-width win) 100))
+                (h (or (window-height win) 80))
+                ;; usable rect (screen coords): (0, uy, uw, uh)
+                ;; intersect with the window at (ax, ay), in
+                ;; window-LOCAL coordinates
+                (cx (max 0 (- ax)))
+                (cy (max 0 (- uy ay)))
+                (cw (max 1 (min (- w cx) (- (+ uw 0) ax) w)))
+                (ch (max 1 (min (- h cy) (- (+ uy uh) ay) h))))
+           ;; (a 0 dimension would DISABLE clipping — never send 0)
+           (set-window-clip-box win cx cy cw ch)
+           (setf (gethash win *clipped-windows*) t)))
+        ;; No animation, but a clip was set: clear it
+        ((gethash win *clipped-windows*)
+         (remhash win *clipped-windows*)
+         (set-window-clip-box win 0 0 0 0))))
+    (values ax ay)))
+
+(defun clear-window-clips-on-close (win)
+  "Forget WIN's clip-tracking entry when the window goes away."
+  (remhash win *clipped-windows*))
+
+(add-hook :window-closed #'clear-window-clips-on-close)
