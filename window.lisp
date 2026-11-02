@@ -289,7 +289,10 @@ request itself is flushed by the manage pass."
            (handler-case
                (progn
                  (restore-window-state win)
-                 (apply-window-rules win))
+                 (apply-window-rules win)
+                 ;; Hot-swap: the live session arrangement wins over
+                 ;; both remembered placements and config rules
+                 (restore-takeover-placement win))
              (error (e)
                (format t "~&; Rhizome: window state restore failed: ~A~%"
                        e)))))

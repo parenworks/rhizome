@@ -50,9 +50,22 @@ find "$HOME/.cache/common-lisp" -name '*.fasl' -size 0 -delete 2>/dev/null
 
 # --non-interactive makes sbcl exit instead of sitting in the debugger
 # if rhizome hits an unhandled error, so the session fails cleanly.
-sbcl --non-interactive \
-     --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)' \
-  >> "$HOME/.cache/rhizome/rhizome.log" 2>&1 &
+#
+# SUPERVISED: the loop relaunches rhizome after a detach (the WM
+# hot-swap — `rhizome-cmd detach` hands the session to a fresh
+# process; windows survive, river keeps their last-managed state)
+# and after a crash (same recovery: the desktop keeps rendering,
+# a fresh WM takes over via the takeover state file). The socket
+# check stands the loop down when river itself is gone; the sleep
+# bounds the spin if the build is broken.
+(
+  while [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; do
+    sbcl --non-interactive \
+         --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)' \
+      >> "$HOME/.cache/rhizome/rhizome.log" 2>&1
+    sleep 1
+  done
+) &
 
 # Session apps (rhizome session only; guards survive river restarts).
 # variety: rotates the wallpaper (swaybg paints it; see

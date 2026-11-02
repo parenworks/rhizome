@@ -320,7 +320,14 @@ handlers should make window management requests here."
       (setf *pending-autofocus* nil)
       (dolist (seat (all-seats))
         (format t "~&; Rhizome [debug]: auto-focusing window ~A on seat ~A~%" win seat)
-        (focus-window win seat)))))
+        (focus-window win seat))))
+
+  ;; Hot-swap takeover: once every remembered window has
+  ;; re-registered (or enough passes passed — windows closed during
+  ;; the gap never return), rebuild the frame trees and focus
+  (when (and (boundp '*takeover-state*) *takeover-state*)
+    (when (takeover-settled-p)
+      (apply-takeover-trees))))
 
 ;;; --- Render sequence --
 
@@ -417,6 +424,9 @@ window management updates."
   (font-ensure-initialized)
   ;; Remembered window placements (identifier-based)
   (load-window-state)
+  ;; Hot-swap session state, if the previous WM detached (nil on a
+  ;; fresh boot — the normal case)
+  (load-takeover-state)
   ;; Keep the bar alive: river closing its layer surface (or any
   ;; other silent death) used to leave no bar until a manual toggle
   (start-bar-supervisor)
@@ -439,9 +449,16 @@ window management updates."
         (format t "~&; Rhizome: river_window_manager_v1 not found! Is river running?~%")
         (return-from run))
 
+      ;; Hot-swap takeover: if the previous WM detached and this
+      ;; process is its successor, put every output back on the
+      ;; workspace it was showing (windows restore per-identifier
+      ;; as they re-register; trees apply once they settle)
+      (takeover-restore-output-workspaces)
+
       ;; Retroactively register outputs/seats with river_layer_shell_v1
       ;; (in case they were created before the layer shell global was bound)
       (when *river-layer-shell*
+
         (loop for output being the hash-values of *outputs* do
           (handler-case
               (let ((ls-output (rwm:river-layer-shell-v1.get-output

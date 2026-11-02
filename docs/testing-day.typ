@@ -474,6 +474,17 @@ Exercise expose, splits, and workspace switches while the video plays.
   ~/.cache/rhizome/rhizome.log` stays clean of errors. Tweak via
   `(:decorations (:radius 14 :alpha 0.5 :focused-alpha 0.7))`;
   `(:enabled nil)` makes floats flat again.
+- *WM hot-swap (the live upgrade):* `rhizome-cmd detach` — the WM
+  serializes the session (placements, frame trees, per-output
+  workspaces, focus), completes river's stop/finished handshake,
+  and exits; the river-init supervision loop relaunches a fresh
+  process ~15s later. Expect: ~10-20s of NO keybindings during
+  the boot (river keeps rendering; the mouse works), then the
+  desktop back EXACTLY as it was — same workspace showing, same
+  windows in the same workspaces and frames, focus restored, bar
+  back. The takeover file (~/.local/share/rhizome/takeover.sexp)
+  is consumed by the restore. The same loop recovers a crashed
+  WM — a WM death is a blip, not a hard reboot.
 
 = Appendix A: capture guide (how to report a failure)
 

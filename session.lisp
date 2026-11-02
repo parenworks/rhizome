@@ -106,6 +106,11 @@ persisted :enabled intent), WM-owned surfaces close, and every
 identified window's placement is remembered first — no :closed
 events ever arrive after a detach."
   (message "detaching: another WM may take over")
+  ;; Serialize the whole session for the successor: placements,
+  ;; frame trees, workspaces, focus — BEFORE windows stop existing
+  (handler-case (write-takeover-state)
+    (error (e)
+      (format t "~&; Rhizome: takeover state write failed: ~A~%" e)))
   ;; Remember placements while the windows still exist
   (dolist (win (all-windows))
     (handler-case (remember-window-state win)
@@ -115,9 +120,10 @@ events ever arrive after a detach."
   (handler-case (message-hide) (error () nil))
   (handler-case (prompt-close) (error () nil))
   (handler-case (hide-launcher) (error () nil))
-  ;; Stop the bar; persisting :enabled nil also stands the
-  ;; supervisor down (nothing restarts a bar with no WM anyway)
-  (configure '(:bar (:enabled nil)))
+  ;; Stop the bar process cleanly; the successor WM starts a fresh
+  ;; one (the supervisor dies with this process, so nothing
+  ;; restarts it in the gap)
+  (handler-case (stop-bar) (error () nil))
   ;; Tell river we no longer want events; :finished completes this
   (when *wm-proxy*
     (setf *detach-pending* t)
