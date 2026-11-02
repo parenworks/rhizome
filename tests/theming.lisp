@@ -259,7 +259,7 @@
            (buf (cffi:foreign-alloc :unsigned-char :count (* w h 4))))
       (dotimes (i (* w h 4))
         (setf (cffi:mem-aref buf :unsigned-char i) 0))
-      (launcher-set-pixel buf w 99 10 255 255 255 255)
+      (launcher-set-pixel buf w h 99 10 255 255 255 255)
       (ok "launcher-set-pixel writes the correct pixel"
           (cffi:mem-aref buf :unsigned-char 4396) 255)
       (ok "launcher-set-pixel touches only its pixel"

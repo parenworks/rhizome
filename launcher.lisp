@@ -729,17 +729,21 @@ by this."
   (round (* 255 (min 1.0 (max 0.0
             (config-getf '(:launcher) :opacity :default 0.9))))))
 
-(defun launcher-set-pixel (ptr width px py b g r a)
+(defun launcher-set-pixel (ptr width height px py b g r a)
   "Set pixel at (PX, PY) to BGRA, premultiplying RGB by A (the
-buffer is premultiplied ARGB per the Wayland requirement)."
-  (let ((offset (* 4 (+ (* py width) px))))
-    (setf (cffi:mem-aref ptr :unsigned-char offset)
-            (round (* b a) 255)
-          (cffi:mem-aref ptr :unsigned-char (1+ offset))
-            (round (* g a) 255)
-          (cffi:mem-aref ptr :unsigned-char (+ offset 2))
-            (round (* r a) 255)
-          (cffi:mem-aref ptr :unsigned-char (+ offset 3)) a)))
+buffer is premultiplied ARGB per the Wayland requirement). The
+offset comes from surface-index — the ONE row-major formula in
+the codebase, bounds-checked; out-of-range writes are no-ops."
+  (let ((idx (surface-index width height px py)))
+    (unless (null idx)
+      (let ((offset (* 4 idx)))
+        (setf (cffi:mem-aref ptr :unsigned-char offset)
+                (round (* b a) 255)
+              (cffi:mem-aref ptr :unsigned-char (1+ offset))
+                (round (* g a) 255)
+              (cffi:mem-aref ptr :unsigned-char (+ offset 2))
+                (round (* r a) 255)
+              (cffi:mem-aref ptr :unsigned-char (+ offset 3)) a)))))
 
 (defun launcher-clear-shm (ptr width height b g r a)
   "Fill the entire shm buffer with a solid, translucent-capable
@@ -857,7 +861,7 @@ through the font module (see font.lisp)."
                   (loop for dx below 8
                         for px = (+ cursor-x dx)
                         while (< px width) do
-                    (launcher-set-pixel ptr width px py cr cg cb (launcher-surface-alpha)))))
+                    (launcher-set-pixel ptr width height px py cr cg cb (launcher-surface-alpha)))))
               ;; Draw filtered entries (scrolled)
               (multiple-value-bind (selr selg selb)
                   (launcher-color :selection-background)
@@ -876,7 +880,7 @@ through the font module (see font.lisp)."
                             (loop for dx below (- width (* 2 *launcher-padding*))
                                   for px = (+ *launcher-padding* dx)
                                   while (< px width) do
-                              (launcher-set-pixel ptr width px py selr selg selb (launcher-surface-alpha))))
+                              (launcher-set-pixel ptr width height px py selr selg selb (launcher-surface-alpha))))
                           ;; Accent edge: a 3px marker strip on the
                           ;; selected row, the launcher's underline.
                           (multiple-value-bind (acr acg acb)
@@ -887,7 +891,7 @@ through the font module (see font.lisp)."
                               (loop for dx below 3
                                     for px = (+ *launcher-padding* dx)
                                     while (< px width) do
-                                (launcher-set-pixel ptr width px py
+                                (launcher-set-pixel ptr width height px py
                                                      acr acg acb
                                                      (launcher-surface-alpha))))))
                         ;; Draw entry text, centered in the row, past

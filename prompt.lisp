@@ -140,7 +140,7 @@ order, case-insensitive; substring matches rank first)."
                           (parse-hex-color (config-getf '(:bar) :accent
                                                        :default "#7aa2f7"))
                         (loop for dx below (- width 16)
-                              do (bar-set-pixel ptr width (+ 8 dx)
+                              do (bar-set-pixel ptr width height (+ 8 dx)
                                                 (+ row-height row-y)
                                                 ar ag ab))))
                     (bar-draw-text ptr width height candidate

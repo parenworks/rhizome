@@ -363,22 +363,27 @@ characters count a generic advance."
 ;;; --- blitting ---
 
 (declaim (inline font-blend-pixel))
-(defun font-blend-pixel (ptr offset r g b a surface-alpha)
-  "Alpha-blend the BGRA pixel at byte OFFSET in PTR:
+(defun font-blend-pixel (ptr width height px py r g b a surface-alpha)
+  "Alpha-blend the BGRA pixel at (PX, PY) in PTR:
 out = bg + (fg - bg) * a / 255. The buffer is premultiplied ARGB
 (the Wayland requirement), so the foreground is scaled by
 SURFACE-ALPHA before the blend — compositing is linear in
 premultiplied space. The alpha byte is left alone (the surfaces
-carry one uniform alpha)."
-  (let ((sa surface-alpha))
-    (flet ((blend (idx fg)
-             (let ((bg (cffi:mem-aref ptr :unsigned-char (+ offset idx)))
-                   (fgp (round (* fg sa) 255)))
-               (setf (cffi:mem-aref ptr :unsigned-char (+ offset idx))
-                     (round (+ (* bg 255) (* (- fgp bg) a)) 255)))))
-      (blend 0 b)                          ; B
-      (blend 1 g)                          ; G
-      (blend 2 r))))                       ; R
+carry one uniform alpha). The byte offset comes from
+surface-index — the ONE row-major formula, bounds-checked;
+out-of-range writes are no-ops."
+  (let ((sa surface-alpha)
+        (idx (surface-index width height px py)))
+    (unless (null idx)
+      (let ((offset (* 4 idx)))
+        (flet ((blend (idx2 fg)
+                 (let ((bg (cffi:mem-aref ptr :unsigned-char (+ offset idx2)))
+                       (fgp (round (* fg sa) 255)))
+                   (setf (cffi:mem-aref ptr :unsigned-char (+ offset idx2))
+                         (round (+ (* bg 255) (* (- fgp bg) a)) 255)))))
+          (blend 0 b)                      ; B
+          (blend 1 g)                      ; G
+      (blend 2 r))))))                   ; R
 
 (defun font-draw-text (ptr width height text x y r g b
                        &key (alpha 255))
@@ -414,8 +419,12 @@ translucent surface."
                                                   (+ (* row stride) col))))
                                      (declare (type (unsigned-byte 8) a))
                                      (when (plusp a)
+                                       ;; surface-index does the
+                                       ;; bounds check (the px/py
+                                       ;; whens above stay as
+                                       ;; loop guards only)
                                        (font-blend-pixel
-                                         ptr (* 4 (+ (* py width) px))
+                                         ptr width height px py
                                          r g b a alpha))))))))))
                    ;; Spaces advance even though they draw nothing;
                    ;; unmappable characters get a generic fallback.
@@ -441,12 +450,16 @@ translucent surface."
                       for px = (+ gx col)
                       while (< px width) do
                   (when (logbitp (- 7 col) bits)
-                    (let ((offset (* 4 (+ (* py width) px))))
-                      (setf (cffi:mem-aref ptr :unsigned-char offset)
-                              (round (* b alpha) 255)
-                            (cffi:mem-aref ptr :unsigned-char (+ offset 1))
-                              (round (* g alpha) 255)
-                            (cffi:mem-aref ptr :unsigned-char (+ offset 2))
-                              (round (* r alpha) 255)
-                            (cffi:mem-aref ptr :unsigned-char (+ offset 3))
-                              alpha)))))))))))
+                    ;; surface-index: the ONE row-major formula,
+                    ;; bounds-checked; out-of-range is a no-op
+                    (let ((idx (surface-index width height px py)))
+                      (unless (null idx)
+                        (let ((offset (* 4 idx)))
+                          (setf (cffi:mem-aref ptr :unsigned-char offset)
+                                  (round (* b alpha) 255)
+                                (cffi:mem-aref ptr :unsigned-char (+ offset 1))
+                                  (round (* g alpha) 255)
+                                (cffi:mem-aref ptr :unsigned-char (+ offset 2))
+                                  (round (* r alpha) 255)
+                                (cffi:mem-aref ptr :unsigned-char (+ offset 3))
+                                  alpha)))))))))))))

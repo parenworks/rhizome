@@ -134,7 +134,7 @@ after the module plus gap. Structure mirrors bar-draw-icons."
                                    (b (aref idata (+ idx 2))))
                               (when (plusp a)
                                 (bar-set-pixel
-                                  ptr width px py
+                                  ptr width height px py
                                   (floor (/ (+ (* a r) (* (- 255 a) base-r)) 255))
                                   (floor (/ (+ (* a g) (* (- 255 a) base-g)) 255))
                                   (floor (/ (+ (* a b) (* (- 255 a) base-b))
@@ -473,7 +473,7 @@ the existing click/scroll chain runs each entry's :on-click /
                                    (b (aref idata (+ idx 2))))
                               (when (plusp a)
                                 (bar-set-pixel
-                                  ptr width px py
+                                  ptr width height px py
                                   (floor (/ (+ (* a r) (* (- 255 a) base-r)) 255))
                                   (floor (/ (+ (* a g) (* (- 255 a) base-g)) 255))
                                   (floor (/ (+ (* a b) (* (- 255 a) base-b))
@@ -485,18 +485,22 @@ the existing click/scroll chain runs each entry's :on-click /
 
 ;;; --- Rendering ---
 
-(defun bar-set-pixel (ptr width px py r g b)
+(defun bar-set-pixel (ptr width height px py r g b)
   "Set pixel at (PX, PY) to RGB color (BGRA layout in the buffer),
-premultiplied by the surface alpha (ARGB buffers)."
-  (let* ((a (bar-surface-alpha))
-         (offset (* (+ (* py width) px) 4)))
-    (setf (cffi:mem-aref ptr :unsigned-char offset)
-            (round (* b a) 255)
-          (cffi:mem-aref ptr :unsigned-char (1+ offset))
-            (round (* g a) 255)
-          (cffi:mem-aref ptr :unsigned-char (+ offset 2))
-            (round (* r a) 255)
-          (cffi:mem-aref ptr :unsigned-char (+ offset 3)) a)))
+premultiplied by the surface alpha (ARGB buffers). The offset
+comes from surface-index — the ONE row-major formula, bounds-
+checked; out-of-range writes are no-ops."
+  (let ((idx (surface-index width height px py)))
+    (unless (null idx)
+      (let* ((a (bar-surface-alpha))
+             (offset (* 4 idx)))
+        (setf (cffi:mem-aref ptr :unsigned-char offset)
+                (round (* b a) 255)
+              (cffi:mem-aref ptr :unsigned-char (1+ offset))
+                (round (* g a) 255)
+              (cffi:mem-aref ptr :unsigned-char (+ offset 2))
+                (round (* r a) 255)
+              (cffi:mem-aref ptr :unsigned-char (+ offset 3)) a)))))
 
 (defun bar-surface-alpha ()
   "The bar/message/prompt surfaces' alpha byte. (:bar :opacity
@@ -553,7 +557,7 @@ for MODULE. Returns the x after the module plus gap."
               (loop for uxx below tw
                     for px = (+ x uxx)
                     while (< px width) do
-                (bar-set-pixel ptr width px py r g b))))
+                (bar-set-pixel ptr width height px py r g b))))
           (incf x (+ tw (or (getf flags :gap 0) 0))))))
     (let ((end x))
       (when (and module (> end start))
