@@ -304,11 +304,12 @@ skipped; submenu children are indented with a prefix."
                             0)
              :timeout 2))
 
-(defun tray-show-menu (bus-name menu-path)
-  "Fetch an item's dbusmenu and present it as a selection prompt.
-WM-side: the bar's right-click invokes this via IPC; the menu
-renders with the WM's prompt machinery (filter, navigation,
-expiry) and clicking an entry sends Event back over DBus."
+(defun tray-show-menu (bus-name menu-path &optional px py)
+  "Fetch an item's dbusmenu and present it as the POINTER menu at
+(PX PY) — the click position when the bar invoked us (right-click
+on a tray icon), the WM pointer position otherwise. Hover
+highlights, click selects, Escape dismisses; selecting an entry
+sends Event back over DBus."
   (let ((conn (or *tray-conn* (dbus-connect))))
     (unless conn
       (message "tray: no session bus")
@@ -330,15 +331,22 @@ expiry) and clicking an entry sends Event back over DBus."
         (message "tray: no menu from ~A" bus-name)
         (return-from tray-show-menu nil))
       (let ((layout (second body)))
-        (let ((ids (menu-entries layout)))
-          (if (null ids)
-              (message "tray: empty menu")
-              (select-from-menu "tray menu"
-                (loop for (label . id) in ids
-                      collect (cons label
-                                    (lambda ()
-                                      (tray-menu-activate
-                                        conn bus-name menu-path id))))
-                :on-select (lambda (entry)
-                             (declare (ignore entry))
-                             nil))))))))
+        (let ((entries (menu-entries layout)))
+          (cond
+            ((null entries)
+             (message "tray: empty menu"))
+            (t
+             ;; One menu at a time (a window menu may be open)
+             (when *menu-active* (menu-close))
+             ;; The pointer menu: items are (label . action), the
+             ;; action ignores the menu's window argument
+             (setf *menu-items*
+                   (loop for (label . id) in entries
+                         collect (cons label
+                                        (lambda (&rest args)
+                                          (declare (ignore args))
+                                          (tray-menu-activate
+                                            conn bus-name menu-path id)))))
+             (menu-open-surface (or px (menu-px))
+                                (or py (menu-py))
+                                (first (all-seats))))))))))

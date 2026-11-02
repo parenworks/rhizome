@@ -836,9 +836,14 @@ here, the prompt surfaces live there)."
       (let ((menu-path (if (consp (getf module :menu))
                            (cdr (getf module :menu))
                            (getf module :menu))))
+        ;; The click position rides along: the WM's pointer menu
+        ;; opens right here (x = click, y = below the bar strip)
         (bar-run-command
-          (format nil "rhizome-cmd \"(rhizome:tray-show-menu \\\"~A\\\" \\\"~A\\\")\""
-                  (getf module :name) menu-path))))))
+          (format nil
+                  "rhizome-cmd \"(rhizome:tray-show-menu \\\"~A\\\" \\\"~A\\\" ~D ~D)\""
+                  (getf module :name) menu-path
+                  (round x)
+                  (round (config-getf '(:bar) :height :default 20))))))))
 
 (defun bar-handle-scroll (amount)
   "Handle a vertical scroll gesture over a module."

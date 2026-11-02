@@ -474,6 +474,13 @@ Exercise expose, splits, and workspace switches while the video plays.
   ~/.cache/rhizome/rhizome.log` stays clean of errors. Tweak via
   `(:decorations (:radius 14 :alpha 0.5 :focused-alpha 0.7))`;
   `(:enabled nil)` makes floats flat again.
+- *Tray right-click menus (dbusmenu):* right-click a tray icon on
+  the bar (flameshot, variety) — the app's own context menu opens
+  AT the icon (the pointer menu: hover highlights, click selects,
+  Escape or pointer-off dismisses). Selecting an entry performs
+  the app's action (e.g. flameshot's Capture / Open Launcher /
+  Quit). Items with submenus appear as indented entries (a flat
+  menu can't nest); separators and disabled entries are skipped.
 - *WM hot-swap (the live upgrade):* `rhizome-cmd detach` — the WM
   serializes the session (placements, frame trees, per-output
   workspaces, focus), completes river's stop/finished handshake,

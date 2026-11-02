@@ -98,11 +98,18 @@
 
 (defun menu-clamp-position ()
   "Where to place the menu so it fits on its output."
-  (let* ((out (and *menu-window* (window-output *menu-window*)))
+  (menu-clamp-position-at (menu-px) (menu-py)))
+
+(defun menu-clamp-position-at (px py)
+  "Where to place a menu opened at (PX PY) so it fits: the
+window's output when there is a window context (the window
+menu), the first output otherwise (the tray dbusmenu)."
+  (let* ((out (or (and *menu-window* (window-output *menu-window*))
+                  (first (all-outputs-sorted))))
          (ow (or (and out (output-width out)) 1920))
          (oh (or (and out (output-height out)) 1080))
-         (x (min (max 0 (- (menu-px) *menu-padding*)) (- ow *menu-width* *menu-padding*)))
-         (y (min (max 0 (- (menu-py) *menu-padding*)) (- oh *menu-height* *menu-padding*))))
+         (x (min (max 0 (- px *menu-padding*)) (- ow *menu-width* *menu-padding*)))
+         (y (min (max 0 (- py *menu-padding*)) (- oh *menu-height* *menu-padding*))))
     (values (max 0 x) (max 0 y))))
 
 (defun menu-row-at (x y)
@@ -305,8 +312,15 @@ motion (hover) and button (select) events."
               *compositor* *shm* *layer-shell*)
     (return-from menu-open))
   (setf *menu-window* win
-        *menu-items* (menu-item-list win)
-        *menu-hover* -1
+        *menu-items* (menu-item-list win))
+  (menu-open-surface (menu-px) (menu-py) seat))
+
+(defun menu-open-surface (px py seat)
+  "Open the context menu with the already-set *menu-items* at
+(PX PY) — the shared surface core behind the window menu and the
+tray dbusmenu (which has no window context and passes the click
+position explicitly)."
+  (setf *menu-hover* -1
         *menu-width* 240
         *menu-height* (+ (* 2 *menu-padding*)
                          (* *menu-row-height* (length *menu-items*))))
@@ -330,14 +344,14 @@ motion (hover) and button (select) events."
   ;; Anchor top-left, positioned at the pointer via margins
   (rwm:zwlr-layer-surface-v1.set-anchor *menu-layer-surface*
                                         '(:top :left))
-  (multiple-value-bind (x y) (menu-clamp-position)
+  (multiple-value-bind (x y) (menu-clamp-position-at px py)
     (rwm:zwlr-layer-surface-v1.set-margin *menu-layer-surface*
                                           y 0 0 x))
   (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity
     *menu-layer-surface* :exclusive)
   ;; The pointer for hover/select (before the surface is committed
   ;; so no events are missed)
-  (menu-setup-pointer seat)
+  (when seat (menu-setup-pointer seat))
   (wl:wl-surface.commit *menu-surface*))
 
 (defun menu-handle-key (keysym)
