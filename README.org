@@ -268,11 +268,17 @@ see the next section for everyone else).
 
 Everything above is plain shell and systemd user units — nothing in
 the session wiring is tied to one distribution or one desktop
-layer. Run =bash session/install.sh= to install the whole set into
+layer. Run =make install= (or =bash session/install.sh= directly —
+it's the same thing) to install the whole set into
 =$HOME=; re-running it is safe. The greeter entry is separate:
 Omarchy+SDDM users run =session/sddm/install-root.sh= with sudo,
 everyone else points their display manager (or a TTY) at
 =~/.local/bin/rhizome-session=.
+
+The Makefile is the conventional front door for the rest, too:
+=make build= compile-checks the system, =make test= runs all 14
+regression suites (aggregated, fails on the first red one), and
+=make docs= rebuilds the testing-day PDF.
 
 *** Hard requirements, every distro
 

@@ -46,8 +46,9 @@
       (format t "ide hidden:         ~A~%" (and ide-hidden t))
       (format t "browser shown:      ~A~%" (and browser-shown t))
       (format t "ide wrongly re-shown: ~A~%" (and ide-shown-again t))
-      (if (and ide-hidden browser-shown (not ide-shown-again))
-          (format t "~&PASS-AWAY: switching to ws 2 hides ws 1, shows ws 2~%")
-          (format t "~&FAIL: switch-away behavior wrong~%")))))
-
-(uiop:quit 0)
+      (let ((ok (and ide-hidden browser-shown (not ide-shown-again))))
+        (format t "~&~A: switching to ws 2 hides ws 1, shows ws 2~%"
+                (if ok "PASS" "FAIL"))
+        (format t "~&=== ~D passed, ~D failed ===~%"
+                (if ok 1 0) (if ok 0 1))
+        (uiop:quit (if ok 0 1))))))
