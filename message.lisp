@@ -94,7 +94,7 @@ already showing, replace it. Newlines start new lines."
             (multiple-value-bind (br bg bb)
                 (parse-hex-color (config-getf '(:bar) :background
                                              :default "#1a1b26"))
-              (bar-clear ptr width height br bg bb))
+              (rhizome-rounded-clear ptr width height br bg bb))
             (multiple-value-bind (ar ag ab)
                 (parse-hex-color (config-getf '(:bar) :accent
                                              :default "#7aa2f7"))
@@ -162,3 +162,15 @@ already showing, replace it. Newlines start new lines."
                (aref days (mod dow 7))
                (aref months (1- month))
                day hour min))))
+
+(defun rhizome-rounded-clear (ptr width height r g b)
+  "The shared surface treatment for message window and prompts:
+rounded corners with a hairline border, in the bar's colors,
+routed through paint-rounded-surface (surface.lisp)."
+  (multiple-value-bind (ar ag ab)
+      (parse-hex-color (config-getf '(:bar) :accent :default "#7aa2f7"))
+    (paint-rounded-surface ptr width height r g b
+                           :alpha (bar-surface-alpha)
+                           :radius (config-getf '(:bar) :corner-radius
+                                     :default 8)
+                           :border-r ar :border-g ag :border-b ab)))

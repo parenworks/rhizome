@@ -13,6 +13,14 @@
 (defvar *launcher-surface* nil
   "The wl_surface for the launcher popup.")
 
+(defvar *launcher-backdrop-surface* nil
+  "The fullscreen dim layer under the launcher (the modal feel).")
+(defvar *launcher-backdrop-layer-surface* nil)
+(defvar *launcher-backdrop-ptr* nil)
+(defvar *launcher-backdrop-fd* nil)
+(defvar *launcher-backdrop-size* 0)
+(defvar *launcher-backdrop-pool* nil)
+(defvar *launcher-backdrop-buffer* nil)
 (defvar *launcher-layer-surface* nil
   "The zwlr_layer_surface_v1 for the launcher popup.")
 
@@ -1144,6 +1152,95 @@ through the font module (see font.lisp)."
   (wl:wl-surface.damage *launcher-surface* 0 0 *launcher-width* *launcher-height*)
   (wl:wl-surface.commit *launcher-surface*))
 
+(defun launcher-destroy-backdrop ()
+  "Tear down the launcher's backdrop dim."
+  (handler-case
+      (progn
+        (when *launcher-backdrop-buffer*
+          (wl:wl-buffer.destroy *launcher-backdrop-buffer*))
+        (when *launcher-backdrop-pool*
+          (wl:wl-shm-pool.destroy *launcher-backdrop-pool*))
+        (when (and *launcher-backdrop-ptr*
+                   (not (cffi:null-pointer-p *launcher-backdrop-ptr*)))
+          (cffi:foreign-funcall "munmap" :pointer *launcher-backdrop-ptr*
+                                :unsigned-long *launcher-backdrop-size* :int))
+        (when *launcher-backdrop-fd*
+          (cffi:foreign-funcall "close" :int *launcher-backdrop-fd* :int)))
+    (error () nil))
+  (handler-case
+      (when *launcher-backdrop-layer-surface*
+        (rwm:zwlr-layer-surface-v1.destroy *launcher-backdrop-layer-surface*)))
+  (handler-case
+      (when *launcher-backdrop-surface*
+        (wl:wl-surface.destroy *launcher-backdrop-surface*)))
+  (setf *launcher-backdrop-surface* nil
+        *launcher-backdrop-layer-surface* nil
+        *launcher-backdrop-ptr* nil
+        *launcher-backdrop-fd* nil
+        *launcher-backdrop-size* 0
+        *launcher-backdrop-pool* nil
+        *launcher-backdrop-buffer* nil))
+
+(defun launcher-show-backdrop ()
+  "The fullscreen dim under the launcher: a ~20%-black layer
+surface, created BEFORE the launcher (stacks below it in the same
+:top layer). Input-transparent: clicks pass through to windows."
+  (let ((dim-alpha (config-getf '(:launcher) :dim-alpha :default 60)))
+    (when (and *compositor* *shm* *layer-shell* (plusp dim-alpha))
+      (let ((surface (wl:wl-compositor.create-surface *compositor*)))
+        (setf *launcher-backdrop-surface* surface
+              *launcher-backdrop-layer-surface*
+              (rwm:zwlr-layer-shell-v1.get-layer-surface
+                *layer-shell* surface nil :top "rhizome-launcher-backdrop"))
+        (push (lambda (event-name &rest args)
+                (when (eq event-name :configure)
+                  (destructuring-bind (serial width height) args
+                    (rwm:zwlr-layer-surface-v1.ack-configure
+                      *launcher-backdrop-layer-surface* serial)
+                    (when (and (> width 0) (> height 0))
+                      ;; one-time buffer: fill with dim black
+                      (let ((needed (* width height 4)))
+                        (setf *launcher-backdrop-fd*
+                              (cffi:foreign-funcall "memfd_create"
+                                                    :string "dim" :int 0 :int))
+                        (cffi:foreign-funcall "ftruncate" :int *launcher-backdrop-fd*
+                                              :long needed :int)
+                        (setf *launcher-backdrop-ptr*
+                              (cffi:foreign-funcall "mmap"
+                                                    :pointer (cffi:null-pointer)
+                                                    :unsigned-long needed
+                                                    :int 3 :int 1
+                                                    :int *launcher-backdrop-fd*
+                                                    :long 0 :pointer))
+                        (setf *launcher-backdrop-size* needed
+                              *launcher-backdrop-pool*
+                              (wl:wl-shm.create-pool *shm*
+                                                      *launcher-backdrop-fd*
+                                                      needed)
+                              *launcher-backdrop-buffer*
+                              (wl:wl-shm-pool.create-buffer
+                                *launcher-backdrop-pool* 0 width height
+                                (* width 4) :argb8888))
+                      (let* ((a dim-alpha)
+                             (pixel (ash a 24)))
+                        (loop for i below (* width height) do
+                          (setf (cffi:mem-aref *launcher-backdrop-ptr*
+                                               :unsigned-int i) pixel)))
+                      ;; transparent to input: clicks pass through
+                      (let ((region (wl:wl-compositor.create-region
+                                      *compositor*)))
+                        (wl:wl-surface.set-input-region surface region)
+                        (wl:wl-region.destroy region))
+                      (wl:wl-surface.attach surface *launcher-backdrop-buffer*
+                                            0 0)
+                      (wl:wl-surface.damage surface 0 0 width height)
+                      (wl:wl-surface.commit surface))))))
+              (wl:wl-proxy-hooks *launcher-backdrop-layer-surface*))
+        ;; no anchor + size 0 0: the compositor gives the full
+        ;; output on configure
+        (rwm:zwlr-layer-surface-v1.set-size *launcher-backdrop-layer-surface* 0 0)
+        (wl:wl-surface.commit surface)))))
+
 (defun show-launcher ()
   "Show the native launcher popup."
   (format t "~&; Rhizome [debug]: show-launcher called, active=~A~%" *launcher-active*)
@@ -1168,6 +1265,9 @@ through the font module (see font.lisp)."
   (force-output)
   (unwind-protect
        (progn
+         ;; Backdrop first: created earlier = stacks BELOW the
+         ;; launcher within the :top layer
+         (launcher-show-backdrop)
          ;; Create wl_surface
          (setf *launcher-surface* (wl:wl-compositor.create-surface *compositor*))
          ;; Create layer surface (output=nil = let compositor choose, layer=2 = top)
@@ -1219,6 +1319,7 @@ through the font module (see font.lisp)."
       (format t "~&; Rhizome: error destroying launcher surface: ~A~%" e)))
   (setf *launcher-layer-surface* nil
         *launcher-surface* nil)
+  (launcher-destroy-backdrop)
   (launcher-destroy-shm))
 
 (defun launcher-handle-key (keysym modifiers)

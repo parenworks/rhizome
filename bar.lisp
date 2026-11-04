@@ -114,8 +114,10 @@ IconName. NIL when the item has nothing drawable."
 
 (defun bar-draw-tray (ptr width height x y base-r base-g base-b)
   "Draw every tray item's icon at (X, Y); one hitbox per item so
-clicks/scrolls route to tray-click / tray-scroll. Returns the x
-after the module plus gap. Structure mirrors bar-draw-icons."
+clicks/scrolls route to tray-click / tray-scroll. ALWAYS returns
+a number: an empty or iconless tray returning NIL poisons the
+x-threading for every module after it — the bar vanishes (the
+2026-11-04 invisible-bar bug)."
   (dolist (item *tray-items*)
     (let* ((icon (tray-item-icon item))
            (start x))
@@ -138,11 +140,11 @@ after the module plus gap. Structure mirrors bar-draw-icons."
                                   (floor (/ (+ (* a r) (* (- 255 a) base-r)) 255))
                                   (floor (/ (+ (* a g) (* (- 255 a) base-g)) 255))
                                   (floor (/ (+ (* a b) (* (- 255 a) base-b))
-                                            255)))))))
-        (incf x *bar-icon-size*)
-        (push (list item start x) *bar-hitboxes*)))
-    (incf x 4))
-  (+ x *bar-module-gap*)))
+                                            255)))))))))
+      (incf x *bar-icon-size*)
+      (push (list item start x) *bar-hitboxes*)
+      (incf x 4)))
+  (+ x *bar-module-gap*))
 
 (defun bar-module-layout ()
   (let ((layout (getf (bar-snapshot) :layout)))
@@ -249,9 +251,19 @@ windows)."
 
 (defun bar-module-clock ()
   "Clock formatted per the config's :format (a small strftime subset:
-%H %M %S %d %m %y %Y %a %A %b %B)."
-  (bar-format-clock
-    (config-getf '(:modules :clock) :format :default "%a %d %b %H:%M")))
+%H %M %S %d %m %y %Y %a %A %b %B). Typography hierarchy: the date
+part renders muted, the time part accent — split at the format's
+last space. A single-segment format stays one part."
+  (let* ((fmt (config-getf '(:modules :clock) :format
+                           :default "%a %d %b %H:%M"))
+         (space (position #\Space fmt :from-end t)))
+    (if space
+        (list (list (bar-format-clock (subseq fmt 0 space))
+                    (config-getf '(:bar) :muted :default "#565f89")
+                    :gap 10)
+              (list (bar-format-clock (subseq fmt (1+ space)))
+                    (config-getf '(:bar) :accent :default "#7aa2f7")))
+        (bar-format-clock fmt))))
 
 (defun bar-format-clock (format)
   "Format the current time according to FORMAT, supporting a small
@@ -709,7 +721,9 @@ after it."
   (let* ((ptr (gethash :shm-ptr state))
          (width (gethash :width state))
          (height (gethash :height state))
-         (padding (config-getf '(:bar) :padding :default 6)))
+         (padding (max (config-getf '(:bar) :padding :default 6)
+                       (+ (config-getf '(:bar) :corner-radius :default 10)
+                          (config-getf '(:bar) :padding :default 6)))))
     (when (or (null ptr) (cffi:null-pointer-p ptr))
       (return-from %bar-render))
     (multiple-value-bind (br bg bb) (parse-hex-color
@@ -718,7 +732,19 @@ after it."
       (multiple-value-bind (fr fg fb) (parse-hex-color
                                         (config-getf '(:bar) :foreground
                                                      :default "#c0caf5"))
-        (bar-clear ptr width height br bg bb)
+        (let ((margin (config-getf '(:bar) :margin :default 0)))
+          (if (plusp (config-getf '(:bar) :corner-radius :default 10))
+              (multiple-value-bind (rdr rdg rdb)
+                  (parse-hex-color (config-getf '(:bar) :border-color
+                                                :default "#3b4261"))
+                (paint-rounded-surface ptr width height br bg bb
+                                        :alpha (bar-surface-alpha)
+                                        :radius (config-getf '(:bar)
+                                                  :corner-radius :default 10)
+                                        :border-r rdr :border-g rdg
+                                        :border-b rdb))
+              ;; margin 0: the classic full-strip bar
+              (bar-clear ptr width height br bg bb)))
         (let ((y (floor (- height (font-line-height)) 2)))
           (setf *bar-hitboxes* nil)
           ;; Left segment
@@ -739,7 +765,20 @@ after it."
                  (x (- width padding total)))
             (dolist (module modules)
               (setf x (bar-draw-segment-item ptr width height x y module
-                                            fr fg fb br bg bb)))))))
+                                            fr fg fb br bg bb))))
+          ;; Hover: a subtle rounded accent fill under the pointer
+          (when (and *bar-pointer-x*
+                     (>= *bar-pointer-x* 0) (< *bar-pointer-x* width))
+            (multiple-value-bind (ar ag ab)
+                (parse-hex-color (config-getf '(:bar) :accent
+                                              :default "#7aa2f7"))
+              (dolist (hb *bar-hitboxes*)
+                (when (and (<= (second hb) *bar-pointer-x*)
+                           (< *bar-pointer-x* (third hb)))
+                  (fill-rounded-rect ptr width height
+                                     (second hb) 2
+                                     (- (third hb) (second hb)) (- height 4)
+                                     ar ag ab :alpha 35 :radius 4))))))))
     (wl:wl-surface.attach (gethash :surface state) (gethash :wl-buffer state) 0 0)
     (wl:wl-surface.damage (gethash :surface state) 0 0 width height)
     (wl:wl-surface.commit (gethash :surface state))))
@@ -857,7 +896,7 @@ font.lisp's *font-lock*).")
     (:configure
      (destructuring-bind (serial width height) args
        (let ((w (if (plusp width) width 0))
-             (h (config-getf '(:bar) :height :default 20)))
+             (h (config-getf '(:bar) :height :default 28)))
          (setf (gethash :width state) w
                (gethash :height state) h)
          (rwm:zwlr-layer-surface-v1.ack-configure layer-surface serial)
@@ -971,7 +1010,7 @@ here, the prompt surfaces live there)."
                   "rhizome-cmd \"(rhizome:tray-show-menu \\\"~A\\\" \\\"~A\\\" ~D ~D)\""
                   (getf module :name) menu-path
                   (round x)
-                  (round (config-getf '(:bar) :height :default 20))))))))
+                  (round (config-getf '(:bar) :height :default 28))))))))
 
 (defun bar-handle-scroll (amount)
   "Handle a vertical scroll gesture over a module."
@@ -1061,7 +1100,7 @@ here, the prompt surfaces live there)."
     (handler-case
         (wl:with-open-display (display)
           (setf (gethash :display state) display)
-          (setf (gethash :height state) (config-getf '(:bar) :height :default 20))
+          (setf (gethash :height state) (config-getf '(:bar) :height :default 28))
           (let ((registry (wl:wl-display.get-registry display)))
             (push (lambda (event-name &rest args)
                     (when (eq event-name :global)
@@ -1088,12 +1127,21 @@ here, the prompt surfaces live there)."
                       (wl:wl-proxy-hooks layer-surface))
                 (rwm:zwlr-layer-surface-v1.set-anchor
                   layer-surface '(:top :left :right))
-                (rwm:zwlr-layer-surface-v1.set-exclusive-zone
-                  layer-surface (config-getf '(:bar) :height :default 20))
+                ;; Floating pill bar: inset from the screen edges
+                ;; (:bar :margin, default 8; 0 = the classic strip).
+                ;; The exclusive zone covers margin + height so
+                ;; windows never tile under the floating bar.
+                (let ((margin (config-getf '(:bar) :margin :default 0)))
+                  (rwm:zwlr-layer-surface-v1.set-margin
+                    layer-surface margin margin 0 margin)
+                  (rwm:zwlr-layer-surface-v1.set-exclusive-zone
+                    layer-surface (+ (* 2 margin)
+                                     (config-getf '(:bar) :height
+                                                  :default 20))))
                 (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity
                   layer-surface :none)
                 (rwm:zwlr-layer-surface-v1.set-size layer-surface
-                  0 (config-getf '(:bar) :height :default 20))
+                  0 (config-getf '(:bar) :height :default 28))
                 (wl:wl-surface.commit surface)
                 ;; Pointer input for clickable modules
                 (bar-setup-pointer state)
@@ -1217,16 +1265,14 @@ left by past incidents); WM process only."
   (format t "~&; Rhizome: bar stopped~%"))
 
 (defun bar-reserved-height ()
-  "Vertical pixels reserved for the bar (0 when disabled).
-River reports full output dimensions to the WM even when the bar's
-layer surface has an exclusive zone, so the WM reserves the space
-itself in its layout math. Config-driven, NOT process-driven: the
-bar draws in this space whether the WM spawned it or not, and
-gating on in-image process tracking breaks whenever bar.lisp is
-reloaded or the bar is started independently (windows then tiled
-under the bar, their menus hidden behind it)."
+  "Vertical pixels the layout must leave for the bar (0 when
+disabled): margin above + height + margin below, so windows tile
+with the same gap under the floating bar as above it. The WM
+reserves this itself in its layout math — river's exclusive zone
+can't help, because the WM positions windows explicitly."
   (if (config-getf '(:bar) :enabled :default t)
-      (config-getf '(:bar) :height :default 20)
+      (+ (config-getf '(:bar) :margin :default 0)
+         (config-getf '(:bar) :height :default 28))
       0))
 
 (defun toggle-bar ()

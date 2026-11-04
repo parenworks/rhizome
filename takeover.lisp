@@ -189,7 +189,12 @@ return)."
   (incf *takeover-manage-passes*)
   (let ((ids (loop for pair in (getf *takeover-state* :windows)
                    collect (car pair))))
-    (or (> *takeover-manage-passes* 30)
+    ;; 5 passes is enough: phantom IDs (stale files, test
+    ;; windows that no longer exist) will never re-register, and
+    ;; 30 passes of waiting on them meant stale state lingered
+    ;; across WM restarts — placing windows on the wrong
+    ;; workspace (the 2026-11-04 MOD+D bug)
+    (or (> *takeover-manage-passes* 5)
         (every (lambda (id)
                  (find id (loop for w being the hash-values of *windows*
                                 when (window-identifier w)
