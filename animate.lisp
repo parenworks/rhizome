@@ -120,9 +120,12 @@ missed frame never freezes a window mid-air."
   "Main-loop pump: while anything animates, request fresh
 manage/render sequences at frame cadence. Returns T when
 animating (the main loop skips its idle sleep and frame-caps
-instead)."
+instead). Coalesced: while a manage sequence is already pending
+(*pending-manage*), no duplicate manage_dirty goes on the wire —
+one request per cycle is the contract."
   (when (and *wm-proxy* (animations-running-p))
-    (request-manage-dirty)
+    (unless *pending-manage*
+      (request-manage-dirty))
     t))
 
 ;;; --- Clip boxes: glides never overdraw the bar ---

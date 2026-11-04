@@ -481,6 +481,13 @@ Exercise expose, splits, and workspace switches while the video plays.
   the app's action (e.g. flameshot's Capture / Open Launcher /
   Quit). Items with submenus appear as indented entries (a flat
   menu can't nest); separators and disabled entries are skipped.
+- *Animation pump is quiet (performance):* switch workspaces a
+  few times with apps open, run an expose — the glides must be
+  smooth AND the WM log must stay nearly silent during them (the
+  per-event [debug] lines are gated behind (:debug (:events t));
+  hundreds of lines per second of glide means the gate broke).
+  During a sustained animation, CPU use stays modest (check with
+  htop — the WM process should be well under a core).
 - *WM hot-swap (the live upgrade):* `rhizome-cmd detach` — the WM
   serializes the session (placements, frame trees, per-output
   workspaces, focus), completes river's stop/finished handshake,

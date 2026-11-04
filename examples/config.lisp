@@ -75,6 +75,15 @@
                          :duration-ms 200
                          :easing :ease-out-cubic)))
 
+;;; --- Debug logging ---------------------------------------------------
+;;;
+;;; Per-event [debug] lines are OFF by default: the animation pump
+;;; drives sequences at frame cadence, and a format per event is
+;;; hundreds of log lines per second of glide. Turn on when
+;;; diagnosing protocol behavior:
+
+#-(and) (configure '(:debug (:events t)))
+
 ;;; --- Pointer menus ---------------------------------------------------
 ;;;
 ;;; MOD+Middle-click on any window opens the context menu at the

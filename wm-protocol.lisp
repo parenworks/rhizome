@@ -199,9 +199,18 @@ One of :idle, :managing, :waiting-render, :rendering.")
           (apply #'handle-wm-event event-name args))
         (wl:wl-proxy-hooks wm)))
 
+(defun debug-events-p ()
+  "Whether per-event [debug] logging is on. OFF by default: the
+animation pump drives manage/render sequences at frame cadence, and
+a format per event is hundreds of log lines per second of glide —
+synchronous stdout writes at 60fps are real CPU and I/O. Turn on
+with (:debug (:events t)) when diagnosing."
+  (config-getf '(:debug) :events :default nil))
+
 (defun handle-wm-event (event-name &rest args)
   "Dispatch river_window_manager_v1 events."
-  (format t "~&; Rhizome [debug]: WM event ~A ~S~%" event-name args)
+  (when (debug-events-p)
+    (format t "~&; Rhizome [debug]: WM event ~A ~S~%" event-name args))
   (case event-name
     (:unavailable
      (format t "~&; Rhizome: window management unavailable (another WM is running?)~%")
@@ -276,8 +285,9 @@ window management decisions to the compositor."
 (defun on-manage-sequence ()
   "Hook called during a manage sequence. The tiling engine and command
 handlers should make window management requests here."
-  (format t "~&; Rhizome [debug]: on-manage-sequence - ~D outputs, ~D windows~%"
-          (hash-table-count *outputs*) (hash-table-count *windows*))
+  (when (debug-events-p)
+    (format t "~&; Rhizome [debug]: on-manage-sequence - ~D outputs, ~D windows~%"
+            (hash-table-count *outputs*) (hash-table-count *windows*)))
 
   ;; Set up default keybindings on first manage sequence
   (setup-default-keybindings)
@@ -295,8 +305,9 @@ handlers should make window management requests here."
 
   (maphash (lambda (output-proxy output)
              (declare (ignore output-proxy))
-             (format t "~&; Rhizome [debug]: output ~A dims ~Ax~A~%"
-                     output (output-width output) (output-height output))
+             (when (debug-events-p)
+               (format t "~&; Rhizome [debug]: output ~A dims ~Ax~A~%"
+                       output (output-width output) (output-height output)))
              (apply-layout-for-output output))
            *outputs*)
 
@@ -359,8 +370,9 @@ manage sequence. Placeholder: redefined by floating.lisp."
 (defun on-render-sequence ()
   "Hook called during a render sequence. The tiling engine should set
 window positions, borders, and z-ordering here."
-  (format t "~&; Rhizome [debug]: on-render-sequence - ~D outputs, ~D windows~%"
-          (hash-table-count *outputs*) (hash-table-count *windows*))
+  (when (debug-events-p)
+    (format t "~&; Rhizome [debug]: on-render-sequence - ~D outputs, ~D windows~%"
+            (hash-table-count *outputs*) (hash-table-count *windows*)))
   (maphash (lambda (output-proxy output)
              (declare (ignore output-proxy))
              ;; Render-sequence requests: presentation mode (VRR)

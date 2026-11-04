@@ -217,6 +217,31 @@
       ;; restore the disabled-bar default for later tests
       (configure '(:bar (:enabled nil))))
 
+    ;; --- pump coalescing: no duplicate manage_dirty per cycle ---
+    (let* ((*animations* (make-hash-table))
+           (*wm-proxy* :fake)
+           (dirty-calls 0)
+           (win (make-instance 'rhizome-window :proxy :anim-7)))
+      (setf (symbol-function 'request-manage-dirty)
+            (lambda (&rest args)
+              (declare (ignore args))
+              (incf dirty-calls)
+              (setf *pending-manage* t)))
+      (setf (gethash win *animations*)
+            (list :mode :relative :dx 100 :dy 0
+                  :start (get-internal-real-time)
+                  :duration 1000 :ease :linear))
+      ;; pending sequence: the pump must NOT re-request
+      (setf *pending-manage* t)
+      (ok "drain returns T while animating" (animation-drain) t)
+      (ok "no duplicate manage_dirty while one is pending"
+          dirty-calls 0)
+      ;; cycle finished (manage_finish cleared the flag): one request
+      (setf *pending-manage* nil)
+      (animation-drain)
+      (ok "drain requests exactly one manage_dirty per cycle"
+          dirty-calls 1))
+
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
   (unless (zerop fail) (uiop:quit 1))))
 
