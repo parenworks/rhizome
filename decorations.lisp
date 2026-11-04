@@ -262,6 +262,24 @@ render_finish. Returns NIL."
                         (gethash (window-proxy win) *windows*))
                   do (decoration-update-for-window win radius cfg r g b)
                 else
+                ;; Focused TILED window: a subtle accent glow ring
+                ;; in the gap (the shadow treatment, small radius,
+                ;; low alpha, accent-tinted)
+                if (and (gethash (window-proxy win) *windows*)
+                        (not (window-minimized-p win))
+                        (not (window-floating-p win))
+                        (window-focused-p win))
+                  do (decoration-update-for-window win
+                       (config-getf '(:decorations) :glow-radius
+                                    :default 6)
+                       (list :alpha (config-getf '(:decorations)
+                                                 :glow-alpha
+                                                 :default 0.3)
+                             :focused-alpha (config-getf '(:decorations)
+                                                         :glow-alpha
+                                                         :default 0.3))
+                       r g b)
+                else
                   do (cleanup-window-decoration win)))))
     nil))
 

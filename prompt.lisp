@@ -112,7 +112,7 @@ order, case-insensitive; substring matches rank first)."
             (multiple-value-bind (br bg bb)
                 (parse-hex-color (config-getf '(:bar) :background
                                              :default "#1a1b26"))
-              (bar-clear ptr width height br bg bb))
+              (rhizome-rounded-clear ptr width height br bg bb))
             (let ((y (floor (- height (font-line-height)) 2))
                   (row-height (font-line-height))
                   (row-count 0))
@@ -224,3 +224,15 @@ ON-COMPLETE is called with the selected string on Enter."
     (bar-destroy-shm state)
     (setf *prompt-state* nil
           *prompt-on-complete* nil)))
+
+(defun rhizome-rounded-clear (ptr width height r g b)
+  "The shared surface treatment for message window and prompts:
+rounded corners with a hairline border, in the bar's colors,
+routed through paint-rounded-surface (surface.lisp)."
+  (multiple-value-bind (ar ag ab)
+      (parse-hex-color (config-getf '(:bar) :accent :default "#7aa2f7"))
+    (paint-rounded-surface ptr width height r g b
+                           :alpha (bar-surface-alpha)
+                           :radius (config-getf '(:bar) :corner-radius
+                                     :default 8)
+                           :border-r ar :border-g ag :border-b ab)))

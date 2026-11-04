@@ -128,7 +128,7 @@ Returns (values value found-p)."
     ;; XCURSOR_THEME/XCURSOR_SIZE the session exports.
     :pointer (:warp-on-switch t)
     :theme (:font-family "monospace"
-            :font-size 12
+            :font-size 14
             :focused-border "#7aa2f7"
             :unfocused-border "#404040")
     :launcher (:background "#23142d"

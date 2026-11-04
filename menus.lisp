@@ -55,8 +55,13 @@
                             (:hover-background "#4b3a78")
                             (:hover-color "#f0e6ff")
                             (:accent "#7aa2f7")
+                            (:border-color "#4a3a72")
                             (:disabled "#565f89")
                             (otherwise "#ffffff")))))
+
+(defun menu-corner-radius ()
+  "The menu's corner radius (px) — matching the launcher."
+  (config-getf '(:menus) :corner-radius :default 10))
 
 ;;; --- Items ---
 
@@ -187,29 +192,25 @@ edge; every row's label draws through the font module."
                                   (ash (round (* r sa) 255) 16)
                                   (ash (round (* g sa) 255) 8)
                                   (round (* b sa) 255)))))
-      ;; Background (or hover fill per row) — through the shared
-      ;; bounds-checked helper: this exact loop was transposed once
-      ;; (y + W·x), a latent segfault for wide menus
-      (loop for y below h
-            for row = (menu-row-at 0 y)
-            for pixel = (if (= row *menu-hover*) hover-pixel bg-pixel)
-            do (loop for x below w
-                     do (put-pixel-argb ptr w h x y pixel)))
-      ;; Accent edge on the hovered row
+      ;; Background: the shared rounded treatment (corners +
+      ;; hairline border), one visual language with the launcher
+      (multiple-value-bind (br bg bb) (menu-color :background)
+        (multiple-value-bind (rdr rdg rdb) (menu-color :border-color)
+          (paint-rounded-surface ptr w h br bg bb
+                                 :alpha sa
+                                 :radius (menu-corner-radius)
+                                 :border-r rdr :border-g rdg :border-b rdb)))
+      ;; Hover: a rounded PILL fill on the hovered row (the accent
+      ;; edge bar is retired), inset from the padding
       (when (>= *menu-hover* 0)
-        (multiple-value-bind (r g b) (menu-color :accent)
-          (let* ((y0 (+ *menu-padding* (* *menu-hover* *menu-row-height*)))
-                 (edge-pixel (logior (ash sa 24)
-                                     (ash (round (* r sa) 255) 16)
-                                     (ash (round (* g sa) 255) 8)
-                                     (round (* b sa) 255))))
-            (loop for dy below *menu-row-height*
-                  for py = (+ y0 dy)
-                  while (< py h) do
-              (loop for dx below 3
-                    for px = (+ *menu-padding* dx)
-                    while (< px w) do
-                (put-pixel-argb ptr w h px py edge-pixel))))))
+        (multiple-value-bind (r g b) (menu-color :hover-background)
+          (fill-rounded-rect ptr w h
+                             (- *menu-padding* 4)
+                             (+ *menu-padding*
+                                (* *menu-hover* *menu-row-height*) 2)
+                             (- w (* 2 (- *menu-padding* 4)))
+                             (- *menu-row-height* 4)
+                             r g b :alpha sa :radius 6)))
       ;; Labels
       (multiple-value-bind (ir ig ib) (menu-color :item-color)
         (multiple-value-bind (hvr hvg hvb) (menu-color :hover-color)

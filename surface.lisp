@@ -93,3 +93,69 @@ icon antialiasing edges. ALPHA 0 leaves the destination intact."
                       (ash out-r 16)
                       (ash out-g 8)
                       out-b))))))
+
+;;; --- Rounded-rect primitives (the launcher treatment, shared) ---
+
+(declaim (inline rounded-rect-test))
+
+(defun rounded-rect-test (x y w h radius)
+  "For pixel (X Y) in a WxH rounded rect with corner RADIUS:
+(VALUES INSIDE-P BORDER-P). Corners are quarter circles; the
+border is the 1px ring at the rect's edge. The ONE definition —
+the launcher, menus, message window, prompts, and selection
+pills all route through it."
+  (let* ((rr (max 0 radius))
+         (cx (cond ((< x rr) rr)
+                   ((> x (- w rr 1)) (- w rr 1))
+                   (t x)))
+         (cy (cond ((< y rr) rr)
+                   ((> y (- h rr 1)) (- h rr 1))
+                   (t y)))
+         (edge (or (= x 0) (= x (1- w))
+                   (= y 0) (= y (1- h)))))
+    (let* ((in-corner (or (and (< x rr) (< y rr))
+                          (and (< x rr) (> y (- h rr 1)))
+                          (and (> x (- w rr 1)) (< y rr))
+                          (and (> x (- w rr 1)) (> y (- h rr 1)))))
+           (d (sqrt (+ (expt (- cx x) 2) (expt (- cy y) 2)))))
+      (cond
+        ((and in-corner (> d rr)) (values nil nil))
+        ((or edge (and in-corner (>= d (- rr 1.5)))) (values t t))
+        (t (values t nil))))))
+
+(defun fill-rounded-rect (ptr width height x y w h r g b
+                              &key (alpha 255) (radius 0))
+  "Fill a (rounded when RADIUS > 0) rect at (X Y W H) — the
+selection-pill primitive. Bounds-checked; premultiplied."
+  (loop for dy below h
+        for py = (+ y dy)
+        while (< py height) do
+    (loop for dx below w
+          for px = (+ x dx)
+          while (and (< px width) (>= px 0) (>= py 0)) do
+      (when (and (>= px 0) (>= dy 0))
+        (multiple-value-bind (inside border-p)
+            (rounded-rect-test dx dy w h radius)
+          (declare (ignore border-p))
+          (when inside
+            (put-pixel-argb ptr width height px py
+                            (make-argb r g b :alpha alpha))))))))
+
+(defun paint-rounded-surface (ptr width height r g b
+                              &key (alpha 255) (radius 0)
+                                (border-r 255) (border-g 255)
+                                (border-b 255))
+  "Full-surface rounded fill with a 1px hairline border — the
+launcher/menu/message/prompt background. Alpha-cut corners;
+premultiplied."
+  (loop for y below height
+        do (loop for x below width
+                 do (multiple-value-bind (inside border-p)
+                        (rounded-rect-test x y width height radius)
+                      (when inside
+                        (if border-p
+                            (put-pixel-argb ptr width height x y
+                                            (make-argb border-r border-g border-b
+                                                       :alpha alpha))
+                            (put-pixel-argb ptr width height x y
+                                            (make-argb r g b :alpha alpha))))))))

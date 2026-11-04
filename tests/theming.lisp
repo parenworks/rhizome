@@ -32,7 +32,7 @@
     (ok "default font family"
         (config-getf '(:theme) :font-family) "monospace")
     (ok "default font size"
-        (config-getf '(:theme) :font-size) 12)
+        (config-getf '(:theme) :font-size) 14)
     (ok "default launcher background"
         (config-getf '(:launcher) :background) "#23142d")
     (multiple-value-bind (r g b) (launcher-color :background)
