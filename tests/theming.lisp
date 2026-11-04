@@ -82,8 +82,8 @@
       (let ((parts (bar-module-parts :workspaces)))
         (ok "workspaces count"
             (length parts) 9)
-        (ok "active workspace underlined with accent"
-            (third parts) '("3" "#7aa2f7" :underline t :gap 8))
+        (ok "active workspace pilled with accent"
+            (third parts) '("3" "#7aa2f7" :pill t :gap 8))
         (ok "occupied workspace in foreground, no underline"
             (second parts) '("2" "#c0caf5" :gap 8))
         (ok "empty workspace muted"
