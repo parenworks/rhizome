@@ -30,7 +30,7 @@
 
 (defvar *launcher-width* 600)
 (defvar *launcher-height* 400)
-(defvar *launcher-line-height* 28)
+(defvar *launcher-line-height* 36)
 (defvar *launcher-padding* 12)
 
 ;;; --- Launcher entry list ---
@@ -143,13 +143,84 @@ De-duplicates by display name (first occurrence wins)."
   (setf *launcher-app-list* (launcher-scan-desktop-files))
   (format t "~&; Rhizome: loaded ~A desktop entries~%" (length *launcher-app-list*)))
 
+;;; --- Frecency: most-used apps first (the fuzzel killer feature) ---
+
+(defparameter *launcher-history-path*
+  (merge-pathnames #P".local/share/rhizome/launcher-history.sexp"
+                   (user-homedir-pathname))
+  "Launch counts by display name. LET-bindable for tests.")
+
+(defparameter *launcher-history* (make-hash-table :test #'equal)
+  "Display name → plist (:count N :last universal-time).")
+
+(defun launcher-history-load ()
+  "Read launch history. Missing file = nothing launched yet."
+  (handler-case
+      (when (probe-file *launcher-history-path*)
+        (clrhash *launcher-history*)
+        (with-open-file (s *launcher-history-path*)
+          (dolist (entry (read s))
+            (setf (gethash (car entry) *launcher-history*)
+                  (cdr entry)))))
+    (error ()
+      (clrhash *launcher-history*))))
+
+(defun launcher-history-save ()
+  "Persist launch history (atomic: write beside, rename over)."
+  (handler-case
+      (let ((entries
+              (loop for name being the hash-keys of *launcher-history*
+                    collect (cons name (gethash name *launcher-history*)))))
+        (ensure-directories-exist *launcher-history-path*)
+        (let ((tmp (merge-pathnames "launcher-history.sexp.tmp"
+                                    *launcher-history-path*)))
+          (with-open-file (s tmp :direction :output :if-exists :supersede)
+            (write entries :stream s :readably t))
+          (when (probe-file *launcher-history-path*)
+            (delete-file *launcher-history-path*))
+          (rename-file tmp *launcher-history-path*)))
+    (error (e)
+      (format t "~&; Rhizome: launcher history save failed: ~A~%" e))))
+
+(defun launcher-record-launch (name)
+  "Record a launch: count +1, timestamp now, persist."
+  (let ((h (gethash name *launcher-history*)))
+    (setf (gethash name *launcher-history*)
+          (list :count (1+ (or (getf h :count) 0))
+                :last (get-universal-time))))
+  (launcher-history-save))
+
+(defun launcher-frecency-score (name)
+  "Count with a recency boost: +3 within the last day, +1 within
+the last week. Unlaunched apps score 0."
+  (let ((h (gethash name *launcher-history*)))
+    (if (null h)
+        0
+        (let* ((count (getf h :count 0))
+               (age (- (get-universal-time) (getf h :last 0)))
+               (boost (cond ((< age 86400) 3)
+                            ((< age 604800) 1)
+                            (t 0))))
+          (+ count boost)))))
+
+(defun launcher-sort-by-frecency (entries)
+  "Most-used first; ties alphabetical. Only meaningful with an
+empty query — filtered results keep their relevance order."
+  (sort (copy-list entries)
+        (lambda (a b)
+          (let ((sa (launcher-frecency-score (car a)))
+                (sb (launcher-frecency-score (car b))))
+            (if (= sa sb)
+                (string-lessp (car a) (car b))
+                (> sa sb))))))
+
 (defun launcher-filter-entries ()
   "Filter *launcher-app-list* by the current query string (fuzzy:
 characters in order, case-insensitive; substring matches rank
 first)."
   (let ((q (string-downcase *launcher-query*)))
     (if (string= q "")
-        (copy-list *launcher-app-list*)
+        (launcher-sort-by-frecency *launcher-app-list*)
         (let ((direct '()) (fuzzy '()))
           (dolist (entry *launcher-app-list*)
             (let ((name (and entry (string-downcase (car entry)))))
@@ -827,7 +898,55 @@ row. Reuses the bar's icon discovery/scaling (bar.lisp)."
                             (:selection-background "#503278")
                             (:selected-color "#f0e6ff")
                             (:entry-color "#aa96c8")
+                            (:border-color "#4a3a66")
+                            (:placeholder-color "#6b5a8a")
                             (otherwise "#ffffff")))))
+
+(defun launcher-corner-radius ()
+  "The launcher's corner radius (px) — the fuzzel look."
+  (config-getf '(:launcher) :corner-radius :default 12))
+
+(defun launcher-round-test (x y width height radius)
+  "For a pixel (X Y) in a WIDTHxHEIGHT surface with corner RADIUS:
+(values inside-p border-p). Corners are quarter circles; the
+border is the 1px ring at the rounded rect's edge."
+  (let ((cx (cond ((< x radius) radius)
+                  ((> x (- width radius 1)) (- width radius 1))
+                  (t x)))
+        (cy (cond ((< y radius) radius)
+                  ((> y (- height radius 1)) (- height radius 1))
+                  (t y)))
+        (edge (or (= x 0) (= x (1- width))
+                  (= y 0) (= y (1- height)))))
+    ;; when the pixel is inside the corner squares, the clamp above
+    ;; moved (cx,cy) to the arc center: outside the arc = outside
+    (let* ((in-corner (or (and (< x radius) (< y radius))
+                          (and (< x radius) (> y (- height radius 1)))
+                          (and (> x (- width radius 1)) (< y radius))
+                          (and (> x (- width radius 1))
+                               (> y (- height radius 1)))))
+           (d (sqrt (+ (expt (- cx x) 2) (expt (- cy y) 2)))))
+      (cond
+        ((and in-corner (> d radius)) (values nil nil))
+        ((or edge (and in-corner (>= d (- radius 1.5)))) (values t t))
+        (t (values t nil))))))
+
+(defun launcher-paint-background (ptr width height r g b)
+  "The fuzzel look: a rounded-corner fill with a 1px hairline
+border, alpha-cut at the corners. Premultiplied ARGB."
+  (multiple-value-bind (brd-r brd-g brd-b) (launcher-color :border-color)
+    (let ((a (launcher-surface-alpha))
+          (radius (launcher-corner-radius)))
+      (loop for y below height
+            do (loop for x below width
+                     do (multiple-value-bind (inside border-p)
+                            (launcher-round-test x y width height radius)
+                          (when inside
+                            (if border-p
+                                (launcher-set-pixel ptr width height x y
+                                                     brd-b brd-g brd-r a)
+                                (launcher-set-pixel ptr width height x y
+                                                     b g r a)))))))))
 
 (defun launcher-render-to-shm (width height)
   "Render the launcher UI directly to the shared memory buffer.
@@ -838,7 +957,7 @@ through the font module (see font.lisp)."
       (return-from launcher-render-to-shm))
     (font-ensure-initialized)
     (multiple-value-bind (br bg bb) (launcher-color :background)
-      (launcher-clear-shm ptr width height br bg bb (launcher-surface-alpha))
+      (launcher-paint-background ptr width height br bg bb))
       (multiple-value-bind (pr pg pb) (launcher-color :prompt-color)
         (multiple-value-bind (qr qg qb) (launcher-color :query-color)
           (multiple-value-bind (cr cg cb) (launcher-color :cursor-color)
@@ -861,7 +980,26 @@ through the font module (see font.lisp)."
                   (loop for dx below 8
                         for px = (+ cursor-x dx)
                         while (< px width) do
-                    (launcher-set-pixel ptr width height px py cr cg cb (launcher-surface-alpha)))))
+                    (launcher-set-pixel ptr width height px py
+                                         cb cg cr (launcher-surface-alpha)))))
+              ;; Placeholder: the dim hint when no query yet
+              (when (string= *launcher-query* "")
+                (multiple-value-bind (phr phg phb)
+                    (launcher-color :placeholder-color)
+                  (launcher-draw-text-shm
+                    ptr width "type to search..."
+                    (+ query-x 12) *launcher-padding* phr phg phb)))
+              ;; Match count, top-right
+              (multiple-value-bind (phr phg phb)
+                  (launcher-color :placeholder-color)
+                (let ((count-text (format nil "~D of ~D"
+                                          (length *launcher-entries*)
+                                          (length *launcher-app-list*))))
+                  (launcher-draw-text-shm
+                    ptr width count-text
+                    (- width *launcher-padding*
+                       (font-text-width count-text))
+                    *launcher-padding* phr phg phb)))
               ;; Draw filtered entries (scrolled)
               (multiple-value-bind (selr selg selb)
                   (launcher-color :selection-background)
@@ -872,31 +1010,35 @@ through the font module (see font.lisp)."
                             for i from *launcher-scroll-offset*
                             for y = (+ y-start (* (- i *launcher-scroll-offset*) *launcher-line-height*))
                             while (< (+ y *launcher-line-height*) height) do
-                        ;; Highlight selected entry
+                        ;; Highlight selected entry: a rounded PILL
+                        ;; (the fuzzel selection), inset from the
+                        ;; padding, 6px radius
                         (when (= i *launcher-selection*)
-                          (loop for dy below *launcher-line-height*
-                                for py = (+ y dy)
-                                while (< py height) do
-                            (loop for dx below (- width (* 2 *launcher-padding*))
-                                  for px = (+ *launcher-padding* dx)
-                                  while (< px width) do
-                              (launcher-set-pixel ptr width height px py selr selg selb (launcher-surface-alpha))))
-                          ;; Accent edge: a 3px marker strip on the
-                          ;; selected row, the launcher's underline.
-                          (multiple-value-bind (acr acg acb)
-                              (launcher-color :accent)
+                          (let* ((pill-x (- *launcher-padding* 6))
+                                 (pill-w (- width (* 2 pill-x)))
+                                 (pill-r 6))
                             (loop for dy below *launcher-line-height*
                                   for py = (+ y dy)
                                   while (< py height) do
-                              (loop for dx below 3
-                                    for px = (+ *launcher-padding* dx)
+                              (loop for dx below pill-w
+                                    for px = (+ pill-x dx)
                                     while (< px width) do
-                                (launcher-set-pixel ptr width height px py
-                                                     acr acg acb
-                                                     (launcher-surface-alpha))))))
+                                (multiple-value-bind (inside border-p)
+                                    (launcher-round-test dx dy pill-w
+                                                         *launcher-line-height*
+                                                         pill-r)
+                                  (declare (ignore border-p))
+                                  (when (and inside
+                                             (< dy (- *launcher-line-height* 2))
+                                             (> dy 1))
+                                    (launcher-set-pixel
+                                      ptr width height px py
+                                      selb selg selr
+                                      (launcher-surface-alpha))))))))
                         ;; Draw entry text, centered in the row, past
                         ;; the entry's icon (aligned even when an
-                        ;; entry has no icon)
+                        ;; entry has no icon). The typed query is
+                        ;; highlighted inside the label (accent).
                         (multiple-value-bind (tr tg tb)
                             (if (= i *launcher-selection*)
                                 (values str stg stb)
@@ -907,13 +1049,41 @@ through the font module (see font.lisp)."
                             (+ y (floor (- *launcher-line-height*
                                            (launcher-icon-size))
                                         2)))
-                          (launcher-draw-text-shm
-                            ptr width (car entry)
-                            (+ *launcher-padding*
-                               (launcher-icon-size)
-                               (launcher-icon-spacing))
-                            (+ y 4)
-                            tr tg tb))))))))))))))
+                          (let* ((text-x (+ *launcher-padding*
+                                            (launcher-icon-size)
+                                            (launcher-icon-spacing)))
+                                 (text-y (+ y (floor (- *launcher-line-height*
+                                                        (font-line-height))
+                                                     2)))
+                                 (label (car entry))
+                                 (match-pos (and (plusp (length *launcher-query*))
+                                                 (search *launcher-query* label
+                                                         :test #'char-equal))))
+                            (if match-pos
+                              (let ((mlen (length *launcher-query*)))
+                                (multiple-value-bind (acr acg acb)
+                                    (launcher-color :accent)
+                                  ;; before / match / after segments
+                                  (launcher-draw-text-shm ptr width
+                                    (subseq label 0 match-pos)
+                                    text-x text-y tr tg tb)
+                                  (let ((mx (+ text-x
+                                               (font-text-width
+                                                 (subseq label 0 match-pos)))))
+                                    (launcher-draw-text-shm ptr width
+                                      (subseq label match-pos
+                                              (+ match-pos mlen))
+                                      mx text-y acr acg acb)
+                                    (launcher-draw-text-shm ptr width
+                                      (subseq label (+ match-pos mlen))
+                                      (+ mx (font-text-width
+                                              (subseq label match-pos
+                                                      (+ match-pos mlen))))
+                                      text-y tr tg tb))))
+                              ;; no match to highlight (fuzzy hits)
+                              (launcher-draw-text-shm ptr width label
+                                                      text-x text-y
+                                                      tr tg tb)))))))))))))))
 
 (defun launcher-destroy-shm ()
   "Destroy the shared memory resources."
@@ -989,6 +1159,7 @@ through the font module (see font.lisp)."
   ;; Rescan .desktop files on every open: fresh installs (pacman -S
   ;; variety ...) appear on the next launcher open, no restart
   (launcher-refresh-app-list)
+  (launcher-history-load)
   (setf *launcher-query* ""
         *launcher-selection* 0
         *launcher-scroll-offset* 0
@@ -1064,6 +1235,9 @@ Returns T if the key was consumed, NIL if not."
      (let ((entry (nth *launcher-selection* *launcher-entries*)))
        (when entry
          (format t "~&; Rhizome: launching ~A~%" (second entry))
+         ;; Frecency: this app goes to the top next time
+         (handler-case (launcher-record-launch (car entry))
+           (error () nil))
          (uiop:launch-program (list "bash" "-c" (second entry))))
        (hide-launcher))
      (launcher-redraw)

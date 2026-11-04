@@ -186,7 +186,7 @@ windows)."
                         (cond ((= i current) accent)
                               ((member i occupied) fg)
                               (t muted))
-                        (append (when (= i current) '(:underline t))
+                        (append (when (= i current) '(:pill t))
                                 (list :gap gap))))))
 
 (defun bar-module-battery ()
@@ -197,12 +197,13 @@ windows)."
                 (let ((cap (bar-read-file "/sys/class/power_supply/BAT1/capacity"))
                       (status (bar-read-file "/sys/class/power_supply/BAT1/status")))
                   (when cap
-                    (cond
-                      ((string-equal status "Charging")
-                       (concatenate 'string cap "%+"))
-                      ((string-equal status "Discharging")
-                       (concatenate 'string cap "%"))
-                      (t (concatenate 'string cap "%"))))))))
+                    (let ((charging (string-equal status "Charging")))
+                      (list (list (concatenate 'string cap
+                                               (if charging "%" ""))
+                                  nil
+                                  :icon :battery
+                                  :level (parse-integer cap :junk-allowed t)
+                                  :charging charging))))))))
 
 (defun bar-module-volume ()
   "Volume percentage via wpctl, e.g. \"VOL 45%\" or \"MUTED\"."
@@ -215,11 +216,13 @@ windows)."
                        (line (with-input-from-string (s output)
                                (read-line s nil nil))))
                   (cond
-                    ((and line (search "MUTED" line)) "MUTED")
+                    ((and line (search "MUTED" line))
+                     (list (list "MUTED" nil :icon :volume :muted t)))
                     ((and line (search "Volume:" line))
                      (let* ((num (string-trim " " (subseq line (1+ (search ":" line)))))
                             (vol (read-from-string num)))
-                       (format nil "VOL ~A%" (round (* 100 vol)))))
+                       (list (list (format nil "~A%" (round (* 100 vol)))
+                                   nil :icon :volume :muted nil))))
                     (t ""))))))
 
 (defun bar-module-network ()
@@ -239,9 +242,9 @@ windows)."
                                (type (if colon (subseq line (1+ colon)) "")))
                           (cond
                             ((search "wireless" type)
-                             (concatenate 'string "WIFI " name))
+                             (list (list name nil :icon :wifi)))
                             ((search "ethernet" type)
-                             "ETH")
+                             (list (list "ETH" nil :icon :ethernet)))
                             (t name))))))))))
 
 (defun bar-module-clock ()
@@ -327,8 +330,10 @@ telltale."
     (when (listp rest) (cddr part))))
 
 (defun bar-part-width (part)
-  "Pixel width of one part: the text's rendered advance plus its gap."
-  (+ (bar-text-width (first part))
+  "Pixel width of one part: icon + text advance + gap."
+  (+ (if (getf (bar-part-flags part) :icon)
+         (bar-icon-width) 0)
+     (bar-text-width (first part))
      (or (getf (bar-part-flags part) :gap 0) 0)))
 
 (defun bar-segment-modules (position)
@@ -533,6 +538,92 @@ surface alpha down in the font module."
 (defun bar-text-width (text)
   (font-text-width text))
 
+;;; --- Status icons (wifi, battery, volume) ---
+
+(defun bar-icon-width ()
+  "Width reserved for a status icon, including its text gap."
+  20)
+
+(defun bar-draw-battery-icon (ptr width height x y level charging r g b)
+  "A 15x9 battery: outline, tip, fill proportional to LEVEL,
+bolt when CHARGING."
+  (let ((body-w 13) (body-h 9))
+    (loop for dx below body-w
+          do (bar-set-pixel ptr width height (+ x dx) y r g b)
+             (bar-set-pixel ptr width height (+ x dx) (+ y body-h -1) r g b))
+    (loop for dy below body-h
+          do (bar-set-pixel ptr width height x (+ y dy) r g b))
+    (loop for dy from 3 to 5
+          do (bar-set-pixel ptr width height (+ x body-w) (+ y dy) r g b)
+             (bar-set-pixel ptr width height (+ x body-w 1) (+ y dy) r g b))
+    (let ((fill-w (min (- body-w 2)
+                       (floor (* (max 0 (min 100 level)) (- body-w 2))
+                              100))))
+      (when (plusp fill-w)
+        (loop for dy from 2 below (- body-h 2)
+              do (loop for dx below fill-w
+                       do (bar-set-pixel ptr width height
+                                         (+ x 2 dx) (+ y dy 2) r g b)))))
+    (when charging
+      (loop for dy from 2 below (- body-h 2)
+            do (bar-set-pixel ptr width height (+ x 6) (+ y dy) r g b)))))
+
+(defun bar-draw-volume-icon (ptr width height x y muted r g b)
+  "A 13x10 speaker with arcs, or a slash when MUTED."
+  (loop for dy from 3 to 6
+        do (bar-set-pixel ptr width height x (+ y dy) r g b)
+           (bar-set-pixel ptr width height (+ x 1) (+ y dy) r g b))
+  (loop for dx from 2 to 5
+        do (let ((half (1+ (- dx 1))))
+             (loop for dy from (- 4 half) to (+ 3 half)
+                   do (bar-set-pixel ptr width height
+                                     (+ x dx) (+ y 4 dy) r g b))))
+  (if muted
+      (loop for i from 0 to 5
+            do (bar-set-pixel ptr width height (+ x 6 i) (+ y 2 i) r g b))
+      (loop for (ar ax) in '((4 7) (6 9))
+            do (loop for dy from (- ar) to ar
+                     do (let ((dx (round (sqrt (- (* ar ar) (* dy dy))))))
+                          (bar-set-pixel ptr width height
+                                        (+ x ax) (+ y 4 dy) r g b))))))
+
+(defun bar-draw-wifi-icon (ptr width height x y r g b)
+  "A 12x10 wifi glyph: dot plus three ascending arcs."
+  (loop for dy from 0 to 1
+        do (loop for dx from 0 to 1
+                 do (bar-set-pixel ptr width height
+                                   (+ x 5 dx) (+ y 8 dy) r g b)))
+  (loop for ar in '(3 6 9)
+        do (loop for dx from (- ar) to ar
+                 do (let ((dy (round (sqrt (- (* ar ar) (* dx dx))))))
+                      (bar-set-pixel ptr width height
+                                     (+ x 6 dx) (- (+ y 9) dy) r g b)))))
+
+(defun bar-draw-ethernet-icon (ptr width height x y r g b)
+  "A 10x8 ethernet jack: bracket with two prongs."
+  (loop for dx from 0 to 9
+        do (bar-set-pixel ptr width height (+ x dx) y r g b))
+  (loop for dy from 0 to 7
+        do (bar-set-pixel ptr width height x (+ y dy) r g b)
+           (bar-set-pixel ptr width height (+ x 9) (+ y dy) r g b))
+  (loop for dy from 4 to 7
+        do (bar-set-pixel ptr width height (+ x 3) (+ y dy) r g b)
+           (bar-set-pixel ptr width height (+ x 6) (+ y dy) r g b)))
+
+(defun bar-draw-status-icon (ptr width height x y kind flags r g b)
+  "Dispatch a status icon; vertically centered in the row."
+  (let* ((row-h (font-line-height))
+         (icon-h 10)
+         (iy (+ y (floor (- row-h icon-h) 2))))
+    (case kind
+      (:battery (bar-draw-battery-icon
+                  ptr width height x iy (getf flags :level 50)
+                  (getf flags :charging) r g b))
+      (:volume (bar-draw-volume-icon
+                 ptr width height x iy (getf flags :muted) r g b))
+      (:wifi (bar-draw-wifi-icon ptr width height x iy r g b))
+      (:ethernet (bar-draw-ethernet-icon ptr width height x iy r g b)))))
+
 (defun bar-draw-module (ptr width height x y parts base-r base-g base-b module)
   "Draw one module's PARTS starting at X, using the base color for
 parts without an explicit color. Parts may carry :gap and
@@ -546,10 +637,47 @@ for MODULE. Returns the x after the module plus gap."
              (r base-r) (g base-g) (b base-b))
         (when color
           (setf (values r g b) (parse-hex-color color)))
+        ;; Status icon before the text (wifi, battery, volume)
+        (when (getf flags :icon)
+          (bar-draw-status-icon ptr width height x y
+                                (getf flags :icon) flags r g b)
+          (incf x (bar-icon-width)))
         (bar-draw-text ptr width height text x y r g b)
         (let ((tw (bar-text-width text)))
-          ;; The active-workspace marker: a 2px line in the part's
-          ;; color, flush under the text box.
+          ;; The active-workspace marker: a rounded accent PILL
+          ;; blended behind the text (radius 4, inset).
+          (when (getf flags :pill)
+            (let* ((px0 (- x 5))
+                   (py0 (+ y 2))
+                   (pw (+ tw 10))
+                   (ph (- (font-line-height) 4))
+                   (radius 4))
+              (loop for dy below ph
+                    for py = (+ py0 dy)
+                    while (< py height) do
+                (loop for dx below pw
+                      for pxx = (+ px0 dx)
+                      while (< pxx width) do
+                  ;; rounded-rect containment test (radius on the
+                  ;; vertical ends; full height in the middle)
+                  (let* ((cx (cond ((< dx radius) radius)
+                                   ((> dx (- pw radius 1)) (- pw radius 1))
+                                   (t dx)))
+                         (cy (cond ((< dy radius) radius)
+                                   ((> dy (- ph radius 1)) (- ph radius 1))
+                                   (t dy)))
+                         (in-corner (or (and (< dx radius) (< dy radius))
+                                       (and (< dx radius) (> dy (- ph radius 1)))
+                                       (and (> dx (- pw radius 1)) (< dy radius))
+                                       (and (> dx (- pw radius 1))
+                                            (> dy (- ph radius 1)))))
+                         (d (sqrt (+ (expt (- cx dx) 2) (expt (- cy dy) 2)))))
+                    (when (and (or (not in-corner) (<= d radius))
+                               (>= px0 0))
+                      (blend-pixel ptr width height pxx py
+                                   r g b :alpha 70)))))))
+          ;; The classic marker: a 2px line in the part's color,
+          ;; flush under the text box.
           (when (getf flags :underline)
             (loop for uy below 2
                   for py = (+ y (font-line-height) uy)
