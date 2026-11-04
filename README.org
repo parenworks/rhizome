@@ -78,12 +78,15 @@ is the interface version that introduced the feature.
 
 *** Not yet used (deliberate or roadmap)
 
-| Feature                          | v  | What it offers / candidate use                                  |
-|----------------------------------+----+------------------------------------------------------------------|
-| =set_clip_box= / content clip    | 2/3| clip windows during animations (expose sliding, bar overlap)     |
-
-=show_window_menu_requested= graduated: CSD menu requests now open
-rhizome's pointer menu (menus.lisp). Screencasting today works
+Every river_window_management_v1 request rhizome can use, it uses:
+=set_clip_box= graduated (animating windows clip to the usable area,
+never overdrawing the bar — animate.lisp), as did
+=show_window_menu_requested= (CSD menu requests open the pointer
+menu, menus.lisp) and river's stop/finished handshake (the WM
+hot-swap, takeover.lisp). Screencasting works through wlroots'
+=wlr-screencopy= via =grim= (screenshots) and anything using
+pipewire; =capture_sessions= is about *awareness* of those
+sessions, not capture itself. Screencasting today works
 through wlroots' =wlr-screencopy= via =grim= (screenshots) and
 anything using pipewire; =capture_sessions= is about *awareness*
 of those sessions, not capture itself.
@@ -276,7 +279,7 @@ everyone else points their display manager (or a TTY) at
 =~/.local/bin/rhizome-session=.
 
 The Makefile is the conventional front door for the rest, too:
-=make build= compile-checks the system, =make test= runs all 14
+=make build= compile-checks the system, =make test= runs all 16
 regression suites (aggregated, fails on the first red one), and
 =make docs= rebuilds the testing-day PDF.
 
@@ -809,6 +812,29 @@ frames holding windows, one visible at a time:
                       width (floor height (length windows)))))
 #+end_src
 
+* WM hot-swap: live process replacement
+
+The Lisp-machine upgrade, on Wayland: =rhizome-cmd detach= hands
+the whole session to a fresh process. The WM serializes its state
+(per-window placements keyed by stable identifiers, per-output
+current workspaces, every workspace's frame tree, focus),
+completes river's stop/finished handshake, and exits — river keeps
+rendering your windows throughout. The river-init supervision loop
+relaunches; the successor binds, restores each window as its
+identifier re-arrives, rebuilds the frame trees (through a
+number-translation map — river may re-register windows in a
+different order), and puts you back exactly where you were:
+same workspace showing, same windows in the same frames, bar back,
+~15 seconds of no keybindings while SBCL boots.
+
+The same loop makes a WM *crash* a blip instead of a hard reboot:
+river keeps rendering, the supervisor relaunches, the takeover
+state (written at every detach) plus the remembered placements
+restore the desktop. A dead WM is a 15-second inconvenience.
+
+Upgrade flow: pull the repo, =make build=, =rhizome-cmd detach=,
+wait. The fresh process compiles from source on launch.
+
 * Session: locking and logging out
 
 The locker is a configurable external program — =swaylock= by default
@@ -1089,9 +1115,11 @@ manual, 180 commands). Where rhizome stands:
       in a =:tray= bar module (IconPixmap ARGB32 drawn straight into
       the shm buffer, IconThemePath+IconName through the existing
       icon resolution). Clicks Activate / SecondaryActivate the item;
-      scrolls Scroll it; dbusmenu right-click menus remain future
-      polish (they map onto select-from-menu). Variety and flameshot
-      dock on a real session.
+      scrolls Scroll it. Right-click opens the app's OWN dbusmenu
+      (com.canonical.dbusmenu: GetLayout/AboutToShow/Event) as the
+      pointer menu right at the icon — flameshot's Capture/Quit,
+      variety's wallpaper controls, anything SNI. Variety and
+      flameshot dock on a real session.
 - [X] Animation engine (animate.lisp): frame-paced transitions —
       workspace slide-ins (direction follows the switch), expose
       gliding into the overview and back, floats and maximize
@@ -1123,6 +1151,20 @@ manual, 180 commands). Where rhizome stands:
       definition of the row-major offset formula for every drawn
       surface — the transposed variant struck five times before
       this retired the class.
+- [X] Clip boxes: animating windows clip to the output's usable
+      area (set_clip_box, render-sequence-legal, cleared on
+      landing) — glides never overdraw the bar; floating windows
+      glide on workspace switches too.
+- [X] WM hot-swap (takeover.lisp): rhizome-cmd detach serializes
+      the session and hands it to a fresh process — river's
+      stop/finished handshake, a supervision loop in river-init,
+      identifier-keyed takeover state with frame-tree number
+      translation. Crash recovery comes free: a WM death is a
+      ~15s blip, not a hard reboot.
+- [X] Tray right-click menus: the app's own dbusmenu as the
+      pointer menu at the icon (GetLayout/AboutToShow/Event over
+      the session bus; menus.lisp's surface core parameterized by
+      position).
 
 * A note on dependencies: why we implement DBus ourselves
 
