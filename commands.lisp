@@ -464,6 +464,12 @@ honored automatically."
         (progn (toggle-maximize win) "ok")
         "no focused window")))
 
+(define-command :scratchpad (output args)
+  "Toggle a scratchpad (default: term). Use arg LIST to see all."
+  (if (and args (string-equal (first args) "list"))
+      (list-scratchpads)
+      (toggle-scratchpad (and args (first args)))))
+
 (define-command :screenshot (output args)
   "Take a screenshot; use arg REGION for a region capture."
   (declare (ignore output))

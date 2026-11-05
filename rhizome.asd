@@ -41,6 +41,7 @@
    (:file "expose" :depends-on ("prefix" "floating" "frames"))
    (:file "menus" :depends-on ("expose" "animate"))
    (:file "decorations" :depends-on ("floating" "animate"))
+   (:file "scratchpads" :depends-on ("floating" "workspaces" "prefix"))
    (:file "eval-prompt" :depends-on ("keybindings" "bar"))
    (:file "bar" :depends-on ("launcher" "config" "wm-protocol"))
    (:file "commands" :depends-on ("keybindings" "launcher" "scroll" "groups"))

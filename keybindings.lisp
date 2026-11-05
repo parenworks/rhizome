@@ -200,6 +200,12 @@ the next manage sequence, like set-user-mod."
 (defun setup-default-keybindings ()
   "Set up the default StumpWM-style keybindings."
 
+  ;; C-t ; — scratchpad toggle (StumpWM classic)
+  (define-prefix-key 59
+    (lambda () (toggle-scratchpad))
+    "toggle the scratchpad")
+  "Set up the default StumpWM-style keybindings."
+
   ;; MOD+Return - launch terminal
   (define-key +xkb-key-Return+ *mod*
     (lambda ()
