@@ -780,7 +780,7 @@ after it."
       (multiple-value-bind (fr fg fb) (parse-hex-color
                                         (config-getf '(:bar) :foreground
                                                      :default "#c0caf5"))
-        (let ((margin (config-getf '(:bar) :margin :default 0)))
+        (let ((margin (config-getf '(:bar) :margin :default 8)))
           (if (plusp (config-getf '(:bar) :corner-radius :default 10))
               (multiple-value-bind (rdr rdg rdb)
                   (parse-hex-color (config-getf '(:bar) :border-color
@@ -1179,13 +1179,13 @@ here, the prompt surfaces live there)."
                 ;; (:bar :margin, default 8; 0 = the classic strip).
                 ;; The exclusive zone covers margin + height so
                 ;; windows never tile under the floating bar.
-                (let ((margin (config-getf '(:bar) :margin :default 0)))
+                (let ((margin (config-getf '(:bar) :margin :default 8)))
                   (rwm:zwlr-layer-surface-v1.set-margin
                     layer-surface margin margin 0 margin)
                   (rwm:zwlr-layer-surface-v1.set-exclusive-zone
                     layer-surface (+ (* 2 margin)
                                      (config-getf '(:bar) :height
-                                                  :default 20))))
+                                                  :default 28))))
                 (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity
                   layer-surface :none)
                 (rwm:zwlr-layer-surface-v1.set-size layer-surface
