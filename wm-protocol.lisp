@@ -443,6 +443,30 @@ window management updates."
   ;; other silent death) used to leave no bar until a manual toggle
   (start-bar-supervisor)
 
+  ;; Idle management: swayidle with configurable lock/DPMS timeouts
+  ;; (:idle (:lock-after 300 :dpms-after 600))
+  (let ((lock-after (config-getf '(:idle) :lock-after :default 300))
+        (dpms-after (config-getf '(:idle) :dpms-after :default 600)))
+    (when (and lock-after (plusp lock-after))
+      (let ((cmd (format nil "pkill -x swayidle 2>/dev/null; swayidle -w timeout ~A 'swaylock -f' ~Atimeout ~A 'wlopm --off *' resume 'wlopm --on *' &"
+                         lock-after (if dpms-after (format nil "timeout ~A 'wlopm --off *' resume 'wlopm --on *' " dpms-after) "")
+                         lock-after)))
+        ;; Build the swayidle command with proper quoting
+        (let ((args (list "swayidle" "-w"
+                          "timeout" (format nil "~A" lock-after) "swaylock -f")))
+          (when (and dpms-after (plusp dpms-after))
+            (setf args (append args (list "timeout" (format nil "~A" dpms-after)
+                                          "wlopm --off *"
+                                          "resume" "wlopm --on *"))))
+          ;; Kill any previous instance, then start
+          (uiop:run-program '("pkill" "-x" "swayidle") :ignore-error-status t)
+          (handler-case
+              (progn
+                (uiop:launch-program args)
+                (format t "~&; Rhizome: idle manager started (lock after ~As)~%" lock-after))
+            (error ()
+              (format t "~&; Rhizome: swayidle not found — install it for idle management~%")))))))
+
   (wl:with-open-display (display)
     (setf *display* display)
 
