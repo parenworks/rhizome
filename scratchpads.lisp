@@ -37,11 +37,11 @@
     (when (and win (gethash (window-proxy win) *windows*))
       (setf (window-minimized-p win) t
             (window-hidden-p win) t)
-      (pushnew win *minimized-windows*)
+      (setf (gethash win *minimized-windows*) t)
       (setf (getf state :visible) nil)
       (setf (gethash name *scratchpads*) state)
       (request-manage-dirty)
-      (message "scratchpad ~A hidden" name))))
+      (format t "~&; Rhizome: scratchpad ~A hidden~%" name))))
 
 (defun scratchpad-show (name state)
   "Show the scratchpad: un-minimize, float, center, focus."
@@ -50,7 +50,7 @@
       ;; un-minimize
       (setf (window-minimized-p win) nil
             (window-hidden-p win) nil)
-      (setf *minimized-windows* (remove win *minimized-windows*))
+      (remhash win *minimized-windows*)
       ;; float centered
       (unless (window-floating-p win)
         (let* ((ow 1920) (oh 1080)
@@ -64,35 +64,28 @@
       (setf (getf state :visible) t)
       (setf (gethash name *scratchpads*) state)
       (request-manage-dirty)
-      (message "scratchpad ~A" name))))
+      (format t "~&; Rhizome: scratchpad ~A shown~%" name))))
 
 (defun scratchpad-create (name command)
-  "Launch the scratchpad's process; register the window when it
-appears (a hook catches the first window from this app)."
+  "Launch the scratchpad's process; the :window-created hook
+registers the first window that appears within 10 seconds."
   (setf (gethash name *scratchpads*)
         (list :window nil :command command :visible nil))
-  ;; Launch the command — the window will register via river's
-  ;; normal flow; the hook below catches it
   (uiop:launch-program (list "bash" "-c" command))
-  ;; Watch for the window to appear (poll via the pending-autofocus
-  ;; mechanism — the launched window will be the next to register)
   (let ((created-at (get-universal-time)))
     (add-hook :window-created
               (lambda (win)
-                (declare (ignore win))
-                ;; check on the next manage pass whether a new
-                ;; window appeared; if so and it's on this output,
-                ;; claim it for this scratchpad
                 (let ((state (gethash name *scratchpads*)))
-                  (when (and state (null (getf state :window))
+                  ;; claim this window if the scratchpad has none yet
+                  (when (and state
+                             (null (getf state :window))
+                             (gethash (window-proxy win) *windows*)
                              (< (- (get-universal-time) created-at) 10))
-                    (let ((new-win *last-registered-window*))
-                      (when (and new-win
-                                 (gethash (window-proxy new-win) *windows*))
-                        (setf (getf state :window) new-win)
-                        (setf (gethash name *scratchpads*) state)
-                        ;; float + center it now
-                        (scratchpad-show name state)))))))))
+                    (setf (getf state :window) win)
+                    (setf (gethash name *scratchpads*) state)
+                    (format t "~&; Rhizome: scratchpad ~A claimed ~A~%"
+                            name (window-app-id win))
+                    (scratchpad-show name state)))))))
 
 (defun toggle-scratchpad (&optional (name "term"))
   "Toggle the scratchpad NAME (default: the terminal). Creates it
@@ -106,7 +99,7 @@ on first use; hides it if visible; shows it if hidden or dead."
                           :test #'equal)))
          (let ((command (or (and entry (getf entry :command)) name)))
            (scratchpad-create name command)
-           (message "scratchpad ~A launching..." name))))
+           (format t "~&; Rhizome: scratchpad ~A launching~%" name))))
       ;; window is dead — relaunch
       ((not (scratchpad-window-alive-p state))
        (let ((entry (find name (scratchpad-config)
@@ -116,7 +109,7 @@ on first use; hides it if visible; shows it if hidden or dead."
                            (getf state :command) name)))
            (remhash name *scratchpads*)
            (scratchpad-create name command)
-           (message "scratchpad ~A relaunching..." name))))
+           (format t "~&; Rhizome: scratchpad ~A relaunching~%" name))))
       ;; visible — hide
       ((getf state :visible)
        (scratchpad-hide name state))
