@@ -1112,6 +1112,10 @@ manual, 180 commands). Where rhizome stands:
 - [X] Expose-style window overview (C-t Return): every window on the
       workspace
 
+#+CAPTION: Expose (C-t Return): windows glide into the overview grid; pick with 1-9, arrows, or a click
+[[file:docs/images/expose.png]]
+      
+
        — including ones hidden in monocle frames — floats
       into an aspect-fitted grid; pick with 1-9/0, arrows + Return,
       or a click; Escape restores the layout exactly (float geometry,
