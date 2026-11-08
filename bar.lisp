@@ -1271,7 +1271,7 @@ with the same gap under the floating bar as above it. The WM
 reserves this itself in its layout math — river's exclusive zone
 can't help, because the WM positions windows explicitly."
   (if (config-getf '(:bar) :enabled :default t)
-      (+ (config-getf '(:bar) :margin :default 0)
+      (+ (* 2 (config-getf '(:bar) :margin :default 8))
          (config-getf '(:bar) :height :default 28))
       0))
 

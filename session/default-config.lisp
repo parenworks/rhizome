@@ -1,0 +1,1 @@
+(rhizome:configure (list :bar (list :modules (list :left (list :workspaces :layout :windows) :center (list :clock) :right (list :network :volume :battery)) :enabled t :margin 8 :corner-radius 10 :height 28)))
