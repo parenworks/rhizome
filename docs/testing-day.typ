@@ -159,6 +159,21 @@ get its own frame.
   [#cb], [`rhizome-cmd toggle-bar` twice], [The watcher name follows the bar (released on stop, re-acquired on start); icons return],
 )
 
+== D2c. The display configurator (bar :display module)
+
+#table(
+  columns: (auto, 1fr, 1fr),
+  [ ], [Action], [Expected],
+  [#cb], [Bar right segment], [Monitor icon + brightness % (e.g. "100") after battery],
+  [#cb], [Click the display module], [Display menu opens: brightness steps, night light, "Output eDP-2 (WxH @ RHz)"],
+  [#cb], [Brightness +10%], [Brightness steps up; the bar readout follows within the interval],
+  [#cb], [Toggle night light], [hyprsunset starts (warm tint); toggle again kills it],
+  [#cb], [Output entry → submenu], [Mode list with current marked \u{2713}; scale options 1/1.25/1.5/2],
+  [#cb], [Pick a non-current mode], ["display: applied" message; resolution changes; pick the old mode to restore],
+  [#cb], [Pick a scale], [Scale changes; pick the original to restore],
+  [#cb], [`rhizome-cmd "(ql:quickload :rhizome)"` then click display], [Output entries still present (defvar state survives reloads)],
+)
+
 == D3. Group types (C-t l)
 
 #table(
