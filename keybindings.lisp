@@ -321,7 +321,7 @@ the next manage sequence, like set-user-mod."
     (lambda ()
       (lock-screen)))
   ;; MOD+Shift+E - log out to the display manager (press twice)
-  (define-key 69 (append *mod* *mod-shift*)    ; uppercase E
+  (define-key 101 (append *mod* *mod-shift*)  ; base keysym e — river matches unshifted
     (lambda ()
       (logout-confirm)))
 
