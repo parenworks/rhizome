@@ -104,9 +104,14 @@ once per INTERVAL seconds."
 
 (defun tray-item-icon (item)
   "An item's drawable icon: (w h data) from IconPixmap (ARGB32
-words), or the theme icon resolved through load-icon from
-IconName. NIL when the item has nothing drawable."
-  (or (getf item :icon)
+converted to RGBA, scaled to the bar's icon size), or the theme
+icon resolved through load-icon from IconName. NIL when the item
+has nothing drawable."
+  (or (and (getf item :icon)
+           (destructuring-bind (w h data) (getf item :icon)
+             (when (and (plusp w) (plusp h)
+                        (>= (length data) (* 4 w h)))
+               (scale-icon w h data *bar-icon-size*))))
       (and (getf item :icon-name)
            (load-icon (getf item :icon-name)))
       (and (getf item :icon-name)

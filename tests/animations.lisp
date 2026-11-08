@@ -168,7 +168,7 @@
             (lambda (w x y wd ht)
               (declare (ignore w))
               (push (list x y wd ht) clip-calls)))
-      (configure '(:bar (:enabled t :height 20)))
+      (configure '(:bar (:enabled t :height 20 :margin 0)))
       (setf (window-output win) out
             (window-x win) 0 (window-y win) 0
             (window-width win) 100 (window-height win) 80)
@@ -206,7 +206,7 @@
       (setf (symbol-function 'set-window-clip-box)
             (lambda (&rest args) (declare (ignore args))
               (push args clip-calls)))
-      (configure '(:bar (:enabled t :height 20)))
+      (configure '(:bar (:enabled t :height 20 :margin 0)))
       (setf (window-output win) out
             (window-x win) 0 (window-y win) 30
             (window-width win) 100 (window-height win) 80)

@@ -69,6 +69,24 @@ entries arrive as (KEY VARIANT) and each VARIANT is (SIG . DATUM)."
     (when (and entry (rest entry))
       (cdr (second entry)))))
 
+(defun pixmap->rgba (bytes)
+  "Convert an SNI IconPixmap byte sequence to the RGBA vector the
+bar draws with. Pixmaps are ARGB32 in network byte order (A R G B
+per pixel); the draw loop reads R G B A. The dbus layer decodes
+arrays to LISTS — aref on that list is the 2026-11-08 bar crash —
+so this also coerces to a (unsigned-byte 8) vector. A short tail
+stays zero (transparent)."
+  (let* ((src (coerce bytes '(vector (unsigned-byte 8))))
+         (n (length src))
+         (vec (make-array n :element-type '(unsigned-byte 8)
+                               :initial-element 0)))
+    (loop for i below (- n 3) by 4
+          do (setf (aref vec i) (aref src (+ i 1))
+                   (aref vec (+ i 1)) (aref src (+ i 2))
+                   (aref vec (+ i 2)) (aref src (+ i 3))
+                   (aref vec (+ i 3)) (aref src i)))
+    vec))
+
 (defun tray-refresh-item (item)
   "Pull an item's identity and icon via Properties.GetAll. Items
 are bus names; the SNI object lives at the registered path."
@@ -105,7 +123,7 @@ are bus names; the SNI object lives at the registered path."
               (setf (getf item :icon)
                     (list (first first-px)
                           (second first-px)
-                          (third first-px)))))
+                          (pixmap->rgba (third first-px))))))
           (incf *tray-changed*))))
     (error (e)
       (format t "~&; Rhizome: tray: refresh failed: ~A~%" e))))
