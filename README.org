@@ -4,6 +4,9 @@ StumpWM-style window manager for the [[https://github.com/riverwm/river][River]]
 
 The goal: a Wayland desktop/window manager like [[https://github.com/YaLTeR/niri][niri]] but written in Common Lisp and as programmatically syntactic as [[https://github.com/stumpwm/stumpwm][StumpWM]]. Live REPL-driven window management, programmable hooks, a native CL app launcher rivaling [[https://codeberg.org/dnkl/fuzzel][fuzzel]], and the legacy and spirit of systems like Harmony from the Lisp Machines.
 
+#+CAPTION: The launcher (MOD+D): rounded and bordered with icons, frecency, match highlighting, and a dim backdrop
+[[file:docs/images/launcher.png]]
+
 * Architecture
 
 #+begin_example
@@ -771,6 +774,9 @@ borders — the shadow belongs to floats.
 
 * Frame trees (the StumpWM layout model)
 
+#+CAPTION: Day-to-day tiling: gaps, focused-window glow, the bar with status icons and workspace pills
+[[file:docs/images/tiling.png]]
+
 The screen is a recursive binary tree of frames (frames.lisp) — the
 StumpWM core data structure. Internal nodes are splits; leaves are
 frames holding windows, one visible at a time:
@@ -1108,6 +1114,10 @@ manual, 180 commands). Where rhizome stands:
       into an aspect-fitted grid; pick with 1-9/0, arrows + Return,
       or a click; Escape restores the layout exactly (float geometry,
       frame membership, per-frame order, focus)
+
+#+CAPTION: Expose (C-t Return): windows glide into the overview grid; pick with 1-9, arrows, or a click
+[[file:docs/images/expose.png]]
+
 - [X] System tray (StatusNotifier/watcher): DONE and live. The bar
       process owns =org.kde.StatusNotifierWatcher= (tray.lisp), serves
       RegisterStatusNotifierItem and Properties, watches
