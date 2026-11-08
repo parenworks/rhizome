@@ -326,11 +326,14 @@ shift) so that Lisp expressions can be typed in the eval prompt."
        (char-code (if shift-p
                       (char shifted (- keycode 2))
                       (char digits (- keycode 2)))))
-      ;; Punctuation with shift
+      ;; Punctuation with shift (raw evdev codes: 26=[ 27=] 39=;
+      ;; 40=' 41=` 43=\ — 39/40 were previously swapped, which made
+      ;; C-t ; dispatch as C-t ' (the window-number prompt))
       (shift-p
        (case keycode
          (12 (char-code #\_)) (13 (char-code #\+))
-         (39 (char-code #\")) (40 (char-code #\{))
+         (26 (char-code #\{)) (27 (char-code #\}))
+         (39 (char-code #\:)) (40 (char-code #\"))
          (41 (char-code #\~)) (43 (char-code #\|))
          (51 (char-code #\<)) (52 (char-code #\>))
          (53 (char-code #\?))
@@ -353,8 +356,10 @@ shift) so that Lisp expressions can be typed in the eval prompt."
          (67 65478) (68 65479) (87 65480) (88 65481)
          (12 (char-code #\-))
          (13 (char-code #\=))
-         (39 (char-code #\'))
-         (40 (char-code #\[))
+         (26 (char-code #\[))
+         (27 (char-code #\]))
+         (39 (char-code #\;))
+         (40 (char-code #\'))
          (41 (char-code #\`))
          (43 (char-code #\\))
          (51 (char-code #\,))
