@@ -232,6 +232,24 @@ windows)."
                                    nil :icon :volume :muted nil))))
                     (t ""))))))
 
+(defun bar-module-display ()
+  "Display brightness percentage with a monitor icon."
+  (bar-cached :display
+              (config-getf '(:modules :display) :interval :default 10)
+              (lambda ()
+                (handler-case
+                    (let* ((out (uiop:run-program '("brightnessctl" "info")
+                                                   :output :string
+                                                   :ignore-error-status t))
+                           (pct (when (and out (search "%" out))
+                                  (let* ((pc (position #\( out))
+                                         (pe (position #\% out)))
+                                    (when (and pc pe (> pe pc))
+                                      (subseq out (1+ pc) pe))))))
+                      (when pct
+                        (list (list pct nil :icon :display))))
+                  (error () nil)))))
+
 (defun bar-module-network ()
   "Active network connection name via nmcli, e.g. \"WIFI MyWifi\"."
   (bar-cached :network
@@ -316,7 +334,8 @@ strftime subset: %H %M %S %d %m %y %Y %a %A %b %B."
     (:clock . bar-module-clock)
     (:battery . bar-module-battery)
     (:volume . bar-module-volume)
-    (:network . bar-module-network))
+    (:network . bar-module-network)
+    (:display . bar-module-display))
   "Maps configured module names to their rendering functions.")
 
 (defparameter *bar-module-gap* 16
@@ -328,14 +347,20 @@ strftime subset: %H %M %S %d %m %y %Y %a %A %b %B."
 and the plist tail carries render flags — :gap N adds N pixels of
 breathing room after the part, :underline T draws the part's color
 as a 2px line under the text (the active-workspace marker).
-Unknown or failing modules render empty."
+Unknown or failing modules render empty. EMPTY STRINGS are
+dropped: bar-cached substitutes \"\" when a thunk errors, and
+empty text renders nothing."
   (let ((fn (cdr (assoc module *bar-modules*))))
     (when fn
       (handler-case
           (let ((out (funcall fn)))
             (typecase out
-              (string (list (cons out nil)))
-              (list out)
+              (string (when (plusp (length out))
+                        (list (cons out nil))))
+              (list (remove-if (lambda (part)
+                                 (or (null (first part))
+                                     (zerop (length (first part)))))
+                               out))
               (t nil)))
         (error () nil)))))
 
@@ -627,6 +652,23 @@ bolt when CHARGING."
         do (bar-set-pixel ptr width height (+ x 3) (+ y dy) r g b)
            (bar-set-pixel ptr width height (+ x 6) (+ y dy) r g b)))
 
+(defun bar-draw-display-icon (ptr width height x y r g b)
+  "A 14x10 monitor: screen outline, stand, base."
+  ;; screen outline: top, bottom, left, right
+  (loop for dx from 0 to 13
+        do (bar-set-pixel ptr width height (+ x dx) y r g b)
+           (bar-set-pixel ptr width height (+ x dx) (+ y 6) r g b))
+  (loop for dy from 0 to 6
+        do (bar-set-pixel ptr width height x (+ y dy) r g b)
+           (bar-set-pixel ptr width height (+ x 13) (+ y dy) r g b))
+  ;; stand
+  (loop for dy from 7 to 8
+        do (bar-set-pixel ptr width height (+ x 6) (+ y dy) r g b)
+           (bar-set-pixel ptr width height (+ x 7) (+ y dy) r g b))
+  ;; base
+  (loop for dx from 4 to 9
+        do (bar-set-pixel ptr width height (+ x dx) (+ y 9) r g b)))
+
 (defun bar-draw-status-icon (ptr width height x y kind flags r g b)
   "Dispatch a status icon; vertically centered in the row."
   (let* ((row-h (font-line-height))
@@ -639,6 +681,7 @@ bolt when CHARGING."
       (:volume (bar-draw-volume-icon
                  ptr width height x iy (getf flags :muted) r g b))
       (:wifi (bar-draw-wifi-icon ptr width height x iy r g b))
+      (:display (bar-draw-display-icon ptr width height x iy r g b))
       (:ethernet (bar-draw-ethernet-icon ptr width height x iy r g b)))))
 
 (defun bar-draw-module (ptr width height x y parts base-r base-g base-b module)

@@ -66,4 +66,10 @@
     (merge-pathnames
       #P"protocol/river-libinput-config-v1.xml"
       (asdf:system-source-directory :rhizome))
+    :export t)
+
+  (xyz.shunter.wayflan.client.scanner:wl-include
+    (merge-pathnames
+      #P"protocol/wlr-output-management-unstable-v1.xml"
+      (asdf:system-source-directory :rhizome))
     :export t))

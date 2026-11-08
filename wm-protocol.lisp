@@ -156,6 +156,8 @@ One of :idle, :managing, :waiting-render, :rendering.")
      (setup-input-management registry name interface version))
     ((string= interface "river_libinput_config_v1")
      (setup-libinput-config registry name interface version))
+    ((string= interface "zwlr_output_manager_v1")
+     (display-manager-init registry name version))
     ((string= interface "wl_compositor")
      (let ((iface-class (wl:find-interface-named interface)))
        (when iface-class

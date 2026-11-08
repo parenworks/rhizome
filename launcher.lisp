@@ -1236,8 +1236,11 @@ surface, created BEFORE the launcher (stacks below it in the same
                       (wl:wl-surface.damage surface 0 0 width height)
                       (wl:wl-surface.commit surface))))))
               (wl:wl-proxy-hooks *launcher-backdrop-layer-surface*))
-        ;; no anchor + size 0 0: the compositor gives the full
-        ;; output on configure
+        ;; anchor all four edges so the 0x0 size request is legal:
+        ;; river kills the connection on "width 0 requested without
+        ;; setting left and right anchors" (the MOD+D WM-death bug)
+        (rwm:zwlr-layer-surface-v1.set-anchor
+          *launcher-backdrop-layer-surface* '(:top :bottom :left :right))
         (rwm:zwlr-layer-surface-v1.set-size *launcher-backdrop-layer-surface* 0 0)
         (wl:wl-surface.commit surface)))))
 

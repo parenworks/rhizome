@@ -308,6 +308,83 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
   "Open a tray item's dbusmenu as a selection prompt (bar right-click)."
   (apply #'rhizome::tray-show-menu args))
 
+(defun display-brightness ()
+  "Current brightness percentage as a string, or NIL."
+  (handler-case
+      (let* ((out (uiop:run-program '("brightnessctl" "info")
+                                    :output :string :ignore-error-status t))
+             (pc (position #\( out))
+             (pe (position #\% out)))
+        (when (and pc pe (> pe pc))
+          (subseq out (1+ pc) pe)))
+    (error () nil)))
+
+(defun display-set-brightness (delta)
+  "Adjust brightness by DELTA percent (signed integer)."
+  (uiop:run-program (list "brightnessctl" "set"
+                          (format nil "~A%" delta))
+                    :ignore-error-status t)
+  (message "brightness ~A~A%" (if (plusp delta) "+" "") delta))
+
+(defun display-night-light-on-p ()
+  "Whether hyprsunset (night light) is running."
+  (plusp (length (uiop:run-program '("pgrep" "-x" "hyprsunset")
+                                   :output :string
+                                   :ignore-error-status t))))
+
+(defun display-toggle-night-light ()
+  "Toggle the night light gamma filter."
+  (if (display-night-light-on-p)
+      (progn (uiop:run-program '("pkill" "-x" "hyprsunset")
+                               :ignore-error-status t)
+             (message "night light off"))
+      (progn (uiop:launch-program '("hyprsunset" "-t" "4000"))
+             (message "night light on (4000K)"))))
+
+(defun display-output-menu (state)
+  "Per-output submenu: modes and scale."
+  (let ((head (getf state :head)))
+    (select-from-menu
+      (format nil "~A — ~A"
+              (getf state :name) (or (getf state :description) ""))
+      (append
+        ;; modes (current one marked)
+        (mapcar (lambda (m)
+                  (let* ((label (display-mode-label m))
+                         (current (eq m (getf state :current-mode))))
+                    (cons (if current
+                              (concatenate 'string label " ✓")
+                              label)
+                          (lambda () (display-apply head :mode m)))))
+                (getf state :modes))
+        ;; scale
+        (mapcar (lambda (s)
+                  (let ((current (= s (getf state :scale))))
+                    (cons (if current
+                              (format nil "Scale ~,2f ✓" s)
+                              (format nil "Scale ~,2f" s))
+                          (lambda () (display-apply head :scale s)))))
+                '(1 1.25 1.5 2))))))
+
+(define-command :display-menu (output args)
+  "The display configurator: brightness, night light, outputs."
+  (declare (ignore output args))
+  (select-from-menu
+    (format nil "Display (~A% bright)" (or (display-brightness) "?"))
+    (append
+      (list (cons "Brightness +10%" (lambda () (display-set-brightness 10)))
+            (cons "Brightness -10%" (lambda () (display-set-brightness -10)))
+            (cons "Brightness 100%" (lambda () (display-set-brightness 100)))
+            (cons "Brightness 50%" (lambda () (display-set-brightness 50)))
+            (cons "Toggle night light" (lambda () (display-toggle-night-light))))
+      ;; one entry per output head → mode/scale submenu
+      (mapcar (lambda (state)
+                (cons (format nil "Output ~A (~A)"
+                              (getf state :name)
+                              (display-mode-label (getf state :current-mode)))
+                      (lambda () (display-output-menu state))))
+              (display-heads)))))
+
 (define-command :group-type (output args)
   "Report the current workspace's group type."
   (declare (ignore args))
