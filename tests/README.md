@@ -70,5 +70,11 @@ stubbed river requests. Run with:
   (C-t, C-', set-prefix-key to s-t), zero-argument and event-taking
   bindings with their specials, sticky keymaps, and grabs skipped for
   an unmapped modifier until set-modifier maps it.
+- `key-grabs.lisp` - grab sync against stubbed river requests: river
+  grabs exactly the first keys the top keymaps bind; binding,
+  unbinding, undefine-key, set-user-mod, set-modifier, set-prefix-key,
+  clearing the user keymaps, and seats coming and going move only the
+  grabs that change; a sync with nothing changed sends no requests; an
+  undefined key inside a sequence runs nothing.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).

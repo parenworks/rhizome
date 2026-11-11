@@ -385,15 +385,15 @@ dirty, so the next manage sequence grabs every key the keymaps bind."
   "Map the logical modifier LOGICAL (:control :meta :super :hyper :alt
 :shift) to the river modifier keyword RIVER (:ctrl :shift :mod1 :mod3
 :mod4 :mod5), or unmap it with NIL, e.g. (set-modifier :hyper :mod3).
-Grabs are re-created during the next manage sequence. Returns RIVER."
+Keys whose river modifiers change are re-grabbed during the next
+manage sequence. Returns RIVER."
   (unless (member logical *logical-modifiers*)
     (error "~S is not a logical modifier; expected one of ~S"
            logical *logical-modifiers*))
   (unless (member river '(nil :ctrl :shift :mod1 :mod2 :mod3 :mod4 :mod5))
     (error "~S is not a river modifier" river))
   (setf (cdr (assoc logical *modifier-map*)) river)
-  (release-key-grabs)
-  (request-manage-dirty)
+  (mark-key-grabs-dirty)
   river)
 
 ;;; --- Default keybindings ---
@@ -419,16 +419,14 @@ key name. Superseded by kbd, which keeps case and returns keys."
   "Move the default binding of *prefix-map* to the key SPEC names, e.g.
 (rhizome:set-prefix-key \"C-z\"). Rebuilds *default-top-map*; user
 bindings, including any user binding of the old key, are untouched.
-Current grabs are destroyed and re-created during the next manage
-sequence, like set-user-mod."
+The next manage sequence moves only the prefix key's grab."
   (multiple-value-bind (mods keysym) (parse-key-spec spec)
     (unless keysym
       (message "bad key spec: ~A (e.g. \"C-z\", \"s-t\")" spec)
       (return-from set-prefix-key))
     (setf *prefix-key-binding* (cons keysym mods))
     (build-default-top-map)
-    (release-key-grabs)
-    (request-manage-dirty)
+    (mark-key-grabs-dirty)
     (message "prefix: ~A" spec)))
 
 (defun bind-default-direct-keys ()
@@ -679,12 +677,11 @@ the user layer."
     (install-keybindings)))
 
 (defun set-user-mod (mod)
-  "Change the user modifier — the MOD in MOD+Return, MOD+1..9,
-MOD+drag, ... — live. MOD is a friendly name: :alt, :super or :ctrl.
-The default bindings move to the new modifier; user bindings keep
-the modifiers they were made with. Current grabs are destroyed and
-re-created during the next manage sequence (enable requests are
-manage-sequence-only in river's protocol).
+  "Change the user modifier live: the MOD in MOD+Return, MOD+1..9,
+MOD+drag, and the rest. MOD is a friendly name: :alt, :super or :ctrl.
+The default bindings move to the new modifier; grabs of user bindings
+made with a literal modifier stay. The next manage sequence moves only
+the grabs whose keys change.
 
   (rhizome:set-user-mod :alt)     ; classic StumpWM-on-X11 feel
   (rhizome:set-user-mod :super)   ; the default"
@@ -696,10 +693,10 @@ manage-sequence-only in river's protocol).
     ;; Rebuild the default layer on the new modifier; the user layer
     ;; keeps its bindings, literal modifiers included
     (build-default-top-map)
-    ;; Destroy the current grabs; install-keybindings-if-needed
-    ;; re-creates them during the next manage sequence
-    (release-key-grabs)
-    ;; MOD+drag pointer grabs likewise
+    ;; install-keybindings-if-needed moves the changed key grabs
+    ;; during the next manage sequence
+    (mark-key-grabs-dirty)
+    ;; MOD+drag pointer grabs are destroyed and re-created
     (dolist (binding *pointer-bindings*)
       (ignore-errors
         (rwm:river-pointer-binding-v1.destroy binding)))

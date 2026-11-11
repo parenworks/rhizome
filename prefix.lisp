@@ -289,6 +289,10 @@ within a key sequence. Returns T."
          (let ((map (binding-keymap entry))
                (typed (append *prefix-keys* (list key))))
            (cond
+             ;; Undefined key: unbound, runs nothing
+             ((undefined-binding-p entry)
+              (message "~A is unbound" (prefix-title typed))
+              (exit-prefix-mode))
              ;; Nested keymap: descend, wait for the next key
              (map
               (setf *prefix-current-map* map
@@ -451,7 +455,9 @@ map, naming it in key spec syntax."
          (entry (keymap-lookup *prefix-current-map* key))
          (sub (binding-keymap entry))
          (name (prefix-title (append *prefix-keys* (list key)))))
-    (cond (sub
+    (cond ((undefined-binding-p entry)
+           (message "~A: unbound" name))
+          (sub
            (message "~A: keymap: ~{~A~^ ~}" name
                     (mapcar #'key-description (keymap-keys sub))))
           (entry
@@ -790,10 +796,8 @@ layer *prefix-map* is untouched. Returns *default-prefix-map*."
 
 (defun clear-user-keymaps ()
   "Remove every user binding from *top-map* and *prefix-map*, leaving
-the defaults in force. Grabs are destroyed and re-created during the
-next manage sequence."
+the defaults in force. The next manage sequence releases the grabs of
+the bindings that are gone."
   (clear-keymap *top-map*)
   (clear-keymap *prefix-map*)
-  (release-key-grabs)
-  (request-manage-dirty))
-
+  (mark-key-grabs-dirty))
