@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Rhizome Test App
+Exec=true %U
+Icon=rhizome-test-icon

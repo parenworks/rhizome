@@ -56,7 +56,10 @@
 
     ;; --- the live broker ---
     (let ((conn (when (probe-file (dbus-bus-path)) (dbus-connect))))
-      (ok "connects to the real session bus" (and conn t) t)
+      (if (probe-file (dbus-bus-path))
+          (ok "connects to the real session bus" (and conn t) t)
+          (format t "~&SKIP: no D-Bus session bus at ~A; live broker assertions skipped~%"
+                  (dbus-bus-path)))
       (when conn
         (ok "Hello returned a unique name"
             (and (search ":1." (dbus-connection-unique-name conn)
