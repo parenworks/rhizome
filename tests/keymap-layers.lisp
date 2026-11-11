@@ -129,12 +129,12 @@
       ;; --- set-prefix-key moves the prefix ---
       (set-prefix-key "C-z")
       (ok "set-prefix-key binds the new prefix"
-          (functionp (direct-binding 122 '(:ctrl))) t)
+          (direct-binding 122 '(:ctrl)) '*prefix-map*)
       (ok "set-prefix-key unbinds the old prefix"
           (direct-binding 116 '(:ctrl)) nil)
       (manage-cycles 2)
       (ok "the moved prefix survives manage sequences"
-          (list (functionp (direct-binding 122 '(:ctrl)))
+          (list (eq (direct-binding 122 '(:ctrl)) '*prefix-map*)
                 (direct-binding 116 '(:ctrl)))
           '(t nil))
       (set-prefix-key "C-t")

@@ -35,15 +35,15 @@
   (make-keymap :name :default-top
                :doc "Rhizome's direct key bindings, built from *mod* and
 *prefix-key-binding*.")
-  "The default layer of direct bindings: (keysym . modifiers) ->
-function. Only the default builders write it.")
+  "The default layer of direct bindings: key -> binding. Only the
+default builders write it.")
 
 (defvar *top-map*
   (make-keymap :name :top
                :doc "User direct key bindings."
                :parents (list *default-top-map*))
-  "The user layer of direct bindings: (keysym . modifiers) -> function.
-define-key writes it; *default-top-map* is its parent, so a user
+  "The user layer of direct bindings: key -> binding. River grabs the
+first key of every binding in it. define-key writes it; *default-top-map* is its parent, so a user
 binding shadows a default on the same key.")
 
 (defvar *active-bindings* nil
@@ -110,36 +110,137 @@ binding shadows a default on the same key.")
             (wl:wl-registry.bind registry name iface-class version))
       (format t "~&; Rhizome: bound river_xkb_bindings_v1 (version ~D)~%" version))))
 
-(defun define-key (keysym modifiers callback)
-  "Bind KEYSYM with MODIFIERS (a river modifier list) to CALLBACK, a
-function of no arguments, in the user layer *top-map*. While the
-defaults are built, write *default-top-map* instead. A NIL CALLBACK
-removes the user binding. Returns CALLBACK."
-  (keymap-bind (if *defining-default-bindings* *default-top-map* *top-map*)
-               (cons keysym modifiers)
-               callback))
+(defvar *default-layers* (list (cons '*top-map* '*default-top-map*))
+  "Alist of user keymap variable -> default keymap variable. While the
+defaults are built, a write aimed at the user keymap lands in the
+default one.")
+
+(defun default-layer-target (keymap)
+  "Return the keymap a write aimed at KEYMAP lands in: its default
+layer while the defaults are built (see *default-layers*), KEYMAP
+otherwise."
+  (or (and *defining-default-bindings*
+           (loop for (user . default) in *default-layers*
+                 when (and (boundp user) (eq keymap (symbol-value user)))
+                   return (symbol-value default)))
+      keymap))
+
+(defun define-key (keymap-or-keysym spec &optional binding &rest options)
+  "Bind a key in a keymap. Two forms:
+
+  (define-key KEYMAP SPEC BINDING &key pass-event doc)
+  (define-key KEYSYM MODIFIERS CALLBACK)
+
+KEYMAP is a keymap or a symbol whose value is one; SPEC is a key spec
+string (a sequence binds through nested keymaps, see
+bind-key-sequence), a key, or a bare keysym. BINDING is a function or
+a symbol naming one, called with no arguments; with PASS-EVENT it is
+called with the key event instead. It may also be a keymap, or a
+symbol naming one, which a press enters as a key sequence. DOC
+describes the binding for which-key and describe-key.
+
+The second form binds KEYSYM with MODIFIERS (river or logical
+keywords) in *top-map*. While the defaults are built, writes aimed at
+*top-map* or *prefix-map* go to their default layers. A NIL binding
+removes the key from the keymap's own table. Returns BINDING."
+  (if (integerp keymap-or-keysym)
+      (keymap-bind (default-layer-target *top-map*)
+                   (make-key keymap-or-keysym spec)
+                   binding)
+      (destructuring-bind (&key pass-event doc) options
+        (bind-key-sequence (default-layer-target
+                            (or (binding-keymap keymap-or-keysym)
+                                (error "~S is not a keymap" keymap-or-keysym)))
+                           (ensure-key-sequence spec)
+                           (if (and pass-event binding)
+                               (event-binding binding)
+                               binding)
+                           doc))))
 
 (defun key-binding (keysym modifiers)
-  "Return the effective direct binding of KEYSYM with MODIFIERS, the
-user layer first, or NIL when the key is unbound."
-  (values (keymap-lookup *top-map* (cons keysym modifiers))))
+  "Return the effective direct binding of KEYSYM with MODIFIERS (river
+or logical keywords), the user layer first, or NIL when the key is
+unbound."
+  (values (keymap-lookup *top-map* (make-key keysym modifiers))))
 
-(defun grab-key (seat-proxy key)
-  "Create and enable a river grab of KEY, a (keysym . modifiers) cons,
-on SEAT-PROXY. A press runs the binding key-binding returns at press
-time, so rebinding a grabbed key needs no new grab."
-  (let* ((keysym (car key))
-         (modifiers (cdr key))
-         (binding (rwm:river-xkb-bindings-v1.get-xkb-binding
-                   *xkb-bindings-proxy* seat-proxy keysym modifiers)))
+(defvar *current-key-event* nil
+  "The key event of the binding being run; NIL outside one.")
+
+(defvar *current-seat* nil
+  "The seat whose key press runs the current binding, or NIL.")
+
+(defvar *prefix-argument* nil
+  "The numeric prefix argument of the current binding. Reserved: always
+NIL until prefix arguments exist.")
+
+(defvar *focused-window* nil
+  "The window focused when the current binding's key was pressed, or
+NIL.")
+
+(defstruct (key-event (:constructor %make-key-event (key sequence seat))
+                      (:copier nil))
+  "A key press as a binding sees it: KEY, the keys of the SEQUENCE it
+ends, and the SEAT it came from."
+  (key nil :read-only t)
+  (sequence nil :read-only t)
+  (seat nil :read-only t))
+
+(defun make-key-event (key &key sequence seat)
+  "Return a key event for KEY, the last key of SEQUENCE (default: KEY
+alone), pressed on SEAT."
+  (%make-key-event key (or sequence (list key)) seat))
+
+(defun call-binding (binding event)
+  "Run BINDING for the key EVENT and return its values. An
+event-binding's function is called with EVENT; a function or a symbol
+naming one is called with no arguments. *current-key-event*,
+*current-seat*, *prefix-argument* and *focused-window* are bound
+around the call. An error is logged and shown with message, and the
+call returns NIL."
+  (let* ((seat (key-event-seat event))
+         (*current-key-event* event)
+         (*current-seat* seat)
+         (*prefix-argument* nil)
+         (*focused-window* (ignore-errors
+                            (or (and seat (seat-focused-window seat))
+                                (find-if #'window-focused-p (all-windows))))))
+    (handler-case
+        (if (event-binding-p binding)
+            (funcall (event-binding-function binding) event)
+            (funcall binding))
+      (error (e)
+        (format t "~&; Rhizome: error in ~A: ~A~%"
+                (sequence-description (key-event-sequence event)) e)
+        (message "error: ~A" e)
+        nil))))
+
+(defun press-key (key &optional seat)
+  "Run what KEY (a key designator) is bound to in *top-map*, as a press
+on SEAT: a keymap binding begins a key sequence on that keymap, any
+other binding is called through call-binding. Returns true when KEY is
+bound."
+  (let* ((key (ensure-key key))
+         (binding (keymap-lookup *top-map* key))
+         (map (binding-keymap binding)))
+    (cond (map
+           (enter-prefix-mode map (key-description key) (list key) seat)
+           t)
+          (binding
+           (call-binding binding (make-key-event key :seat seat))
+           t))))
+
+(defun grab-key (seat-proxy key river-modifiers)
+  "Create and enable a river grab of KEY on SEAT-PROXY with
+RIVER-MODIFIERS. A press runs press-key on KEY, which looks the binding
+up at press time, so rebinding a grabbed key needs no new grab."
+  (let ((binding (rwm:river-xkb-bindings-v1.get-xkb-binding
+                  *xkb-bindings-proxy* seat-proxy (key-keysym key)
+                  (or river-modifiers *mod-none*))))
     (push (lambda (event-name &rest args)
             (declare (ignore args))
             (when (eq event-name :pressed)
-              (format t "~&; Rhizome: keybinding pressed (keysym=~A mod=~A)~%"
-                      keysym modifiers)
-              (let ((callback (key-binding keysym modifiers)))
-                (when (functionp callback)
-                  (funcall callback)))))
+              (format t "~&; Rhizome: key pressed: ~A~%" (key-description key))
+              (press-key key (gethash seat-proxy *seats*))))
           (wl:wl-proxy-hooks binding))
     (rwm:river-xkb-binding-v1.enable binding)
     (setf (gethash (cons seat-proxy key) *grabbed-keys*) binding)
@@ -148,19 +249,30 @@ time, so rebinding a grabbed key needs no new grab."
 
 (defun install-keybindings ()
   "Grab every key bound in *top-map* (inherited defaults included) on
-every seat that lacks a grab for it. Must be called during a manage
-sequence."
+every seat that lacks a grab for it. A key whose modifiers include one
+*modifier-map* leaves unmapped is not grabbed; it is logged once and
+recorded as :unmapped until the grabs are released. Must be called
+during a manage sequence."
   (when (null *xkb-bindings-proxy*)
     (format t "~&; Rhizome: no xkb-bindings proxy, skipping keybindings~%")
     (return-from install-keybindings))
   (let ((created 0))
     (loop for seat-proxy being the hash-keys of *seats*
-          do (map-keymap (lambda (key binding)
-                           (declare (ignore binding))
-                           (unless (gethash (cons seat-proxy key) *grabbed-keys*)
-                             (grab-key seat-proxy key)
-                             (incf created)))
-                         *top-map*))
+          do (map-keymap
+              (lambda (key binding)
+                (declare (ignore binding))
+                (unless (gethash (cons seat-proxy key) *grabbed-keys*)
+                  (multiple-value-bind (river unmapped)
+                      (river-modifiers (key-modifiers key))
+                    (cond (unmapped
+                           (format t "~&; Rhizome: not grabbing ~A: ~{~(~A~)~^, ~} unmapped (see set-modifier)~%"
+                                   (key-description key) unmapped)
+                           (setf (gethash (cons seat-proxy key) *grabbed-keys*)
+                                 :unmapped))
+                          (t
+                           (grab-key seat-proxy key river)
+                           (incf created))))))
+              *top-map*))
     (when (plusp created)
       (format t "~&; Rhizome: installed ~D key grabs on ~D seats~%"
               created (hash-table-count *seats*)))))
@@ -174,46 +286,46 @@ grabs for the keys bound then."
   (setf *active-bindings* nil)
   (clrhash *grabbed-keys*))
 
+(defun set-modifier (logical river)
+  "Map the logical modifier LOGICAL (:control :meta :super :hyper :alt
+:shift) to the river modifier keyword RIVER (:ctrl :shift :mod1 :mod3
+:mod4 :mod5), or unmap it with NIL, e.g. (set-modifier :hyper :mod3).
+Grabs are re-created during the next manage sequence. Returns RIVER."
+  (unless (member logical *logical-modifiers*)
+    (error "~S is not a logical modifier; expected one of ~S"
+           logical *logical-modifiers*))
+  (unless (member river '(nil :ctrl :shift :mod1 :mod2 :mod3 :mod4 :mod5))
+    (error "~S is not a river modifier" river))
+  (setf (cdr (assoc logical *modifier-map*)) river)
+  (release-key-grabs)
+  (request-manage-dirty)
+  river)
+
 ;;; --- Default keybindings ---
 
 ;;; --- Prefix key (define once, change at runtime) ---
 
 (defvar *prefix-key-binding* (cons +xkb-key-T+ *mod-ctrl*)
-  "The keysym and modifiers of the current prefix binding (set-prefix-key).")
+  "The keysym and river modifiers of the key *default-top-map* binds to
+*prefix-map* (set-prefix-key moves it).")
 
 (defun parse-key-spec (spec)
-  "Parse a key spec like \"C-t\", \"C-M-s\", \"s-Space\" or \"M-Return\"
-into (MODIFIERS KEYSYM). C = ctrl, M = alt, s = super, S = shift."
-  (let ((mods '()) (rest (string spec)))
-    (loop while (and (> (length rest) 1)
-                     (member (char rest 0) '(#\C #\M #\s #\S) :test #'char=)
-                     (char= (char rest 1) #\-))
-          do (case (char rest 0)
-               (#\C (push :ctrl mods))
-               (#\M (push :mod1 mods))
-               (#\s (push :mod4 mods))
-               (#\S (push :shift mods)))
-             (setf rest (subseq rest 2)))
-    (let ((down (string-downcase rest)))
-      (values (reverse mods)
-              (cond ((string= down "space") 32)
-                    ((string= down "return") 65293)
-                    ((string= down "enter") 65293)
-                    ((string= down "tab") 65289)
-                    ((string= down "escape") 65307)
-                    ((string= down "backspace") 65288)
-                    ((string= down "left") 65361)
-                    ((string= down "right") 65363)
-                    ((string= down "up") 65362)
-                    ((string= down "down") 65364)
-                    (t (when (= 1 (length rest))
-                         (char-code (char-downcase (char rest 0))))))))))
+  "Parse one key spec such as \"C-t\", \"C-M-s\", \"s-Space\" or
+\"M-Return\" into (values MODIFIERS KEYSYM), MODIFIERS as river
+keywords. A single letter is downcased. KEYSYM is NIL for an unknown
+key name. Superseded by kbd, which keeps case and returns keys."
+  (multiple-value-bind (mods name) (split-key-spec (string spec))
+    (values (river-modifiers (canonical-modifiers mods))
+            (key-name-keysym (if (= 1 (length name))
+                                 (string-downcase name)
+                                 name)))))
 
 (defun set-prefix-key (spec)
-  "Change the prefix key at runtime, e.g. (rhizome:set-prefix-key \"C-z\").
-Rebuilds *default-top-map* with the prefix on the new key; user
-bindings are untouched. Current grabs are destroyed and re-created
-during the next manage sequence, like set-user-mod."
+  "Move the default binding of *prefix-map* to the key SPEC names, e.g.
+(rhizome:set-prefix-key \"C-z\"). Rebuilds *default-top-map*; user
+bindings, including any user binding of the old key, are untouched.
+Current grabs are destroyed and re-created during the next manage
+sequence, like set-user-mod."
   (multiple-value-bind (mods keysym) (parse-key-spec spec)
     (unless keysym
       (message "bad key spec: ~A (e.g. \"C-z\", \"s-t\")" spec)
@@ -320,10 +432,10 @@ build-default-top-map, which directs the writes to *default-top-map*."
   ;;   C-t w windowlist | C-t g workspace picker | C-t x command palette
   ;;   C-t : eval       | C-t ! shell command    | C-t b toggle bar
   ;;   C-t n/p next/prev workspace | C-t q quit rhizome
-  ;; The prefix key (changeable at runtime: set-prefix-key)
+  ;; The prefix key is an ordinary binding of a keymap (moved at
+  ;; runtime by set-prefix-key); the symbol is resolved at press time
   (define-key (car *prefix-key-binding*) (cdr *prefix-key-binding*)
-    (lambda ()
-      (enter-prefix-mode)))
+    '*prefix-map*)
 
   ;; MOD+W - window list (pick a window, jump to it)
   ;; MOD+G - workspace picker

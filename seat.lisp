@@ -18,6 +18,17 @@
 (defparameter *keyboard-shift-p* nil
   "Whether shift is currently held (from wl_keyboard modifiers).")
 
+(defparameter *keyboard-modifier-mask* 0
+  "The depressed xkb modifier mask from the last wl_keyboard modifiers
+event.")
+
+(defparameter *xkb-modifier-indices*
+  '((0 . :shift) (2 . :ctrl) (3 . :mod1) (5 . :mod3) (6 . :mod4) (7 . :mod5))
+  "xkb modifier index -> river modifier keyword. Assumes the compositor
+keymap uses the standard index order (Shift 0, Lock 1, Control 2,
+Mod1 3, Mod2 4, Mod3 5, Mod4 6, Mod5 7); the :keymap event is not
+decoded to check. Lock and Mod2 (NumLock) are ignored.")
+
 ;;; --- Pointer bindings (MOD+drag move/resize) ---
 
 (defvar *pointer-bindings* nil
@@ -249,7 +260,9 @@ during the expose overview a click picks the window)."
                     (cond
                       ;; Prefix key chains (C-t ...) consume keys first
                       ((and *prefix-mode-active* keysym)
-                       (prefix-handle-key keysym))
+                       (let ((key (keyboard-key key *keyboard-modifier-mask*)))
+                         (prefix-handle-key (key-keysym key)
+                                            (key-modifiers key))))
                       ;; The context menu (Escape/arrows/Enter)
                       ((and *menu-active* keysym)
                        (menu-handle-key keysym))
@@ -269,7 +282,8 @@ during the expose overview a click picks the window)."
              (destructuring-bind (serial depressed latched locked group) args
                (declare (ignore serial latched locked group))
                ;; XKB shift is mask bit 0
-               (setf *keyboard-shift-p* (logbitp 0 depressed))))
+               (setf *keyboard-shift-p* (logbitp 0 depressed)
+                     *keyboard-modifier-mask* depressed)))
             (:repeat-info
              (destructuring-bind (rate delay) args
                (setf *keyboard-repeat-rate* rate
@@ -329,6 +343,8 @@ shift) so that Lisp expressions can be typed in the eval prompt."
       ;; Punctuation with shift (raw evdev codes: 26=[ 27=] 39=;
       ;; 40=' 41=` 43=\ — 39/40 were previously swapped, which made
       ;; C-t ; dispatch as C-t ' (the window-number prompt))
+      ;; Keys Shift does not change (Return, arrows, F-keys) fall
+      ;; through to their unshifted keysym
       (shift-p
        (case keycode
          (12 (char-code #\_)) (13 (char-code #\+))
@@ -337,7 +353,7 @@ shift) so that Lisp expressions can be typed in the eval prompt."
          (41 (char-code #\~)) (43 (char-code #\|))
          (51 (char-code #\<)) (52 (char-code #\>))
          (53 (char-code #\?))
-         (t nil)))
+         (t (evdev-to-xkb keycode nil))))
       ;; Unshifted
       (t
        (case keycode
@@ -366,6 +382,23 @@ shift) so that Lisp expressions can be typed in the eval prompt."
          (52 (char-code #\.))
          (53 (char-code #\/))
          (t nil))))))
+
+(defun keyboard-key (keycode mask)
+  "Return the key for evdev KEYCODE pressed with the depressed xkb
+modifier MASK, or NIL when the keycode has no keysym. Modifiers map
+through *xkb-modifier-indices* and *modifier-map*. Shift is dropped
+when it changed the keysym, so Shift+1 is \"!\" and Shift+t is \"T\";
+it stays on keys it does not change, so Shift+Return is \"S-Return\"."
+  (let* ((shift (logbitp 0 mask))
+         (keysym (evdev-to-xkb keycode shift)))
+    (when keysym
+      (let ((mods (canonical-modifiers
+                   (loop for (index . modifier) in *xkb-modifier-indices*
+                         when (logbitp index mask)
+                           collect modifier))))
+        (when (and shift (not (eql keysym (evdev-to-xkb keycode nil))))
+          (setf mods (remove :shift mods)))
+        (cons keysym mods)))))
 
 (defun all-seats ()
   "Return a list of all registered seats."

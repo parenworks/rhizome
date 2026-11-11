@@ -21,6 +21,25 @@
   "Surface state hash for the prefix-mode key capture surface.")
 (defparameter *prefix-current-map* nil
   "The keymap currently being matched in the chain.")
+
+(defparameter *prefix-root-map* nil
+  "The keymap the current key sequence was entered on; command mode
+returns to it after each command.")
+
+(defparameter *prefix-label* nil
+  "The which-key title of the current key sequence's root, such as
+\"C-t\".")
+
+(defparameter *prefix-entry-keys* nil
+  "The keys that entered the current key sequence (the direct key
+bound to its root keymap), or NIL.")
+
+(defparameter *prefix-keys* nil
+  "The keys typed since the current key sequence was entered.")
+
+(defparameter *prefix-seat* nil
+  "The seat whose key press entered the current key sequence, or NIL.")
+
 (defparameter *prefix-expiry* 0
   "Universal time when prefix mode auto-aborts.")
 (defparameter *prefix-size* 1
@@ -41,33 +60,38 @@ Layout restoration lives in expose.lisp (stub-redefined here).")
 (defvar *default-prefix-map*
   (make-keymap :name :default-prefix
                :doc "Rhizome's prefix chain bindings.")
-  "The default layer of the root prefix keymap: keysym -> function or
-nested keymap. Only setup-default-prefix-bindings writes it.")
+  "The default layer of the root prefix keymap: key -> binding. Only setup-default-prefix-bindings writes it.")
 
 (defvar *prefix-map*
   (make-keymap :name :prefix
                :doc "User prefix chain bindings."
                :parents (list *default-prefix-map*))
-  "Root prefix keymap, matched after the prefix key is pressed. It is
+  "Root prefix keymap. *default-top-map* binds the prefix key (C-t by
+default) to this symbol, so a press enters a key sequence on it. It is
 the user layer: define-prefix-key writes it, and *default-prefix-map*
 is its parent, so a user binding shadows a default on the same key.")
+
+(pushnew (cons '*prefix-map* '*default-prefix-map*) *default-layers*
+         :test #'equal)
 
 (defparameter *prefix-describe-key-pending* nil
   "Set by C-t h k: the next keypress is described, not run.")
 
-(defun define-prefix-key (keysym action &optional doc)
-  "Bind KEYSYM in the user root prefix keymap *prefix-map* to ACTION: a
-function, or a nested keymap for multi-key chains. DOC describes the
-binding for describe-key and which-key. While the defaults are built,
-write *default-prefix-map* instead. A NIL ACTION removes the user
-binding."
-  (keymap-bind (if *defining-default-bindings* *default-prefix-map* *prefix-map*)
-               keysym action doc))
+(defun define-prefix-key (key action &optional doc)
+  "Bind KEY in the user root prefix keymap *prefix-map* to ACTION, as
+define-key does. KEY is a bare keysym (no modifiers), a key, or a key
+spec string; a sequence binds through nested keymaps. ACTION is a
+function, an event-binding, or a keymap for multi-key chains. DOC
+describes the binding for describe-key and which-key. While the
+defaults are built, write *default-prefix-map* instead. A NIL ACTION
+removes the user binding."
+  (bind-key-sequence (default-layer-target *prefix-map*)
+                     (ensure-key-sequence key) action doc))
 
-(defun define-keymap-key (keymap keysym action &optional doc)
-  "Bind KEYSYM in KEYMAP to ACTION (function or nested keymap),
-documented by DOC."
-  (keymap-bind keymap keysym action doc))
+(defun define-keymap-key (keymap key action &optional doc)
+  "Bind KEY (a bare keysym, a key, or a key spec string) in KEYMAP to
+ACTION (function, event-binding, or nested keymap), documented by DOC."
+  (bind-key-sequence keymap (ensure-key-sequence key) action doc))
 
 ;;; --- Mode lifecycle ---
 
@@ -87,20 +111,14 @@ the surface maps and receives keyboard focus."
       (wl:wl-surface.damage (gethash :surface state) 0 0 1 1)
       (wl:wl-surface.commit (gethash :surface state)))))
 
-(defun enter-prefix-mode ()
-  "Begin a prefix key chain (from the prefix xkb binding)."
-  ;; Don't fight with an open prompt for the keyboard
-  (when (or *prompt-active* *eval-prompt-active* *launcher-active*)
-    (return-from enter-prefix-mode))
-  (when *prefix-mode-active*
-    ;; Double prefix: treat as abort-and-restart
-    (exit-prefix-mode))
-  (unless (and *compositor* *shm* *layer-shell*)
-    (format t "~&; Rhizome: cannot enter prefix mode (missing globals)~%")
-    (return-from enter-prefix-mode))
-  (setf *prefix-current-map* *prefix-map*
-        *prefix-expiry* (+ (get-universal-time) 5)
-        *prefix-state* (make-hash-table))
+(defun prefix-capture-available-p ()
+  "True when the globals the capture surface needs are bound."
+  (and *compositor* *shm* *layer-shell* t))
+
+(defun open-prefix-capture-surface ()
+  "Create the invisible keyboard-exclusive layer surface that routes
+keys to the WM's wl_keyboard, and set *prefix-mode-active*."
+  (setf *prefix-state* (make-hash-table))
   (let ((state *prefix-state*))
     ;; The render helpers expect the global wl_shm in the state hash
     (setf (gethash :shm state) *shm*)
@@ -127,10 +145,58 @@ the surface maps and receives keyboard focus."
         (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity
           layer-surface :exclusive)
         (setf *prefix-mode-active* t)
-        ;; which-key: show the available follow-up keys
-        (show-message (which-key-text "C-t" *prefix-map*)
-                      (prefix-indicator-seconds))
         (wl:wl-surface.commit surface)))))
+
+(defun merged-keymap (maps)
+  "Return the keymap a key sequence on MAPS matches against: the keymap
+MAPS denotes, or for a list of several, a new keymap whose parents are
+those keymaps in order."
+  (let ((resolved (mapcar (lambda (m)
+                            (or (binding-keymap m)
+                                (error "~S is not a keymap" m)))
+                          (if (listp maps) maps (list maps)))))
+    (if (rest resolved)
+        (make-keymap :name :merged :parents resolved)
+        (first resolved))))
+
+(defun prefix-key-label ()
+  "The description of the key *default-top-map* binds to *prefix-map*."
+  (key-description (make-key (car *prefix-key-binding*)
+                             (cdr *prefix-key-binding*))))
+
+(defun enter-prefix-mode (&optional (maps '*prefix-map*) label entry-keys seat)
+  "Begin a key sequence on MAPS: a keymap, a symbol naming one, or a
+list of them merged in order (an earlier map wins a key). Following
+keys arrive through the capture surface and dispatch in
+prefix-handle-key. LABEL titles the which-key display; it defaults to
+the description of ENTRY-KEYS, the keys that entered the sequence, or
+of the prefix key. SEAT is the seat those keys came from. Does nothing
+while a prompt owns the keyboard or the capture surface cannot be
+created."
+  ;; Don't fight with an open prompt for the keyboard
+  (when (or *prompt-active* *eval-prompt-active* *launcher-active*)
+    (return-from enter-prefix-mode))
+  (when *prefix-mode-active*
+    ;; Double prefix: treat as abort-and-restart
+    (exit-prefix-mode))
+  (unless (prefix-capture-available-p)
+    (format t "~&; Rhizome: cannot enter prefix mode (missing globals)~%")
+    (return-from enter-prefix-mode))
+  (let ((map (merged-keymap maps)))
+    (setf *prefix-current-map* map
+          *prefix-root-map* map
+          *prefix-label* (or label
+                             (and entry-keys (sequence-description entry-keys))
+                             (prefix-key-label))
+          *prefix-entry-keys* entry-keys
+          *prefix-keys* nil
+          *prefix-seat* seat
+          *prefix-expiry* (+ (get-universal-time) 5))
+    (open-prefix-capture-surface)
+    (when *prefix-mode-active*
+      ;; which-key: show the available follow-up keys
+      (show-message (which-key-text *prefix-label* map)
+                    (prefix-indicator-seconds)))))
 
 (defun exit-prefix-mode ()
   "End the prefix chain and destroy the capture surface. Clears all
@@ -138,6 +204,8 @@ prefix modes (command mode, iresize, expose)."
   (expose-restore-if-active)
   (setf *prefix-mode-active* nil
         *prefix-current-map* nil
+        *prefix-root-map* nil
+        *prefix-keys* nil
         *prefix-expiry* 0
         *prefix-command-mode* nil
         *iresize-active* nil
@@ -167,62 +235,90 @@ prefix modes (command mode, iresize, expose)."
 
 ;;; --- Key dispatch ---
 
-(defun prefix-handle-key (keysym)
-  "Dispatch one keysym within a prefix chain. Returns T."
-  (cond
-    ;; Escape aborts whatever prefix mode is running
-    ((= keysym 65307)
-     (message "aborted")
-     (exit-prefix-mode))
-    ;; iresize: arrows adjust the split until Enter/Esc
-    (*iresize-active*
-     (iresize-handle-key keysym))
-    ;; expose: digits/arrows pick a window, Enter picks the focused
-    (*expose-active*
-     (expose-handle-key keysym))
-    ;; describe-key pending: describe, don't run
-    (*prefix-describe-key-pending*
-     (setf *prefix-describe-key-pending* nil)
-     (describe-prefix-key keysym)
-     (exit-prefix-mode))
-    (t
-     (let ((entry (or (minor-mode-lookup keysym)
-                      (keymap-lookup *prefix-current-map* keysym))))
-       (cond
-         ;; Nested keymap: descend, wait for the next key
-         ((keymap-p entry)
-          (setf *prefix-current-map* entry
-                *prefix-expiry* (+ (get-universal-time)
-                                   (prefix-indicator-seconds)))
-          ;; which-key: the available follow-up keys
-          (show-message (which-key-text
-                          (format nil "C-t ~A" (keysym-name keysym))
-                          entry)
-                        (prefix-indicator-seconds)))
-         ;; Action: run it, then end the chain — unless command mode
-         ;; keeps the prefix armed for the next command
-         ((and entry (functionp entry))
-          (if *prefix-command-mode*
-              (progn
-                (handler-case
-                    (funcall entry)
-                  (error (e)
-                    (format t "~&; Rhizome: prefix action error: ~A~%" e)
-                    (message "error: ~A" e)))
-                (setf *prefix-current-map* *prefix-map*
-                      *prefix-expiry* (+ (get-universal-time) 60))
-                (show-message (which-key-text "C-t" *prefix-map*) 60))
-              (progn
-                (exit-prefix-mode)
-                (handler-case
-                    (funcall entry)
-                  (error (e)
-                    (format t "~&; Rhizome: prefix action error: ~A~%" e)
-                    (message "error: ~A" e))))))
-         ;; Unmapped key: abort with feedback
-         (t
-          (message "unbound key")
-          (exit-prefix-mode))))))
+(defun prefix-title (keys)
+  "The current sequence's label followed by KEYS, for which-key titles
+and messages, e.g. \"C-t h\"."
+  (format nil "~A~{ ~A~}"
+          (or *prefix-label* (prefix-key-label))
+          (mapcar #'key-description keys)))
+
+(defun prefix-lookup (key)
+  "Look KEY up in the enabled minor modes, then *prefix-current-map*.
+When nothing binds KEY and it carries modifiers of the key that
+entered the sequence (still held from that chord), look up KEY without
+them. Returns the binding (or NIL) and the key it was found under."
+  (flet ((lookup (k)
+           (or (minor-mode-lookup k)
+               (keymap-lookup *prefix-current-map* k))))
+    (let ((entry (lookup key)))
+      (if entry
+          (values entry key)
+          (let* ((held (and *prefix-entry-keys*
+                            (key-modifiers (car (last *prefix-entry-keys*)))))
+                 (bare (and held
+                            (intersection held (key-modifiers key))
+                            (make-key (key-keysym key)
+                                      (set-difference (key-modifiers key) held)))))
+            (let ((found (and bare (lookup bare))))
+              (if found
+                  (values found bare)
+                  (values nil key))))))))
+
+(defun prefix-handle-key (keysym &optional modifiers)
+  "Dispatch one key, KEYSYM with MODIFIERS (logical or river keywords),
+within a key sequence. Returns T."
+  (let ((key (make-key keysym modifiers)))
+    (cond
+      ;; Escape aborts whatever prefix mode is running
+      ((= keysym 65307)
+       (message "aborted")
+       (exit-prefix-mode))
+      ;; iresize: arrows adjust the split until Enter/Esc
+      (*iresize-active*
+       (iresize-handle-key keysym))
+      ;; expose: digits/arrows pick a window, Enter picks the focused
+      (*expose-active*
+       (expose-handle-key keysym))
+      ;; describe-key pending: describe, don't run
+      (*prefix-describe-key-pending*
+       (setf *prefix-describe-key-pending* nil)
+       (describe-prefix-key key)
+       (exit-prefix-mode))
+      (t
+       (multiple-value-bind (entry key) (prefix-lookup key)
+         (let ((map (binding-keymap entry))
+               (typed (append *prefix-keys* (list key))))
+           (cond
+             ;; Nested keymap: descend, wait for the next key
+             (map
+              (setf *prefix-current-map* map
+                    *prefix-keys* typed
+                    *prefix-expiry* (+ (get-universal-time)
+                                       (prefix-indicator-seconds)))
+              ;; which-key: the available follow-up keys
+              (show-message (which-key-text (prefix-title typed) map)
+                            (prefix-indicator-seconds)))
+             ;; Action: run it, then end the chain, unless command mode
+             ;; keeps the sequence armed for the next command
+             (entry
+              (let ((event (make-key-event
+                            key :sequence (append *prefix-entry-keys* typed)
+                                :seat *prefix-seat*)))
+                (cond (*prefix-command-mode*
+                       (call-binding entry event)
+                       (let ((root (or *prefix-root-map* *prefix-map*)))
+                         (setf *prefix-current-map* root
+                               *prefix-keys* nil
+                               *prefix-expiry* (+ (get-universal-time) 60))
+                         (show-message (which-key-text (prefix-title nil) root)
+                                       60)))
+                      (t
+                       (exit-prefix-mode)
+                       (call-binding entry event)))))
+             ;; Unmapped key: abort with feedback
+             (t
+              (message "~A is unbound" (prefix-title typed))
+              (exit-prefix-mode))))))))
   t)
 
 ;;; --- Minor modes (StumpWM's keymap overlays, Wayland-adapted) ---
@@ -258,9 +354,11 @@ prefix map while the mode is enabled:
   (or (gethash name *minor-mode-keymaps*)
       (setf (gethash name *minor-mode-keymaps*) (make-keymap :name name))))
 
-(defun define-minor-mode-key (name keysym action)
-  "Bind KEYSYM in minor mode NAME to ACTION (a function)."
-  (keymap-bind (minor-mode-keymap name) keysym action))
+(defun define-minor-mode-key (name key action)
+  "Bind KEY (a bare keysym, a key, or a key spec string) in minor mode
+NAME to ACTION."
+  (bind-key-sequence (minor-mode-keymap name) (ensure-key-sequence key)
+                     action))
 
 (defun enable-minor-mode (name)
   "Enable NAME: its keymap takes precedence over the prefix map."
@@ -278,13 +376,14 @@ prefix map while the mode is enabled:
   "The enabled minor modes, most recently enabled first."
   (copy-list *minor-mode-stack*))
 
-(defun minor-mode-lookup (keysym)
-  "The first binding for KEYSYM among the enabled minor modes (most
-recently enabled first), if any."
-  (loop for name in *minor-mode-stack*
-        for entry = (keymap-lookup (minor-mode-keymap name) keysym)
-        when entry
-          return entry))
+(defun minor-mode-lookup (key)
+  "The first binding for KEY (a key designator) among the enabled minor
+modes (most recently enabled first), if any."
+  (let ((key (ensure-key key)))
+    (loop for name in *minor-mode-stack*
+          for entry = (keymap-lookup (minor-mode-keymap name) key)
+          when entry
+            return entry)))
 
 ;;; --- Default prefix bindings (StumpWM-flavored) ---
 
@@ -345,46 +444,42 @@ quit-confirm)."
 
 ;;; --- Help system (StumpWM's C-t h chains) ---
 
-(defun keysym-name (keysym)
-  "A display name for a keysym."
-  (case keysym
-    (65307 "Esc") (65288 "Backspace") (65289 "Tab") (65293 "Return")
-    (65361 "Left") (65362 "Up") (65363 "Right") (65364 "Down")
-    (t (let ((c (code-char keysym)))
-         (if (graphic-char-p c)
-             (string c)
-             (format nil "#~D" keysym))))))
-
-(defun describe-prefix-key (keysym)
-  "Show what KEYSYM is bound to in the current prefix map."
-  (let ((entry (keymap-lookup *prefix-current-map* keysym)))
-    (cond ((keymap-p entry)
-           (message "C-t ~A: keymap: ~{~A~^ ~}" (keysym-name keysym)
-                    (mapcar #'keysym-name (keymap-keys entry))))
+(defun describe-prefix-key (key)
+  "Show what KEY (a key designator) is bound to in the current prefix
+map, naming it in key spec syntax."
+  (let* ((key (ensure-key key))
+         (entry (keymap-lookup *prefix-current-map* key))
+         (sub (binding-keymap entry))
+         (name (prefix-title (append *prefix-keys* (list key)))))
+    (cond (sub
+           (message "~A: keymap: ~{~A~^ ~}" name
+                    (mapcar #'key-description (keymap-keys sub))))
           (entry
-           (message "C-t ~A: ~A" (keysym-name keysym)
-                    (or (keymap-binding-doc *prefix-current-map* keysym)
+           (message "~A: ~A" name
+                    (or (keymap-binding-doc *prefix-current-map* key)
                         "a command")))
           (t
-           (message "C-t ~A: unbound" (keysym-name keysym))))))
+           (message "~A: unbound" name)))))
 
 (defun describe-key-prompt ()
-  "Wait for the next key in a fresh C-t chain and describe it."
-  (message "describe-key: press C-t then a key")
+  "Wait for the next key in a fresh prefix chain and describe it."
+  (message "describe-key: press a key in ~A" (prefix-key-label))
   (setf *prefix-describe-key-pending* t)
   (enter-prefix-mode))
 
 (defun describe-prefix-bindings ()
-  "List the C-t bindings in the message window."
-  (message "C-t:~A ~{~A~^, ~}"
+  "List the prefix map's bindings, in key spec syntax, in the message
+window."
+  (message "~A:~A ~{~A~^, ~}"
+           (prefix-key-label)
            (if *minor-mode-stack*
                (format nil " minor modes: ~{~A~^ ~};" *minor-mode-stack*)
                "")
            (sort (loop for k in (keymap-keys *prefix-map*)
                        for doc = (keymap-binding-doc *prefix-map* k)
                        collect (if doc
-                                   (format nil "~A (~A)" (keysym-name k) doc)
-                                   (keysym-name k)))
+                                   (format nil "~A (~A)" (key-description k) doc)
+                                   (key-description k)))
                  #'string<)))
 
 (defun describe-function-prompt ()
@@ -446,7 +541,7 @@ quit-confirm)."
                           collect (string-right-trim
                                     " "
                                     (format nil "~A ~A"
-                                            (keysym-name k)
+                                            (key-description k)
                                             (or (keymap-binding-doc map k)
                                                 ""))))
                     #'string<))
@@ -463,15 +558,27 @@ quit-confirm)."
 
 ;;; --- Command mode: sticky prefix ---
 
+(defun enter-sticky-keymap (maps &optional label)
+  "Begin a key sequence on MAPS (as enter-prefix-mode takes them) that
+stays armed after each command, returning to MAPS, until Escape or a
+minute without a key."
+  (enter-prefix-mode maps label)
+  (when *prefix-mode-active*
+    (setf *prefix-command-mode* t
+          *prefix-expiry* (+ (get-universal-time) 60))
+    (show-message (which-key-text *prefix-label* *prefix-root-map*) 60)))
+
+(defun sticky-keymap (maps &optional label)
+  "Return a binding that enters MAPS as a sticky key sequence (see
+enter-sticky-keymap), e.g.
+  (define-key *top-map* \"s-r\" (sticky-keymap *resize-map* \"resize\"))"
+  (lambda () (enter-sticky-keymap maps label)))
+
 (defun enter-command-mode ()
   "Keep the prefix armed for successive commands until Escape
 (StumpWM's command-mode / push-top-map). The which-key display shows
 the available commands while it lasts."
-  (enter-prefix-mode)
-  (when *prefix-mode-active*
-    (setf *prefix-command-mode* t
-          *prefix-expiry* (+ (get-universal-time) 60))
-    (show-message (which-key-text "C-t" *prefix-map*) 60)))
+  (enter-sticky-keymap '*prefix-map*))
 
 ;;; --- Interactive resize (StumpWM's iresize) ---
 

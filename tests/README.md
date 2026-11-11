@@ -64,5 +64,11 @@ stubbed river requests. Run with:
   manage sequences, set-user-mod, and set-prefix-key; reload-config
   replaces the user layer; define-key, define-prefix-key and
   define-keymap-key keep working.
+- `key-sequences.lisp` - kbd parsing (C M s H A S, sequences), a
+  direct key bound to a keymap (s-x then f), modifiers on later keys
+  of a sequence (s-x C-M-f), the prefix key as an ordinary binding
+  (C-t, C-', set-prefix-key to s-t), zero-argument and event-taking
+  bindings with their specials, sticky keymaps, and grabs skipped for
+  an unmapped modifier until set-modifier maps it.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
