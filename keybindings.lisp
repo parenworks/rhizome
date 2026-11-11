@@ -31,11 +31,32 @@
 (defvar *xkb-bindings-proxy* nil
   "The river_xkb_bindings_v1 proxy.")
 
-(defvar *keybindings* (make-hash-table :test 'equal)
-  "Maps (keysym . modifiers) to callback functions.")
+(defvar *default-top-map*
+  (make-keymap :name :default-top
+               :doc "Rhizome's direct key bindings, built from *mod* and
+*prefix-key-binding*.")
+  "The default layer of direct bindings: (keysym . modifiers) ->
+function. Only the default builders write it.")
+
+(defvar *top-map*
+  (make-keymap :name :top
+               :doc "User direct key bindings."
+               :parents (list *default-top-map*))
+  "The user layer of direct bindings: (keysym . modifiers) -> function.
+define-key writes it; *default-top-map* is its parent, so a user
+binding shadows a default on the same key.")
 
 (defvar *active-bindings* nil
   "List of active river_xkb_binding_v1 proxy objects.")
+
+(defvar *grabbed-keys* (make-hash-table :test 'equal)
+  "Maps (seat-proxy . key) to the river_xkb_binding_v1 grabbing it.")
+
+(defvar *default-keymaps-built* nil
+  "True once setup-default-keybindings has built the default keymaps.")
+
+(defvar *default-top-map-mod* nil
+  "The *mod* value *default-top-map* was last built with.")
 
 ;;; --- xkb keysym constants ---
 
@@ -90,57 +111,68 @@
       (format t "~&; Rhizome: bound river_xkb_bindings_v1 (version ~D)~%" version))))
 
 (defun define-key (keysym modifiers callback)
-  "Register a keybinding. KEYSYM is an xkb keysym, MODIFIERS is a bitmask,
-CALLBACK is a function called when the key is pressed."
-  (setf (gethash (cons keysym modifiers) *keybindings*) callback))
+  "Bind KEYSYM with MODIFIERS (a river modifier list) to CALLBACK, a
+function of no arguments, in the user layer *top-map*. While the
+defaults are built, write *default-top-map* instead. A NIL CALLBACK
+removes the user binding. Returns CALLBACK."
+  (keymap-bind (if *defining-default-bindings* *default-top-map* *top-map*)
+               (cons keysym modifiers)
+               callback))
+
+(defun key-binding (keysym modifiers)
+  "Return the effective direct binding of KEYSYM with MODIFIERS, the
+user layer first, or NIL when the key is unbound."
+  (values (keymap-lookup *top-map* (cons keysym modifiers))))
+
+(defun grab-key (seat-proxy key)
+  "Create and enable a river grab of KEY, a (keysym . modifiers) cons,
+on SEAT-PROXY. A press runs the binding key-binding returns at press
+time, so rebinding a grabbed key needs no new grab."
+  (let* ((keysym (car key))
+         (modifiers (cdr key))
+         (binding (rwm:river-xkb-bindings-v1.get-xkb-binding
+                   *xkb-bindings-proxy* seat-proxy keysym modifiers)))
+    (push (lambda (event-name &rest args)
+            (declare (ignore args))
+            (when (eq event-name :pressed)
+              (format t "~&; Rhizome: keybinding pressed (keysym=~A mod=~A)~%"
+                      keysym modifiers)
+              (let ((callback (key-binding keysym modifiers)))
+                (when (functionp callback)
+                  (funcall callback)))))
+          (wl:wl-proxy-hooks binding))
+    (rwm:river-xkb-binding-v1.enable binding)
+    (setf (gethash (cons seat-proxy key) *grabbed-keys*) binding)
+    (push binding *active-bindings*)
+    binding))
 
 (defun install-keybindings ()
-  "Create and enable all registered keybindings. Must be called during
-a manage sequence."
+  "Grab every key bound in *top-map* (inherited defaults included) on
+every seat that lacks a grab for it. Must be called during a manage
+sequence."
   (when (null *xkb-bindings-proxy*)
     (format t "~&; Rhizome: no xkb-bindings proxy, skipping keybindings~%")
     (return-from install-keybindings))
+  (let ((created 0))
+    (loop for seat-proxy being the hash-keys of *seats*
+          do (map-keymap (lambda (key binding)
+                           (declare (ignore binding))
+                           (unless (gethash (cons seat-proxy key) *grabbed-keys*)
+                             (grab-key seat-proxy key)
+                             (incf created)))
+                         *top-map*))
+    (when (plusp created)
+      (format t "~&; Rhizome: installed ~D key grabs on ~D seats~%"
+              created (hash-table-count *seats*)))))
 
-  (when (and *active-bindings* (plusp (hash-table-count *keybindings*)))
-    ;; Already installed and we have bindings
-    (return-from install-keybindings))
-
-  ;; Destroy any previously active bindings
+(defun release-key-grabs ()
+  "Destroy every river key grab. The next manage sequence re-creates
+grabs for the keys bound then."
   (dolist (binding *active-bindings*)
-    (rwm:river-xkb-binding-v1.destroy binding))
+    (ignore-errors
+      (rwm:river-xkb-binding-v1.destroy binding)))
   (setf *active-bindings* nil)
-
-  (format t "~&; Rhizome: installing ~D keybindings on ~D seats~%"
-          (hash-table-count *keybindings*) (hash-table-count *seats*))
-
-  ;; Create and enable new bindings for each seat
-  (loop for seat-proxy being the hash-keys of *seats*
-        do (loop for keyspec being the hash-keys of *keybindings*
-                 using (hash-value cb)
-                 do (let ((callback cb)
-                          (keysym (car keyspec))
-                          (modifiers (cdr keyspec)))
-                      (let ((binding (rwm:river-xkb-bindings-v1.get-xkb-binding
-                                       *xkb-bindings-proxy*
-                                       seat-proxy
-                                       keysym
-                                       modifiers)))
-                        ;; Set up event handler
-                        (push (lambda (event-name &rest args)
-                                (declare (ignore args))
-                                (case event-name
-                                  (:pressed
-                                   (format t "~&; Rhizome: keybinding pressed (keysym=~A mod=~A)~%"
-                                           keysym modifiers)
-                                   (funcall callback))
-                                  (:released
-                                   nil)
-                                  (:stop-repeat
-                                   nil)))
-                              (wl:wl-proxy-hooks binding))
-                        ;; Enable the binding
-                        (rwm:river-xkb-binding-v1.enable binding)
-                        (push binding *active-bindings*))))))
+  (clrhash *grabbed-keys*))
 
 ;;; --- Default keybindings ---
 
@@ -179,32 +211,22 @@ into (MODIFIERS KEYSYM). C = ctrl, M = alt, s = super, S = shift."
 
 (defun set-prefix-key (spec)
   "Change the prefix key at runtime, e.g. (rhizome:set-prefix-key \"C-z\").
-Current grabs are destroyed and the new binding is installed during
-the next manage sequence, like set-user-mod."
+Rebuilds *default-top-map* with the prefix on the new key; user
+bindings are untouched. Current grabs are destroyed and re-created
+during the next manage sequence, like set-user-mod."
   (multiple-value-bind (mods keysym) (parse-key-spec spec)
     (unless keysym
       (message "bad key spec: ~A (e.g. \"C-z\", \"s-t\")" spec)
       (return-from set-prefix-key))
-    ;; Swap the binding in the table
-    (remhash *prefix-key-binding* *keybindings*)
     (setf *prefix-key-binding* (cons keysym mods))
-    (define-key keysym mods (lambda () (enter-prefix-mode)))
-    ;; Reinstall: destroy grabs, re-create during the next manage pass
-    (dolist (binding *active-bindings*)
-      (ignore-errors
-        (rwm:river-xkb-binding-v1.destroy binding)))
-    (setf *active-bindings* nil)
+    (build-default-top-map)
+    (release-key-grabs)
     (request-manage-dirty)
     (message "prefix: ~A" spec)))
 
-(defun setup-default-keybindings ()
-  "Set up the default StumpWM-style keybindings."
-
-  ;; C-t ; — scratchpad toggle (StumpWM classic)
-  (define-prefix-key 59
-    (lambda () (toggle-scratchpad))
-    "toggle the scratchpad")
-  "Set up the default StumpWM-style keybindings."
+(defun bind-default-direct-keys ()
+  "Bind rhizome's direct keys on *mod*, plus the prefix key. Called by
+build-default-top-map, which directs the writes to *default-top-map*."
 
   ;; MOD+Return - launch terminal
   (define-key +xkb-key-Return+ *mod*
@@ -302,7 +324,6 @@ the next manage sequence, like set-user-mod."
   (define-key (car *prefix-key-binding*) (cdr *prefix-key-binding*)
     (lambda ()
       (enter-prefix-mode)))
-  (setup-default-prefix-bindings)
 
   ;; MOD+W - window list (pick a window, jump to it)
   ;; MOD+G - workspace picker
@@ -349,6 +370,33 @@ the next manage sequence, like set-user-mod."
   (define-key +xkb-key-Print+ *mod-shift*
     (lambda ()
       (take-screenshot :region t))))
+
+(defun build-default-top-map ()
+  "Rebuild *default-top-map* from *mod* and *prefix-key-binding*. The
+user layer is untouched."
+  (clear-keymap *default-top-map*)
+  (let ((*defining-default-bindings* t))
+    (bind-default-direct-keys))
+  (setf *default-top-map-mod* *mod*)
+  *default-top-map*)
+
+(defun setup-default-keybindings ()
+  "Build the default keymaps, *default-top-map* and the default prefix
+map. Idempotent; user bindings are untouched."
+  (build-default-top-map)
+  (setup-default-prefix-bindings)
+  (setf *default-keymaps-built* t))
+
+(defun ensure-default-keybindings ()
+  "Build the default keymaps when they are unbuilt, and rebuild
+*default-top-map* when *mod* differs from the value it was built with.
+Returns true when anything was rebuilt."
+  (cond ((not *default-keymaps-built*)
+         (setup-default-keybindings)
+         t)
+        ((not (equal *mod* *default-top-map-mod*))
+         (build-default-top-map)
+         t)))
 
 ;;; --- Application launcher ---
 
@@ -415,15 +463,20 @@ Shows a curated list of Wayland-relevant applications."
 ;;; --- Integration with manage sequence ---
 
 (defun install-keybindings-if-needed ()
-  "Install keybindings during a manage sequence if not yet installed."
-  (when (and *xkb-bindings-proxy* (null *active-bindings*))
+  "Sync key grabs during a manage sequence: build the default keymaps
+if needed (dropping stale grabs when they change), then grab every
+bound key not yet grabbed. Never writes the user layer."
+  (when (ensure-default-keybindings)
+    (release-key-grabs))
+  (when *xkb-bindings-proxy*
     (install-keybindings)))
 
 (defun set-user-mod (mod)
   "Change the user modifier — the MOD in MOD+Return, MOD+1..9,
 MOD+drag, ... — live. MOD is a friendly name: :alt, :super or :ctrl.
-Current grabs are destroyed and everything re-binds with the new
-modifier during the next manage sequence (enable requests are
+The default bindings move to the new modifier; user bindings keep
+the modifiers they were made with. Current grabs are destroyed and
+re-created during the next manage sequence (enable requests are
 manage-sequence-only in river's protocol).
 
   (rhizome:set-user-mod :alt)     ; classic StumpWM-on-X11 feel
@@ -433,15 +486,12 @@ manage-sequence-only in river's protocol).
       (message "unknown modifier: ~A (try :alt, :super, :ctrl)" mod)
       (return-from set-user-mod))
     (setf *mod* resolved)
-    ;; Re-register the user bindings with the new modifier
-    (clrhash *keybindings*)
-    (setup-default-keybindings)
+    ;; Rebuild the default layer on the new modifier; the user layer
+    ;; keeps its bindings, literal modifiers included
+    (build-default-top-map)
     ;; Destroy the current grabs; install-keybindings-if-needed
     ;; re-creates them during the next manage sequence
-    (dolist (binding *active-bindings*)
-      (ignore-errors
-        (rwm:river-xkb-binding-v1.destroy binding)))
-    (setf *active-bindings* nil)
+    (release-key-grabs)
     ;; MOD+drag pointer grabs likewise
     (dolist (binding *pointer-bindings*)
       (ignore-errors

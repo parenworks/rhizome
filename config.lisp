@@ -261,8 +261,12 @@ query returns the candidates unchanged."
           (format t "~&; Rhizome: error loading config: ~A~%" e))))))
 
 (defun reload-config ()
-  "Reset to defaults, reload the user config file, and re-apply."
+  "Reset to defaults, clear the user keymaps, reload the user config
+file, and re-apply. A binding the file no longer makes is gone; the
+default keymaps stay in force."
   (setf *config* (default-config))
+  (when (fboundp 'clear-user-keymaps)
+    (funcall 'clear-user-keymaps))
   (load-user-config)
   (apply-config)
   *config*)

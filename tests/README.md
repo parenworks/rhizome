@@ -58,5 +58,11 @@ stubbed river requests. Run with:
   (icon discovery, 16x16 scaling, caching, per-entry actions).
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
+- `keymap-layers.lisp` - keymap objects (parents, shadowing,
+  enumeration) and the user/default layering: user bindings win over
+  defaults whether made before or after them, and survive repeated
+  manage sequences, set-user-mod, and set-prefix-key; reload-config
+  replaces the user layer; define-key, define-prefix-key and
+  define-keymap-key keep working.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).

@@ -167,7 +167,22 @@
    #:window-focused-p
    ;; Keybindings
    #:define-key
+   #:key-binding
    #:setup-default-keybindings
+   ;; Keymaps
+   #:keymap
+   #:keymap-p
+   #:make-keymap
+   #:keymap-name
+   #:keymap-doc
+   #:keymap-parents
+   #:keymap-lookup
+   #:keymap-bind
+   #:keymap-binding-doc
+   #:map-keymap
+   #:keymap-keys
+   #:*top-map*
+   #:*prefix-map*
    #:*mod*
    #:set-user-mod
    #:*mod-alt*

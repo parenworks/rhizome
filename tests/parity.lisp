@@ -49,7 +49,6 @@
           *current-frames* (make-hash-table :test 'equal)
           *prefix-mode-active* nil
           *prefix-current-map* nil
-          *prefix-key-docs* (make-hash-table)
           *prefix-describe-key-pending* nil
           *pointer-bindings* nil
           *pointer-bindings-enabled* nil)
@@ -172,19 +171,19 @@
     (ok "keysym names arrows" (keysym-name 65361) "Left")
     (ok "keysym names return" (keysym-name 65293) "Return")
 
-    (setf *prefix-map* (make-keymap)
-          *prefix-key-docs* (make-hash-table))
+    (clear-keymap *prefix-map*)
     (setup-default-prefix-bindings)
     (ok "bindings registered with docs"
-        (gethash 119 *prefix-key-docs*) "windowlist")
+        (keymap-binding-doc *prefix-map* 119) "windowlist")
     (ok "nested move map installed"
-        (hash-table-p (gethash 77 *prefix-map*)) t)
+        (keymap-p (keymap-lookup *prefix-map* 77)) t)
     (ok "nested exchange map installed"
-        (hash-table-p (gethash 101 *prefix-map*)) t)
+        (keymap-p (keymap-lookup *prefix-map* 101)) t)
     (ok "nested help map installed"
-        (hash-table-p (gethash 104 *prefix-map*)) t)
+        (keymap-p (keymap-lookup *prefix-map* 104)) t)
     (ok "resize bindings registered"
-        (list (gethash 43 *prefix-key-docs*) (gethash 45 *prefix-key-docs*))
+        (list (keymap-binding-doc *prefix-map* 43)
+              (keymap-binding-doc *prefix-map* 45))
         '("grow split (+30)" "shrink split (-30)"))
 
     ;; describe-key flow: pending flag describes the next key
@@ -258,10 +257,10 @@
       (ok "resolve-mod maps ctrl" (resolve-mod :ctrl) '(:ctrl))
       (ok "resolve-mod rejects junk" (resolve-mod :banana) nil)
       ;; default bindings are built on *mod*
-      (setf *keybindings* (make-hash-table :test 'equal))
+      (clear-keymap *top-map*)
       (setup-default-keybindings)
       (ok "terminal binding on the user mod"
-          (and (gethash (cons +xkb-key-Return+ *mod*) *keybindings*) t) t)
+          (and (key-binding +xkb-key-Return+ *mod*) t) t)
       (set-user-mod :alt)
       (ok "set-user-mod switches to alt"
           *mod* '(:mod1))

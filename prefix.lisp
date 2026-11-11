@@ -38,31 +38,36 @@ Layout restoration lives in expose.lisp (stub-redefined here).")
 
 ;;; --- Keymaps ---
 
-(defun make-keymap ()
-  "A prefix keymap: maps keysyms to actions (thunks) or nested keymaps."
-  (make-hash-table))
+(defvar *default-prefix-map*
+  (make-keymap :name :default-prefix
+               :doc "Rhizome's prefix chain bindings.")
+  "The default layer of the root prefix keymap: keysym -> function or
+nested keymap. Only setup-default-prefix-bindings writes it.")
 
-(defvar *prefix-map* (make-keymap)
-  "Root prefix keymap, matched after the prefix key is pressed.")
-
-(defvar *prefix-key-docs* (make-hash-table)
-  "Maps root prefix keysyms to their binding's documentation.")
+(defvar *prefix-map*
+  (make-keymap :name :prefix
+               :doc "User prefix chain bindings."
+               :parents (list *default-prefix-map*))
+  "Root prefix keymap, matched after the prefix key is pressed. It is
+the user layer: define-prefix-key writes it, and *default-prefix-map*
+is its parent, so a user binding shadows a default on the same key.")
 
 (defparameter *prefix-describe-key-pending* nil
   "Set by C-t h k: the next keypress is described, not run.")
 
 (defun define-prefix-key (keysym action &optional doc)
-  "Bind KEYSYM in the root prefix keymap to ACTION — a function, or a
-nested keymap for multi-key chains. DOC describes the binding for
-describe-key and describe-bindings."
-  (setf (gethash keysym *prefix-map*) action)
-  (if doc
-      (setf (gethash keysym *prefix-key-docs*) doc)
-      (remhash keysym *prefix-key-docs*)))
+  "Bind KEYSYM in the user root prefix keymap *prefix-map* to ACTION: a
+function, or a nested keymap for multi-key chains. DOC describes the
+binding for describe-key and which-key. While the defaults are built,
+write *default-prefix-map* instead. A NIL ACTION removes the user
+binding."
+  (keymap-bind (if *defining-default-bindings* *default-prefix-map* *prefix-map*)
+               keysym action doc))
 
-(defun define-keymap-key (keymap keysym action)
-  "Bind KEYSYM in KEYMAP to ACTION (function or nested keymap)."
-  (setf (gethash keysym keymap) action))
+(defun define-keymap-key (keymap keysym action &optional doc)
+  "Bind KEYSYM in KEYMAP to ACTION (function or nested keymap),
+documented by DOC."
+  (keymap-bind keymap keysym action doc))
 
 ;;; --- Mode lifecycle ---
 
@@ -182,10 +187,10 @@ prefix modes (command mode, iresize, expose)."
      (exit-prefix-mode))
     (t
      (let ((entry (or (minor-mode-lookup keysym)
-                      (gethash keysym *prefix-current-map*))))
+                      (keymap-lookup *prefix-current-map* keysym))))
        (cond
          ;; Nested keymap: descend, wait for the next key
-         ((hash-table-p entry)
+         ((keymap-p entry)
           (setf *prefix-current-map* entry
                 *prefix-expiry* (+ (get-universal-time)
                                    (prefix-indicator-seconds)))
@@ -244,18 +249,18 @@ prefix map while the mode is enabled:
 \(define-minor-mode :presentation \"bindings for talks\")"
   `(eval-when (:compile-toplevel :load-toplevel :execute)
      (unless (gethash ,name *minor-mode-keymaps*)
-       (setf (gethash ,name *minor-mode-keymaps*) (make-keymap)))
+       (setf (gethash ,name *minor-mode-keymaps*) (make-keymap :name ,name)))
      (setf (gethash ,name *minor-mode-docs*) ,doc)
      ',name))
 
 (defun minor-mode-keymap (name)
   "NAME's keymap (defining it if needed)."
   (or (gethash name *minor-mode-keymaps*)
-      (setf (gethash name *minor-mode-keymaps*) (make-keymap))))
+      (setf (gethash name *minor-mode-keymaps*) (make-keymap :name name))))
 
 (defun define-minor-mode-key (name keysym action)
   "Bind KEYSYM in minor mode NAME to ACTION (a function)."
-  (setf (gethash keysym (minor-mode-keymap name)) action))
+  (keymap-bind (minor-mode-keymap name) keysym action))
 
 (defun enable-minor-mode (name)
   "Enable NAME: its keymap takes precedence over the prefix map."
@@ -277,7 +282,7 @@ prefix map while the mode is enabled:
   "The first binding for KEYSYM among the enabled minor modes (most
 recently enabled first), if any."
   (loop for name in *minor-mode-stack*
-        for entry = (gethash keysym (gethash name *minor-mode-keymaps*))
+        for entry = (keymap-lookup (minor-mode-keymap name) keysym)
         when entry
           return entry))
 
@@ -352,14 +357,14 @@ quit-confirm)."
 
 (defun describe-prefix-key (keysym)
   "Show what KEYSYM is bound to in the current prefix map."
-  (let ((entry (gethash keysym *prefix-current-map*)))
-    (cond ((hash-table-p entry)
-           (message "C-t ~A: keymap — ~{~A~^ ~}" (keysym-name keysym)
-                    (loop for k being the hash-keys of entry
-                          collect (keysym-name k))))
+  (let ((entry (keymap-lookup *prefix-current-map* keysym)))
+    (cond ((keymap-p entry)
+           (message "C-t ~A: keymap: ~{~A~^ ~}" (keysym-name keysym)
+                    (mapcar #'keysym-name (keymap-keys entry))))
           (entry
            (message "C-t ~A: ~A" (keysym-name keysym)
-                    (or (gethash keysym *prefix-key-docs*) "a command")))
+                    (or (keymap-binding-doc *prefix-current-map* keysym)
+                        "a command")))
           (t
            (message "C-t ~A: unbound" (keysym-name keysym))))))
 
@@ -375,8 +380,8 @@ quit-confirm)."
            (if *minor-mode-stack*
                (format nil " minor modes: ~{~A~^ ~};" *minor-mode-stack*)
                "")
-           (sort (loop for k being the hash-keys of *prefix-map*
-                       for doc = (gethash k *prefix-key-docs*)
+           (sort (loop for k in (keymap-keys *prefix-map*)
+                       for doc = (keymap-binding-doc *prefix-map* k)
                        collect (if doc
                                    (format nil "~A (~A)" (keysym-name k) doc)
                                    (keysym-name k)))
@@ -437,12 +442,12 @@ quit-confirm)."
   "Display text listing MAP's bindings titled with the chain so far
 (TITLE), four entries per line so it fits the message window."
   (let* ((entries (sort
-                    (loop for k being the hash-keys of map
+                    (loop for k in (keymap-keys map)
                           collect (string-right-trim
                                     " "
                                     (format nil "~A ~A"
                                             (keysym-name k)
-                                            (or (gethash k *prefix-key-docs*)
+                                            (or (keymap-binding-doc map k)
                                                 ""))))
                     #'string<))
          (lines nil) (cur nil) (n 0))
@@ -518,8 +523,12 @@ expose, C-t Return). Placeholder: redefined by expose.lisp."
   "Placeholder: redefined by expose.lisp."
   nil)
 
-(defun setup-default-prefix-bindings ()
-  "The default C-t keymap, mapped onto rhizome's features."
+(defun bind-default-prefix-keys ()
+  "Bind the default C-t keymap, mapped onto rhizome's features. Called
+by setup-default-prefix-bindings, which directs the writes to
+*default-prefix-map*."
+  ;; C-t ; toggles the scratchpad (StumpWM classic)
+  (define-prefix-key 59 (lambda () (toggle-scratchpad)) "toggle the scratchpad")
   ;; C-t w — windowlist (StumpWM: windowlist)
   (define-prefix-key 119 (lambda () (windowlist)) "windowlist")   ; w
   ;; C-t g — workspace picker (StumpWM: group commands)
@@ -662,4 +671,22 @@ expose, C-t Return). Placeholder: redefined by expose.lisp."
                          "expose window grid (pick: digits/arrows/click)") ; Return
   ;; C-t q — quit, with confirm (StumpWM's quit-confirm)
   (define-prefix-key 113 (lambda () (quit-confirm))
-                         "quit rhizome (press twice)"))           ; q
+                         "quit rhizome (press twice)"))
+
+(defun setup-default-prefix-bindings ()
+  "Rebuild *default-prefix-map*, the default C-t keymap. The user
+layer *prefix-map* is untouched. Returns *default-prefix-map*."
+  (clear-keymap *default-prefix-map*)
+  (let ((*defining-default-bindings* t))
+    (bind-default-prefix-keys))
+  *default-prefix-map*)
+
+(defun clear-user-keymaps ()
+  "Remove every user binding from *top-map* and *prefix-map*, leaving
+the defaults in force. Grabs are destroyed and re-created during the
+next manage sequence."
+  (clear-keymap *top-map*)
+  (clear-keymap *prefix-map*)
+  (release-key-grabs)
+  (request-manage-dirty))
+
