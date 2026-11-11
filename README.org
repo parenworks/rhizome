@@ -291,8 +291,8 @@ regression suites (aggregated, fails on the first red one), and
 - *river* 0.4.x/0.5.x — rhizome speaks =river-window-management-v1=
   (protocol XMLs vendored in =protocol/=)
 - *SBCL + Quicklisp* — all five Quicklisp deps are in the official
-  dist (=wayflan-client=, =cl-ppcre=, =bordeaux-threads=, =cffi=
-  (needs =libffi= at runtime), =pngload=). Quicklisp itself is a
+  dist (=wayflan-client=, =cl-ppcre=, =bordeaux-threads=, =cffi=,
+  =pngload=). Quicklisp itself is a
   manual bootstrap everywhere:
   #+begin_src bash
   curl -L https://beta.quicklisp.org/quicklisp.lisp -o /tmp/ql.lisp
@@ -301,12 +301,52 @@ regression suites (aggregated, fails on the first red one), and
   #+end_src
 - *python3* — =rhizome-cmd= (the IPC helper) is a bash+python shim
 - *Runtime tools* — =bash=, =wl-clipboard= (wl-copy/wl-paste),
-  =grim= + =slurp= (screenshots); =swayidle= only if you set
-  =:idle-seconds=; =foot=, =emacs=, =mpv= are what the default
-  keybinds launch — install them or rebind
+  =grim= + =slurp= (screenshots); =swayidle=, =swaylock=, and =wlopm=
+  (idle lock and screen blanking, which start by default); =foot=,
+  =emacs=, =mpv= are what the default keybinds launch; install
+  them or rebind
 - *A session D-Bus* — the tray (StatusNotifier), portals, and most
   launchers need =DBUS_SESSION_BUS_ADDRESS=; display managers set
   this up, TTY logins need =dbus-run-session= or a user service
+
+*** System dependencies
+
+Rhizome talks to river over the Wayland socket in pure Lisp, so the
+only C library it loads is freetype. Everything else is a program it
+runs, and a missing one fails quietly: the feature that needs it stops
+working and the rest of the session carries on.
+
+| Library or command               | Used by                                                          | Without it                                         |
+|----------------------------------+------------------------------------------------------------------+----------------------------------------------------|
+| =libfreetype.so.6= (freetype2)   | TrueType text in the bar, launcher, and prompts (=font.lisp=)    | text falls back to the built-in 8x16 bitmap font   |
+| =fc-match= (fontconfig)          | resolving =:font-family= to a font file (=font.lisp=)            | same bitmap fallback                               |
+| a font matching =monospace=      | the default =:font-family=                                       | same bitmap fallback                               |
+| =sbcl= on =PATH=                 | the bar, which runs as its own SBCL process (=bar.lisp=)         | no bar                                             |
+| =bash=                           | every =:on-click=, launcher entry, scratchpad, and shell prompt | none of those commands run                         |
+| =pgrep=, =pkill= (procps)        | bar restarts, idle manager restarts, night light, logout        | duplicate bars, logout cannot stop river           |
+| =swayidle=, =swaylock=           | idle lock, =(:idle :lock-after)= default 300 s; MOD+Shift+L and the =:lock= command | no idle lock, MOD+Shift+L does nothing |
+| =wlopm=                          | screen blanking: =(:idle :dpms-after)=, default 600 s            | screens never blank                                |
+| =wpctl= (WirePlumber)            | the bar's =:volume= module                                       | volume module is empty                             |
+| =nmcli= (NetworkManager)         | the bar's =:network= module                                      | network module is empty                            |
+| =brightnessctl=                  | the bar's =:display= module and the display menu's brightness    | no brightness readout or control                   |
+| =hyprsunset=                     | night light in the display menu (=commands.lisp=)                | night light toggle does nothing                    |
+| =wl-copy=, =wl-paste=            | screenshots to clipboard, =getsel= and =putsel=                  | clipboard features fail                            |
+| =grim=, =slurp=                  | Print and Shift+Print screenshots                                | no screenshots                                     |
+| =systemctl=                      | suspend, hibernate, poweroff, reboot                             | power actions fail (see /Distro substitutions/)    |
+| =foot=, =emacs=, =mpv=, =fzf=    | default keybinds and the fallback fzf app picker                 | those keys launch nothing                          |
+| =pavucontrol=, =nm-connection-editor= | default =:on-click= targets for volume and network          | clicks on those modules do nothing                 |
+| =python3=                        | =rhizome-cmd=, the IPC helper                                    | no command-line control of a running rhizome       |
+| =flameshot=, =variety=, =lxqt-policykit-agent= | the session-apps block in =session/river-init=    | each fails to spawn on its own                     |
+
+The battery module reads =/sys/class/power_supply/BAT1=; on a machine
+whose battery has another name, or no battery, the module stays empty.
+
+*** Test requirements
+
+The =make test= suites run headless: no river, no Wayland socket, and
+no D-Bus session. =theming= checks TrueType rendering when freetype,
+fontconfig, and a =monospace= font are present. Without them it
+prints =SKIP= and checks only the bitmap fallback.
 
 *** By-distro notes
 
