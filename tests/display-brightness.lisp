@@ -5,7 +5,7 @@
 
 (in-package #:rhizome)
 
-;; Bar off first: configures below must never spawn a bar process.
+;; Bar off: no call made while this suite runs may spawn a bar process.
 (configure '(:bar (:enabled nil)))
 
 (let ((pass 0) (fail 0))
