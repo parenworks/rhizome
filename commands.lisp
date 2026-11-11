@@ -319,12 +319,36 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
           (subseq out (1+ pc) pe)))
     (error () nil)))
 
-(defun display-set-brightness (delta)
-  "Adjust brightness by DELTA percent (signed integer)."
-  (uiop:run-program (list "brightnessctl" "set"
-                          (format nil "~A%" delta))
+(defun brightness-step-argument (delta)
+  "Return the brightnessctl relative value for a signed DELTA percent:
+\"N%+\" to raise, \"N%-\" to lower. A leading dash is never emitted,
+since brightnessctl parses one as an option."
+  (format nil "~D%~:[+~;-~]" (abs delta) (minusp delta)))
+
+(defun brightness-absolute-argument (percent)
+  "Return the brightnessctl absolute value \"N%\" for PERCENT (0-100)."
+  (format nil "~D%" percent))
+
+(defun brightness-step-command (delta)
+  "Return the argv that steps brightness by signed DELTA percent."
+  (list "brightnessctl" "set" (brightness-step-argument delta)))
+
+(defun brightness-absolute-command (percent)
+  "Return the argv that sets brightness to PERCENT."
+  (list "brightnessctl" "set" (brightness-absolute-argument percent)))
+
+(defun display-step-brightness (delta)
+  "Raise or lower brightness by signed DELTA percent and show a message.
+The brightnessctl exit status is ignored."
+  (uiop:run-program (brightness-step-command delta) :ignore-error-status t)
+  (message "brightness ~:[+~;-~]~D%" (minusp delta) (abs delta)))
+
+(defun display-set-brightness (percent)
+  "Set brightness to PERCENT and show a message.
+The brightnessctl exit status is ignored."
+  (uiop:run-program (brightness-absolute-command percent)
                     :ignore-error-status t)
-  (message "brightness ~A~A%" (if (plusp delta) "+" "") delta))
+  (message "brightness ~D%" percent))
 
 (defun display-night-light-on-p ()
   "Whether hyprsunset (night light) is running."
@@ -372,8 +396,8 @@ Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
   (select-from-menu
     (format nil "Display (~A% bright)" (or (display-brightness) "?"))
     (append
-      (list (cons "Brightness +10%" (lambda () (display-set-brightness 10)))
-            (cons "Brightness -10%" (lambda () (display-set-brightness -10)))
+      (list (cons "Brightness +10%" (lambda () (display-step-brightness 10)))
+            (cons "Brightness -10%" (lambda () (display-step-brightness -10)))
             (cons "Brightness 100%" (lambda () (display-set-brightness 100)))
             (cons "Brightness 50%" (lambda () (display-set-brightness 50)))
             (cons "Toggle night light" (lambda () (display-toggle-night-light))))
