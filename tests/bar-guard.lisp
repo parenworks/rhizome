@@ -110,6 +110,6 @@
         spawned 1))
 
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
-  (unless (zerop fail) (uiop:quit 1))))
+  (unless (zerop fail) (uiop:quit 1)))
 
 (uiop:quit 0)
