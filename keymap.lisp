@@ -7,6 +7,8 @@
 ;;; keymaps use keys as keys.lisp defines them. A binding is a
 ;;; function, a symbol naming one, an event-binding, or a keymap (or a
 ;;; symbol whose value is one), which a key press enters as a sequence.
+;;; A binding may also be :undefined, an explicit shadow: the key is
+;;; unbound even when a parent binds it.
 ;;;
 ;;; Rhizome's own bindings live in default keymaps that are parents of
 ;;; the user keymaps, so a user binding wins regardless of the order
@@ -29,8 +31,9 @@
   (docs (make-hash-table :test 'equal) :type hash-table :read-only t))
 
 (setf (documentation 'keymap 'type)
-      "A table of key -> binding (a function or a keymap) with a name, a
-doc string, and ordered parent keymaps consulted after its own table.")
+      "A table of key -> binding (a function, a keymap, or :undefined) with
+a name, a doc string, and ordered parent keymaps consulted after its
+own table.")
 
 (defvar *defining-default-bindings* nil
   "True while the default keymaps are built: define-key and
@@ -49,6 +52,11 @@ itself otherwise."
       (ensure-key designator)
       designator))
 
+(defun undefined-binding-p (binding)
+  "True when BINDING is :undefined, an explicit shadow: lookup stops at
+it, nothing runs, and the key counts as unbound."
+  (eq binding :undefined))
+
 (defun keymap-lookup (keymap key)
   "Return the binding of KEY (see keymap-key) in KEYMAP or, failing
 that, in its parents depth-first in order. The second value is the
@@ -66,7 +74,8 @@ keymap whose own table holds the binding, or NIL when KEY is unbound."
 (defun keymap-bind (keymap key binding &optional doc)
   "Bind KEY (see keymap-key) to BINDING in KEYMAP's own table,
 documented by DOC. A NIL BINDING removes KEY from the own table, so a
-parent's binding shows through again. Returns BINDING."
+parent's binding shows through again. Marks the key grabs dirty.
+Returns BINDING."
   (setf key (keymap-key key))
   (let ((table (keymap-bindings keymap))
         (docs (keymap-docs keymap)))
@@ -78,6 +87,7 @@ parent's binding shows through again. Returns BINDING."
            (if doc
                (setf (gethash key docs) doc)
                (remhash key docs))))
+    (mark-key-grabs-dirty)
     binding))
 
 (defun keymap-binding-doc (keymap key)
@@ -89,13 +99,16 @@ parent's binding shows through again. Returns BINDING."
 (defun map-keymap (function keymap)
   "Call FUNCTION with KEY and BINDING for every effective binding of
 KEYMAP, inherited ones included. Each key is visited once, with the
-binding keymap-lookup returns for it. Returns NIL."
+binding keymap-lookup returns for it. A key whose effective binding
+is :undefined (see undefined-binding-p) is skipped, and so is any
+parent's binding of it. Returns NIL."
   (let ((seen (make-hash-table :test 'equal)))
     (labels ((walk (map)
                (maphash (lambda (key binding)
                           (unless (gethash key seen)
                             (setf (gethash key seen) t)
-                            (funcall function key binding)))
+                            (unless (undefined-binding-p binding)
+                              (funcall function key binding))))
                         (keymap-bindings map))
                (mapc #'walk (keymap-parents map))))
       (walk keymap)))
@@ -113,9 +126,10 @@ included."
 
 (defun clear-keymap (keymap)
   "Remove every binding from KEYMAP's own table. Parents are untouched.
-Returns KEYMAP."
+Marks the key grabs dirty. Returns KEYMAP."
   (clrhash (keymap-bindings keymap))
   (clrhash (keymap-docs keymap))
+  (mark-key-grabs-dirty)
   keymap)
 
 (defun binding-keymap (binding)

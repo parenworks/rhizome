@@ -167,6 +167,7 @@
    #:window-focused-p
    ;; Keybindings
    #:define-key
+   #:undefine-key
    #:key-binding
    #:setup-default-keybindings
    ;; Keymaps

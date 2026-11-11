@@ -52,6 +52,13 @@ binding shadows a default on the same key.")
 (defvar *grabbed-keys* (make-hash-table :test 'equal)
   "Maps (seat-proxy . key) to the river_xkb_binding_v1 grabbing it.")
 
+(defvar *grabbed-key-modifiers* (make-hash-table :test 'equal)
+  "Maps (seat-proxy . key) to the river modifier list its grab was made
+with.")
+
+(defvar *key-grabs-dirty* t
+  "True while the river key grabs may not match the keymaps.")
+
 (defvar *default-keymaps-built* nil
   "True once setup-default-keybindings has built the default keymaps.")
 
@@ -142,7 +149,8 @@ describes the binding for which-key and describe-key.
 The second form binds KEYSYM with MODIFIERS (river or logical
 keywords) in *top-map*. While the defaults are built, writes aimed at
 *top-map* or *prefix-map* go to their default layers. A NIL binding
-removes the key from the keymap's own table. Returns BINDING."
+removes the key from the keymap's own table. BINDING may also be
+:undefined (see undefine-key). Returns BINDING."
   (if (integerp keymap-or-keysym)
       (keymap-bind (default-layer-target *top-map*)
                    (make-key keymap-or-keysym spec)
@@ -157,11 +165,21 @@ removes the key from the keymap's own table. Returns BINDING."
                                binding)
                            doc))))
 
+(defun undefine-key (keymap spec)
+  "Bind SPEC in KEYMAP (a keymap or a symbol naming one) to :undefined
+and return :undefined. A key undefined in a user keymap shadows the
+default binding. At top level it is not grabbed, so the chord reaches
+the focused application; inside a key sequence it is unbound.
+(define-key keymap spec nil) undoes it."
+  (define-key keymap spec :undefined)
+  :undefined)
+
 (defun key-binding (keysym modifiers)
   "Return the effective direct binding of KEYSYM with MODIFIERS (river
 or logical keywords), the user layer first, or NIL when the key is
-unbound."
-  (values (keymap-lookup *top-map* (make-key keysym modifiers))))
+unbound or :undefined."
+  (let ((binding (keymap-lookup *top-map* (make-key keysym modifiers))))
+    (if (undefined-binding-p binding) nil binding)))
 
 (defvar *current-key-event* nil
   "The key event of the binding being run; NIL outside one.")
@@ -218,16 +236,50 @@ call returns NIL."
   "Run what KEY (a key designator) is bound to in *top-map*, as a press
 on SEAT: a keymap binding begins a key sequence on that keymap, any
 other binding is called through call-binding. Returns true when KEY is
-bound."
+bound; an :undefined key runs nothing and returns NIL."
   (let* ((key (ensure-key key))
          (binding (keymap-lookup *top-map* key))
          (map (binding-keymap binding)))
-    (cond (map
+    (cond ((undefined-binding-p binding)
+           nil)
+          (map
            (enter-prefix-mode map (key-description key) (list key) seat)
            t)
           (binding
            (call-binding binding (make-key-event key :seat seat))
            t))))
+
+(defun mark-key-grabs-dirty ()
+  "Mark the river key grabs as out of date with the keymaps. Only the
+first mark after a sync calls request-manage-dirty, so a burst of
+keymap edits asks for one manage sequence. Returns T."
+  (unless *key-grabs-dirty*
+    (setf *key-grabs-dirty* t)
+    (request-manage-dirty))
+  t)
+
+(defun active-top-keymaps ()
+  "Return the top-level keymaps whose first keys river grabs, highest
+precedence first. The one place a context mechanism adds maps."
+  (list *top-map*))
+
+(defun key-grab-set (&optional (maps (active-top-keymaps)))
+  "Return a fresh list, without duplicates, of the keys river grabs for
+MAPS. A key is a candidate when some map in MAPS enumerates it. The
+first map whose lookup of the key is non-NIL decides it, and an
+:undefined binding there leaves the key out. Makes no river request."
+  (let ((seen (make-hash-table :test 'equal))
+        (keys '()))
+    (dolist (map maps)
+      (dolist (key (keymap-keys map))
+        (unless (gethash key seen)
+          (setf (gethash key seen) t)
+          (let ((binding (loop for m in maps
+                               for b = (keymap-lookup m key)
+                               when b return b)))
+            (when (and binding (not (undefined-binding-p binding)))
+              (push key keys))))))
+    (nreverse keys)))
 
 (defun grab-key (seat-proxy key river-modifiers)
   "Create and enable a river grab of KEY on SEAT-PROXY with
@@ -247,44 +299,87 @@ up at press time, so rebinding a grabbed key needs no new grab."
     (push binding *active-bindings*)
     binding))
 
+(defun ungrab-key (seat-proxy key)
+  "Release the grab of KEY on SEAT-PROXY and forget its records. A live
+grab is destroyed: destroy is legal outside a manage sequence and frees
+the river object, so a key bound again gets a fresh grab. Returns NIL."
+  (let* ((id (cons seat-proxy key))
+         (grab (gethash id *grabbed-keys*)))
+    (when (and grab (not (eq grab :unmapped)))
+      (ignore-errors
+        (rwm:river-xkb-binding-v1.destroy grab))
+      (setf *active-bindings* (delete grab *active-bindings*)))
+    (remhash id *grabbed-keys*)
+    (remhash id *grabbed-key-modifiers*)
+    nil))
+
 (defun install-keybindings ()
-  "Grab every key bound in *top-map* (inherited defaults included) on
-every seat that lacks a grab for it. A key whose modifiers include one
-*modifier-map* leaves unmapped is not grabbed; it is logged once and
-recorded as :unmapped until the grabs are released. Must be called
+  "Bring the river key grabs on every seat in line with key-grab-set,
+sending only the difference. A grab whose key or seat is no longer
+wanted is destroyed. A wanted key without a grab on its current river
+modifiers is grabbed. A grab that already matches gets no request. A
+key whose modifiers include one *modifier-map* leaves unmapped is not
+grabbed; it is logged once and recorded as :unmapped. Must be called
 during a manage sequence."
   (when (null *xkb-bindings-proxy*)
     (format t "~&; Rhizome: no xkb-bindings proxy, skipping keybindings~%")
     (return-from install-keybindings))
-  (let ((created 0))
+  (let ((desired (make-hash-table :test 'equal))
+        (keys (key-grab-set))
+        (stale '())
+        (added 0)
+        (released 0))
+    ;; (seat-proxy . key) -> (river-modifiers unmapped-logical-modifiers)
     (loop for seat-proxy being the hash-keys of *seats*
-          do (map-keymap
-              (lambda (key binding)
-                (declare (ignore binding))
-                (unless (gethash (cons seat-proxy key) *grabbed-keys*)
-                  (multiple-value-bind (river unmapped)
-                      (river-modifiers (key-modifiers key))
-                    (cond (unmapped
-                           (format t "~&; Rhizome: not grabbing ~A: ~{~(~A~)~^, ~} unmapped (see set-modifier)~%"
-                                   (key-description key) unmapped)
-                           (setf (gethash (cons seat-proxy key) *grabbed-keys*)
-                                 :unmapped))
-                          (t
-                           (grab-key seat-proxy key river)
-                           (incf created))))))
-              *top-map*))
-    (when (plusp created)
-      (format t "~&; Rhizome: installed ~D key grabs on ~D seats~%"
-              created (hash-table-count *seats*)))))
+          do (dolist (key keys)
+               (setf (gethash (cons seat-proxy key) desired)
+                     (multiple-value-list
+                      (river-modifiers (key-modifiers key))))))
+    (flet ((release (id)
+             (unless (eq (gethash id *grabbed-keys*) :unmapped)
+               (incf released))
+             (ungrab-key (car id) (cdr id))))
+      (maphash (lambda (id grab)
+                 (declare (ignore grab))
+                 (unless (nth-value 1 (gethash id desired))
+                   (push id stale)))
+               *grabbed-keys*)
+      (mapc #'release stale)
+      (maphash
+       (lambda (id want)
+         (destructuring-bind (river unmapped) want
+           (let ((grab (gethash id *grabbed-keys*)))
+             (unless (if unmapped
+                         (eq grab :unmapped)
+                         (and grab
+                              (not (eq grab :unmapped))
+                              (equal river (gethash id *grabbed-key-modifiers*))))
+               (when grab
+                 (release id))
+               (cond (unmapped
+                      (format t "~&; Rhizome: not grabbing ~A: ~{~(~A~)~^, ~} unmapped (see set-modifier)~%"
+                              (key-description (cdr id)) unmapped)
+                      (setf (gethash id *grabbed-keys*) :unmapped))
+                     (t
+                      (grab-key (car id) (cdr id) river)
+                      (setf (gethash id *grabbed-key-modifiers*) river)
+                      (incf added)))))))
+       desired))
+    (setf *key-grabs-dirty* nil)
+    (when (or (plusp added) (plusp released))
+      (format t "~&; Rhizome: key grabs: ~D added, ~D released on ~D seats~%"
+              added released (hash-table-count *seats*)))))
 
 (defun release-key-grabs ()
-  "Destroy every river key grab. The next manage sequence re-creates
-grabs for the keys bound then."
+  "Destroy every river key grab, forget the records, and mark the grabs
+dirty, so the next manage sequence grabs every key the keymaps bind."
   (dolist (binding *active-bindings*)
     (ignore-errors
       (rwm:river-xkb-binding-v1.destroy binding)))
   (setf *active-bindings* nil)
-  (clrhash *grabbed-keys*))
+  (clrhash *grabbed-keys*)
+  (clrhash *grabbed-key-modifiers*)
+  (mark-key-grabs-dirty))
 
 (defun set-modifier (logical river)
   "Map the logical modifier LOGICAL (:control :meta :super :hyper :alt
@@ -576,10 +671,10 @@ Shows a curated list of Wayland-relevant applications."
 
 (defun install-keybindings-if-needed ()
   "Sync key grabs during a manage sequence: build the default keymaps
-if needed (dropping stale grabs when they change), then grab every
-bound key not yet grabbed. Never writes the user layer."
-  (when (ensure-default-keybindings)
-    (release-key-grabs))
+if needed, then send river the difference between the grabs held and
+the grabs the keymaps call for (see install-keybindings). Never writes
+the user layer."
+  (ensure-default-keybindings)
   (when *xkb-bindings-proxy*
     (install-keybindings)))
 
