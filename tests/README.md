@@ -24,6 +24,11 @@ stubbed river requests. Run with:
   focused window when the prefix capture, a prompt, the eval prompt, a
   context menu, or the launcher closes; focus state does not change, and
   a missing or closed window gets nothing.
+- `layer-focus.lisp` - layer shell focus events delivered as wayflan
+  reads them: focus_none gives each seat's focused window the keyboard
+  back in the next manage pass without changing focus state;
+  focus_exclusive and focus_non_exclusive are logged and queue nothing;
+  a missing or closed window gets nothing.
 - `frames.lisp` — frame tree operations: splits, merges, resizes,
   directional focus, cycling, tree construction from rectangles,
   layout templates, and manage/render integration.
