@@ -128,6 +128,7 @@
    ;; Frame trees
    #:frame-tree-for
    #:frame-leaves
+   #:frame-windows
    #:current-frame-for
    #:frame-push-window
    #:frame-remove-window
@@ -165,6 +166,8 @@
    #:window-fullscreen-p
    #:window-hidden-p
    #:window-focused-p
+   #:window-frame
+   #:window-output
    ;; Keybindings
    #:define-key
    #:setup-default-keybindings
