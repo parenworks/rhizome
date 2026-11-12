@@ -60,3 +60,7 @@ stubbed river requests. Run with:
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
+- `prompt-free-text.lisp`: Enter on a prompt opened without candidates
+  completes with the typed text (and with nothing when it is empty),
+  Enter on a candidate prompt still needs a matching candidate, and the
+  shell prompt launches the command typed into it.
