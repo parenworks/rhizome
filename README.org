@@ -459,12 +459,18 @@ list-windows, quit, focus-next/previous, switch-layout) plus arbitrary
 Lisp forms. The bar's workspace numbers use this socket to switch
 workspaces on click.
 
-** SLIME integration
+** SLY integration
 
-The WM starts a swank server on =127.0.0.1:4005= (configurable via
-=(:swank (:port 4005))=) — =M-x slime-connect= from Emacs gives a REPL
-into the live window manager: redefine layouts, inspect windows, hot-patch
-anything, while it runs. Disable with =(:swank (:enabled nil))=.
+The WM starts a slynk server on =127.0.0.1:4005= (configurable via
+=(:slynk (:port 4005))=). Run =M-x sly-connect= from Emacs and you get a
+REPL into the live window manager: redefine layouts, inspect windows,
+hot-patch anything, while it runs. Disable it with
+=(:slynk (:enabled nil))=.
+
+A config written for the earlier swank server keeps working: when you
+leave =:slynk= at its defaults, rhizome reads =:port= and =:enabled= from
+your =(:swank ...)= entry instead. Once you set =:slynk=, it wins and
+=:swank= is ignored.
 
 ** Prefix key (Ctrl+T) — StumpWM-style keychains
 
@@ -1043,7 +1049,7 @@ manual, 180 commands). Where rhizome stands:
 - Live hot-reload development loop into the running WM
 - Config-driven bar space reservation with frame-tree refitting
   (StumpWM refreshes; rhizome rescales trees on any change)
-- IPC command socket + swank (StumpWM ships stumpish as contrib)
+- IPC command socket + slynk (StumpWM ships stumpish as contrib)
 
 *** Quick wins (small, well-understood)
 

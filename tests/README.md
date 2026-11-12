@@ -56,6 +56,9 @@ stubbed river requests. Run with:
 - `session-icons.lisp` — session management (lock command building,
   swayidle arming, logout confirm flow) and the bar icons module
   (icon discovery, 16x16 scaling, caching, per-entry actions).
+- `repl-server-config.lisp`: how the REPL server settings resolve.
+  `:slynk` is read, an older `:swank` entry is honoured while `:slynk` is left at its
+  defaults, `:slynk` wins when both are set, and the defaults apply.
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
