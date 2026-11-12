@@ -211,6 +211,40 @@
         (ok "closing a focused float hands focus to a window on its workspace"
             (proxy-of (seat-focused-window seat)) :b))
 
+      ;; Registration order decides the fallback even when the window
+      ;; registered last sits on another workspace
+      (reset)
+      (let* ((seat (make-seat :seat-1))
+             (out (make-output :out-1 1))
+             (w1 (make-win :w1 out 1))
+             (w2 (make-win :w2 out 1))
+             (w3 (make-win :w3 out 2)))
+        (setf (window-floating-p w1) t
+              (window-floating-p w2) t
+              *last-registered-window* w3)
+        (focus-window w1 seat)
+        (settle)
+        (close-win w1)
+        (ok "the newest window on the workspace takes focus when the globally newest is elsewhere"
+            (proxy-of (seat-focused-window seat)) :w2))
+
+      (reset)
+      (let* ((seat (make-seat :seat-1))
+             (out (make-output :out-1 1))
+             (w1 (make-win :w1 out 1))
+             (w2 (make-win :w2 out 1))
+             (w4 (make-win :w4 out 1))
+             (w3 (make-win :w3 out 2)))
+        (setf (window-floating-p w1) t
+              (window-floating-p w2) t
+              (window-floating-p w4) t
+              *last-registered-window* w3)
+        (focus-window w1 seat)
+        (settle)
+        (close-win w1)
+        (ok "the newest window on the workspace takes focus over older ones when the globally newest is elsewhere"
+            (proxy-of (seat-focused-window seat)) :w4))
+
       ;; --- Block 4: scroll ribbon columns ---
 
       (reset)

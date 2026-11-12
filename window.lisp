@@ -6,6 +6,10 @@
 
 (in-package #:rhizome)
 
+(defvar *window-registration-count* 0
+  "Windows registered so far; each new window takes the next value as its
+registration number.")
+
 (defclass rhizome-window ()
   ((proxy       :initarg :proxy       :accessor window-proxy)
    (node        :initarg :node        :accessor window-node :initform nil)
@@ -36,7 +40,10 @@
    (identifier :initarg :identifier :accessor window-identifier
                :initform nil)
    (unreliable-pid :initarg :unreliable-pid :accessor window-unreliable-pid
-                   :initform nil))
+                   :initform nil)
+   (registration :reader window-registration
+                 :initform (incf *window-registration-count*)
+                 :documentation "Registration number: higher is newer."))
   (:documentation "Represents a managed window in the river compositor."))
 
 (defvar *last-registered-window* nil
@@ -419,7 +426,9 @@ output shows. Rules, first match wins:
      (where cycle-frame-window moves from WIN).
   2. WIN a scroll ribbon column: the candidate column after WIN, else
      the last one.
-  3. The newest registered candidate on the workspace, else the first."
+  3. The candidate with the highest registration number, which is the
+     one registered most recently, whatever registered after it on
+     other workspaces or outputs."
   (let ((output (window-output win))
         (workspace (window-workspace win)))
     (unless (and output workspace
@@ -450,10 +459,13 @@ output shows. Rules, first match wins:
             (let ((wins (remove-if-not #'candidate-p
                                        (windows-on-workspace output
                                                              workspace))))
-              (if (and *last-registered-window*
-                       (member *last-registered-window* wins :test #'eq))
-                  *last-registered-window*
-                  (first wins))))))))
+              (when wins
+                (reduce (lambda (a b)
+                          (if (> (window-registration b)
+                                 (window-registration a))
+                              b
+                              a))
+                        wins))))))))
 
 (defun refocus-after-close (win)
   "Move every seat focused on WIN to (close-successor WIN), or clear
