@@ -38,6 +38,7 @@ in force; set them with set-modifier.")
   '(("Space" . 32) ("SPC" . 32)
     ("Return" . 65293) ("RET" . 65293) ("Enter" . 65293)
     ("Tab" . 65289) ("TAB" . 65289)
+    ("ISO_Left_Tab" . 65056)
     ("Esc" . 65307) ("Escape" . 65307) ("ESC" . 65307)
     ("Backspace" . 65288) ("BackSpace" . 65288) ("DEL" . 65288)
     ("Delete" . 65535) ("Insert" . 65379)
@@ -49,6 +50,9 @@ in force; set them with set-modifier.")
     ("F1" . 65470) ("F2" . 65471) ("F3" . 65472) ("F4" . 65473)
     ("F5" . 65474) ("F6" . 65475) ("F7" . 65476) ("F8" . 65477)
     ("F9" . 65478) ("F10" . 65479) ("F11" . 65480) ("F12" . 65481)
+    ;; XF86 keysym values from xkbcommon-keysyms.h
+    ("XF86MonBrightnessUp" . #x1008ff02)
+    ("XF86MonBrightnessDown" . #x1008ff03)
     ("XF86AudioLowerVolume" . #x1008ff11)
     ("XF86AudioMute" . #x1008ff12)
     ("XF86AudioRaiseVolume" . #x1008ff13)
@@ -178,11 +182,22 @@ a bare keysym, or a list of key designators."
 
 ;;; --- Printing ---
 
+(defun keysym-character (keysym)
+  "Return the character KEYSYM stands for in the XKB keysym encoding, or
+NIL. A keysym from #x20 through #x20ff is the character with that code:
+exact for Latin-1 and the euro sign, approximate for the other legacy
+keysyms #x100-#x20ff. A Unicode keysym from #x01000100 through
+#x0110ffff is the character with code (- keysym #x01000000). Function,
+modifier, and vendor keysyms return NIL. Never signals."
+  (cond ((<= #x20 keysym #x20ff) (code-char keysym))
+        ((<= #x01000100 keysym #x0110ffff) (code-char (- keysym #x01000000)))
+        (t nil)))
+
 (defun keysym-name (keysym)
-  "A display name for KEYSYM: its *key-names* name, its character, or
-#N."
+  "A display name for KEYSYM: its *key-names* name, the graphic
+character it stands for (see keysym-character), or #N."
   (or (car (find keysym *key-names* :key #'cdr))
-      (let ((c (code-char keysym)))
+      (let ((c (keysym-character keysym)))
         (if (and c (graphic-char-p c))
             (string c)
             (format nil "#~D" keysym)))))

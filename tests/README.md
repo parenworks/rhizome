@@ -76,5 +76,11 @@ stubbed river requests. Run with:
   clearing the user keymaps, and seats coming and going move only the
   grabs that change; a sync with nothing changed sends no requests; an
   undefined key inside a sequence runs nothing.
+- `key-names.lisp` - key names and keysym printing: kbd reads
+  ISO_Left_Tab and the brightness, volume, and mute keys,
+  key-description prints them back, and a keysym prints as its name,
+  as its character (Latin-1, legacy, and Unicode keysyms), or as #N,
+  in which-key text and the key-pressed log, while its binding still
+  runs.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
