@@ -15,6 +15,11 @@ stubbed river requests. Run with:
 - `window-rules.lisp` — app-id/title regex rules assign workspaces.
 - `floating.lisp` — float/tile state, geometry clamps, interactive
   resize math, manage/render integration, and `:float` window rules.
+- `focus-on-close.lisp` - focus recovery when a window closes: the next
+  window in its frame (or the next column of a scroll ribbon), else the
+  newest window on its workspace, else a cleared seat; focus and clear
+  requests reach river only in the manage pass; unfocused closes and
+  windows on other workspaces or outputs leave focus alone.
 - `frames.lisp` — frame tree operations: splits, merges, resizes,
   directional focus, cycling, tree construction from rectangles,
   layout templates, and manage/render integration.

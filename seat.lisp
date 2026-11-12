@@ -372,6 +372,9 @@ shift) so that Lisp expressions can be typed in the eval prompt."
   (loop for seat being the hash-values of *seats* collect seat))
 
 (defun clear-focus (seat)
-  "Clear keyboard focus on SEAT."
-  (rwm:river-seat-v1.clear-focus (seat-proxy seat))
-  (setf (seat-focused-window seat) nil))
+  "Clear keyboard focus on SEAT. clear_focus is manage-sequence state:
+the request is queued for the next manage sequence, and one is
+requested."
+  (queue-focus-request nil seat)
+  (setf (seat-focused-window seat) nil)
+  (request-manage-dirty))
