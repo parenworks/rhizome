@@ -51,6 +51,7 @@
    #:ipc-socket-path
    #:ipc-send-command
    #:start-slynk
+   #:start-swank
    ;; Interactive prompt and message window
    #:prompt-open
    #:prompt-close

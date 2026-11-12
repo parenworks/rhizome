@@ -579,6 +579,10 @@ is logged, never signalled."
               (format t "~&; Rhizome: slynk failed to start: ~A~%" e))))
         :name "rhizome-slynk"))))
 
+(defun start-swank ()
+  "Deprecated name for start-slynk."
+  (start-slynk))
+
 (defun stop ()
   "Stop the rhizome event loop."
   (setf *running* nil))

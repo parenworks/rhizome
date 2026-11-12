@@ -53,7 +53,23 @@
     (ok "default config holds :slynk, not :swank"
         (list (nth-value 1 (config-get '(:slynk) :config (default-config)))
               (nth-value 1 (config-get '(:swank) :config (default-config))))
-        '(t nil)))
+        '(t nil))
+
+    ;; --- start-swank stays callable for older configs ---
+    (let ((calls 0)
+          (original (fdefinition 'start-slynk)))
+      (ok "start-swank is still exported and calls start-slynk"
+          (list (nth-value 1 (find-symbol "START-SWANK" :rhizome))
+                (unwind-protect
+                     (progn
+                       (setf (fdefinition 'start-slynk)
+                             (lambda () (incf calls) nil))
+                       (handler-case
+                           (progn (funcall (find-symbol "START-SWANK" :rhizome))
+                                  calls)
+                         (error () calls)))
+                  (setf (fdefinition 'start-slynk) original)))
+          '(:external 1))))
 
   (format t "~&=== ~D passed, ~D failed ===~%" pass fail)
   (unless (zerop fail)

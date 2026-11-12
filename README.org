@@ -470,7 +470,8 @@ hot-patch anything, while it runs. Disable it with
 A config written for the earlier swank server keeps working: when you
 leave =:slynk= at its defaults, rhizome reads =:port= and =:enabled= from
 your =(:swank ...)= entry instead. Once you set =:slynk=, it wins and
-=:swank= is ignored.
+=:swank= is ignored. A config that calls =(rhizome:start-swank)= keeps
+working too: =start-swank= remains as a deprecated alias of =start-slynk=.
 
 ** Prefix key (Ctrl+T) — StumpWM-style keychains
 
