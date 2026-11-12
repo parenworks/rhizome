@@ -5,8 +5,8 @@
 ;;; up interactively. Internal nodes are splits (a direction and a
 ;;; dividing line), leaves are frames holding windows — one visible at
 ;;; a time, cycled with C-t n/p. New windows open into the current
-;;; frame; closed windows leave the frame behind; master-stack, even
-;;; and monocle are all just particular trees.
+;;; frame; an empty frame stays or closes as (:frames (:prune-empty ...))
+;;; says; master-stack, even and monocle are all just particular trees.
 ;;;
 ;;;   C-t s / C-t S    split the current frame (side-by-side / stacked)
 ;;;   C-t R            remove the current split (merge into sibling)
@@ -35,6 +35,9 @@
   (first-child nil :type (or null frame))
   (second-child nil :type (or null frame))
   (split-direction nil :type (or null (member :horizontal :vertical)))
+  ;; T when an explicit split command divided this node; under the
+  ;; :auto policy its empty child leaves survive the manage pass.
+  (user-split nil :type boolean)
   (windows nil :type list))
 
 (defvar *frame-trees* (make-hash-table :test 'equal)
@@ -114,6 +117,7 @@ stacked) at RATIO (0.0-1.0). Returns the new (second) child frame."
   (let ((first (make-frame :parent frame))
         (second (make-frame :parent frame)))
     (setf (frame-split-direction frame) direction
+          (frame-user-split frame) nil
           (frame-first-child frame) first
           (frame-second-child frame) second)
     (ecase direction
@@ -146,9 +150,11 @@ stacked) at RATIO (0.0-1.0). Returns the new (second) child frame."
 (defun split-current-frame (output workspace direction &optional (ratio 1/2))
   "Split the current frame; focus moves to the new (second) frame so
 the next window opened lands there. The current window stays in the
-first child."
+first child. The split is user-made, so its frames stay when they go
+empty (see prune-empty-frames)."
   (let ((frame (current-frame-for output workspace)))
     (split-frame frame direction ratio)
+    (setf (frame-user-split frame) t)
     ;; Windows move down to the first child; the new frame is empty
     (let ((first (frame-first-child frame)))
       (dolist (win (frame-windows frame))
@@ -162,8 +168,9 @@ first child."
 
 (defun remove-current-split (output workspace)
   "Remove the current frame's split: its windows merge into the
-sibling frame, which takes over the parent's rectangle. No-op at the
-root."
+sibling frame, which takes over the parent's rectangle. The removed
+split's user mark goes with it; a split below the sibling keeps its
+own. No-op at the root."
   (let* ((frame (current-frame-for output workspace))
          (parent (frame-parent frame)))
     (unless parent
@@ -189,6 +196,7 @@ root."
               (t
                (setf (gethash (frame-key output workspace) *frame-trees*)
                      sibling))))
+      (setf (frame-user-split parent) nil)
       (setf (gethash (frame-key output workspace) *current-frames*) sibling)
       (message "split removed")
       (request-manage-dirty))))
@@ -393,7 +401,7 @@ that arrives in the current frame."
 (defun frame-only (output workspace)
   "Collapse the workspace to a single frame: every window merges into
 the current frame, which becomes the whole content area (StumpWM's
-only, C-t Q)."
+only, C-t Q). The removed splits' user marks go with them."
   (let* ((root (frame-tree-for output workspace))
          (leaves (frame-leaves root))
          (cur (current-frame-for output workspace))
@@ -415,7 +423,8 @@ only, C-t Q)."
                 (frame-parent cur) nil
                 (frame-first-child cur) nil
                 (frame-second-child cur) nil
-                (frame-split-direction cur) nil)
+                (frame-split-direction cur) nil
+                (frame-user-split cur) nil)
           (setf (gethash (frame-key output workspace) *frame-trees*) cur
                 (gethash (frame-key output workspace) *current-frames*) cur)
           (request-manage-dirty)))))
@@ -801,20 +810,37 @@ floats every window off its frame and puts them back afterwards, so
 pruning mid-expose would collapse the tree under the restore."
   (and (boundp '*expose-active*) (symbol-value '*expose-active*)))
 
+(defun frame-prune-policy ()
+  "The empty-frame policy from (:frames (:prune-empty ...)).
+:auto keeps the empty frames of a user split and prunes those a new
+window split open. :never keeps every empty frame. :always prunes
+every empty frame. Any other value, or no :frames group, is :auto."
+  (let ((value (config-getf '(:frames) :prune-empty :default :auto)))
+    (if (member value '(:never :always))
+        value
+        :auto)))
+
 (defun prune-empty-frames (output workspace)
-  "Absorb empty leaf frames into their siblings, dwm-style: when a
-window closes, floats away, or moves workspaces, its neighbors grow
-to fill the vacated space. Leaves merge pairwise — the survivor
-(internal nodes rescaled to keep their split ratios) takes over the
-parent's rectangle and slot. The root frame always survives, so new
-windows always have a place to land."
-  (let ((key (frame-key output workspace)))
+  "Absorb empty leaf frames into their siblings as the
+(:frames (:prune-empty ...)) policy allows: under :never nothing is
+pruned; under :always every empty non-root leaf is; under :auto an
+empty leaf survives when its parent is a user split. A pruned leaf's
+sibling takes over the parent's rectangle and slot, with internal
+nodes rescaled to keep their split ratios. The root frame always
+survives, so new windows always have a place to land."
+  (let ((key (frame-key output workspace))
+        (policy (frame-prune-policy)))
+    (when (eq policy :never)
+      (return-from prune-empty-frames))
     (loop
       (let* ((root (gethash key *frame-trees*))
              (empty (when (and root (frame-first-child root))
                       (find-if (lambda (leaf)
                                  (and (null (frame-windows leaf))
-                                      (frame-parent leaf)))
+                                      (frame-parent leaf)
+                                      (or (eq policy :always)
+                                          (not (frame-user-split
+                                                (frame-parent leaf))))))
                                (frame-leaves root)))))
         (unless empty
           (return))
@@ -841,8 +867,9 @@ windows always have a place to land."
 
 (defun frames-manage-decisions (output workspace wins)
   "Manage-sequence decisions for the workspace's frame tree: clean up
-windows that died or moved, prune frames emptied by closes (their
-neighbors grow), adopt frameless windows into the current frame, and
+windows that died or moved, prune empty frames as
+(:frames (:prune-empty ...)) allows (their neighbours grow; expose
+suspends pruning), adopt frameless windows into the current frame, and
 propose each leaf's visible window its rectangle."
   (let* ((root (frame-tree-for output workspace))
          (leaves (frame-leaves root)))
@@ -853,8 +880,8 @@ propose each leaf's visible window its rectangle."
                              (and (gethash (window-proxy win) *windows*)
                                   (eq (window-frame win) leaf)))
                            (frame-windows leaf))))
-    ;; Empty frames reclaim: neighbors absorb them (dwm-style) — but
-    ;; not while expose is mid-flight with everything floated off
+    ;; Empty frames reclaim as (:frames (:prune-empty ...)) allows;
+    ;; expose suspends pruning while everything is floated off
     (unless (frames-preserve-empty-p)
       (prune-empty-frames output workspace))
     ;; New windows (and frameless ones after a hot reload) open into

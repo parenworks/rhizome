@@ -315,11 +315,14 @@
         (ok "window y includes the bar offset"
             (window-y t1) (frame-y (frame-first-child root))))
 
-      ;; A dead window disappears from its frame during manage — and
-      ;; now the emptied sibling frame is reclaimed too (dwm-style:
-      ;; neighbors grow), so the tree collapses back to one frame
+      ;; A dead window disappears from its frame during manage, and the
+      ;; emptied sibling frame is reclaimed, so the tree collapses back
+      ;; to one frame. The reclaim runs under :always because the
+      ;; default keeps a user split's empty frame.
       (remhash :t2 *windows*)
-      (apply-layout-for-output out4)
+      (let ((*config* (merge-plist *config*
+                                   '(:frames (:prune-empty :always)))))
+        (apply-layout-for-output out4))
       (ok "empty sibling frame reclaimed"
           (length (frame-leaves (frame-tree-for out4 1))) 1)
       (ok "dead windows pruned from frames"
