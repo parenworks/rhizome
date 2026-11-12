@@ -475,6 +475,25 @@ the successor or NIL. Call while WIN is still registered."
       (request-manage-dirty))
     successor))
 
+(defun reassert-seat-focus ()
+  "Queue each seat's live focused window again for the next manage
+sequence, and request one when anything was queued. Return the number
+of requests queued. Focus state and the :focus-changed hook are left
+as they are. River leaves keyboard focus unassigned when a
+keyboard-exclusive layer surface goes away, and ignores focus requests
+while one holds the keyboard."
+  (let ((queued 0))
+    (dolist (seat (all-seats))
+      (let ((win (seat-focused-window seat)))
+        (when (and win
+                   (seat-proxy seat)
+                   (gethash (window-proxy win) *windows*))
+          (queue-focus-request win seat)
+          (incf queued))))
+    (when (plusp queued)
+      (request-manage-dirty))
+    queued))
+
 (defvar *pending-close-requests* nil
   "Windows whose close request is queued for the next manage
 sequence — close is manage-state, and MOD+Q arrives outside any

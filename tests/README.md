@@ -20,6 +20,10 @@ stubbed river requests. Run with:
   newest window on its workspace, else a cleared seat; focus and clear
   requests reach river only in the manage pass; unfocused closes and
   windows on other workspaces or outputs leave focus alone.
+- `focus-after-capture.lisp` - keyboard focus returns to each seat's
+  focused window when the prefix capture, a prompt, the eval prompt, a
+  context menu, or the launcher closes; focus state does not change, and
+  a missing or closed window gets nothing.
 - `frames.lisp` — frame tree operations: splits, merges, resizes,
   directional focus, cycling, tree construction from rectangles,
   layout templates, and manage/render integration.

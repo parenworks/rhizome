@@ -303,7 +303,8 @@ motion (hover) and button (select) events."
   (setf *menu-window* nil
         *menu-items* nil
         *menu-hover* -1
-        *menu-pointer-seat* nil))
+        *menu-pointer-seat* nil)
+  (reassert-seat-focus))
 
 (defun menu-open (win seat)
   "Open the context menu for WIN at the pointer."

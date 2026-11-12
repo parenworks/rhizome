@@ -112,7 +112,8 @@ the surface maps and receives keyboard focus."
                      (prefix-capture-configure
                        state layer-surface serial width height)))
                   (:closed
-                   (setf *prefix-mode-active* nil))))
+                   (setf *prefix-mode-active* nil)
+                   (reassert-seat-focus))))
               (wl:wl-proxy-hooks layer-surface))
         ;; Anchor top-left, 1x1, no exclusive zone: invisible
         (rwm:zwlr-layer-surface-v1.set-anchor
@@ -149,7 +150,8 @@ prefix modes (command mode, iresize, expose)."
               (wl:wl-surface.destroy (gethash :surface state)))
             (bar-destroy-shm state))
         (error (e)
-          (format t "~&; Rhizome: error exiting prefix mode: ~A~%" e))))
+          (format t "~&; Rhizome: error exiting prefix mode: ~A~%" e)))
+      (reassert-seat-focus))
     (setf *prefix-state* nil)))
 
 (defun prefix-drain ()
