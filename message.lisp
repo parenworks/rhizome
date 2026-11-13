@@ -29,9 +29,13 @@
   (max 22 (+ 4 (* (length (message-lines text))
                   (message-line-height)))))
 
+(defvar *message-serial* 0
+  "Number of messages shown so far; show-message increments it.")
+
 (defun show-message (text &optional (seconds 3))
   "Show TEXT on screen for SECONDS (default 3). If a message is
 already showing, replace it. Newlines start new lines."
+  (incf *message-serial*)
   (setf *last-message* text)
   (unless (and *compositor* *shm* *layer-shell*)
     (format t "~&; Rhizome: ~A~%" text)
@@ -143,6 +147,16 @@ already showing, replace it. Newlines start new lines."
 (defun message (format-string &rest args)
   "Show a formatted message on screen (like StumpWM's message)."
   (show-message (apply #'format nil format-string args)))
+
+(defun show-command-reply (reply serial &optional (seconds 3))
+  "Show REPLY for SECONDS unless it is empty or a message has been shown
+since *message-serial* was SERIAL; a command's own message stays on
+screen. Return REPLY."
+  (when (and (stringp reply)
+             (plusp (length reply))
+             (= serial *message-serial*))
+    (show-message reply seconds))
+  reply)
 
 (defun lastmsg ()
   "Redisplay the most recent message (StumpWM's C-t m)."

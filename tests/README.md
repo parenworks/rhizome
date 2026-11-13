@@ -64,3 +64,7 @@ stubbed river requests. Run with:
   completes with the typed text (and with nothing when it is empty),
   Enter on a candidate prompt still needs a matching candidate, and the
   shell prompt launches the command typed into it.
+- `palette-message.lisp` - the message a command leaves on screen when
+  run from the command palette or over IPC: the command's own message
+  stays, a non-empty reply is shown when the command showed nothing,
+  and an empty reply never replaces a message.
