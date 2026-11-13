@@ -60,3 +60,7 @@ stubbed river requests. Run with:
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
+- `pull-hidden.lisp` - pull-hidden-next and its previous direction:
+  hidden windows cycle in window-number order whatever order the
+  workspace lists them in, wrapping at either end; unnumbered windows
+  come after the numbered ones.
