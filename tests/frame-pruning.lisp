@@ -143,6 +143,7 @@
              (counts '()))
         (root-win :fp-e0 out)
         (split-current-frame out 1 :horizontal)
+        (focus-frame-direction out 1 :right)
         (arrive out e1)
         (arrive out e2)
         (close-win out e2)

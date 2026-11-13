@@ -29,6 +29,10 @@ stubbed river requests. Run with:
   `:new-window` preferences (`:empty`, `:last`, `:unfocused`, functions),
   a custom policy class selected by name, the fallback for an unknown
   name, and the workspace focus history.
+- `split-focus.lisp` - the current frame after a split: it stays on
+  the original half, with or without a focused window, so a second
+  split divides that half again; the placement policy still fills the
+  new half.
 - `parity.lisp` — Alt+drag pointer bindings (drag floats tiled
   windows), the C-t h help system, describe-key, move-window-to-frame,
   and `:output` window rules.

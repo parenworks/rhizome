@@ -150,8 +150,9 @@ stacked) at RATIO (0.0-1.0). Returns the new (second) child frame."
 (defun split-current-frame (output workspace direction &optional (ratio 1/2))
   "Split the current frame. The current window stays in the first
 child; the placement policy picks what the new (second) child shows
-(see placement-fill-new-frame), and the frame pointer moves to it.
-The split is user-made, so its frames stay when they go empty (see
+(see placement-fill-new-frame). The current frame stays on the
+original half, the first child, as StumpWM's hsplit and vsplit keep
+focus. The split is user-made, so its frames stay when they go empty (see
 prune-empty-frames)."
   (let ((frame (current-frame-for output workspace)))
     (split-frame frame direction ratio)
@@ -164,7 +165,7 @@ prune-empty-frames)."
             (frame-windows frame) nil))
     (placement-fill-new-frame (frame-second-child frame) output workspace)
     (setf (gethash (frame-key output workspace) *current-frames*)
-          (frame-second-child frame))
+          (frame-first-child frame))
     (message "split")
     (request-manage-dirty)))
 
