@@ -38,12 +38,14 @@ already showing, replace it. Newlines start new lines."
     (return-from show-message))
   (setf *message-expiry* (+ (get-universal-time) seconds))
   (let ((height (message-height-for text)))
-    (if (and *message-state* (gethash :shm-ptr *message-state*))
-        (if (= height *message-height*)
+    (if *message-state*
+        (if (and (gethash :shm-ptr *message-state*)
+                 (= height *message-height*))
             (message-render text)
-            ;; Different height (more/fewer lines): drop the buffer and
-            ;; resize; the configure that follows re-creates the buffer
-            ;; at the new size and renders :text
+            ;; Not configured yet, or a different height: keep the one
+            ;; surface, drop any buffer and resize; the configure that
+            ;; follows creates the buffer at the new size and renders
+            ;; :text
             (progn
               (setf *message-height* height
                     (gethash :text *message-state*) text)
@@ -70,7 +72,9 @@ already showing, replace it. Newlines start new lines."
                            (message-configure-handler
                              state layer-surface serial width height)))
                         (:closed
-                         (setf *message-state* nil))))
+                         (bar-destroy-shm state)
+                         (when (eq *message-state* state)
+                           (setf *message-state* nil)))))
                     (wl:wl-proxy-hooks layer-surface))
               (rwm:zwlr-layer-surface-v1.set-anchor layer-surface nil)
               (rwm:zwlr-layer-surface-v1.set-size layer-surface

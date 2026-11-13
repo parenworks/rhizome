@@ -93,6 +93,10 @@ the surface maps and receives keyboard focus."
   (unless (and *compositor* *shm* *layer-shell*)
     (format t "~&; Rhizome: cannot enter prefix mode (missing globals)~%")
     (return-from enter-prefix-mode))
+  ;; Free any buffer the previous state still holds; a no-op when
+  ;; its close already freed it
+  (when *prefix-state*
+    (bar-destroy-shm *prefix-state*))
   (setf *prefix-current-map* *prefix-map*
         *prefix-expiry* (+ (get-universal-time) 5)
         *prefix-state* (make-hash-table))
@@ -112,6 +116,7 @@ the surface maps and receives keyboard focus."
                      (prefix-capture-configure
                        state layer-surface serial width height)))
                   (:closed
+                   (bar-destroy-shm state)
                    (setf *prefix-mode-active* nil))))
               (wl:wl-proxy-hooks layer-surface))
         ;; Anchor top-left, 1x1, no exclusive zone: invisible

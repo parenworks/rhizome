@@ -172,6 +172,10 @@ ON-COMPLETE is called with the selected string on Enter."
   (unless (and *compositor* *shm* *layer-shell*)
     (format t "~&; Rhizome: cannot show prompt (missing globals)~%")
     (return-from prompt-open))
+  ;; Free any buffer the previous state still holds; a no-op when
+  ;; its close already freed it
+  (when *prompt-state*
+    (bar-destroy-shm *prompt-state*))
   (setf *prompt-title* title
         *prompt-query* initial
         *prompt-candidates* candidates
@@ -195,6 +199,7 @@ ON-COMPLETE is called with the selected string on Enter."
                      (prompt-configure-handler
                        state layer-surface serial width height)))
                   (:closed
+                   (bar-destroy-shm state)
                    (setf *prompt-active* nil))))
               (wl:wl-proxy-hooks layer-surface))
         (rwm:zwlr-layer-surface-v1.set-anchor layer-surface nil)

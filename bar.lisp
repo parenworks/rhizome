@@ -865,7 +865,10 @@ font.lisp's *font-lock*).")
         (gethash :shm-size state) 0))
 
 (defun bar-ensure-shm (state)
-  "Create the shm buffer for the bar's current dimensions."
+  "Create the shm buffer for STATE's current :width and :height,
+releasing any buffer STATE already holds first (see bar-destroy-shm).
+Return T, or NIL when the shm file or mapping cannot be created."
+  (bar-destroy-shm state)
   (let* ((width (gethash :width state))
          (height (gethash :height state))
          (size (* width height 4))
