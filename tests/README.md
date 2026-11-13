@@ -53,6 +53,12 @@ stubbed river requests. Run with:
   (*bar-process-mode*) must never spawn or stop bars, no matter what
   the user config asks for; bar-apply-config / toggle-bar / start /
   stop all refuse there, and start/stop-bar now reap orphan bars.
+- `bar-hide.lisp` - toggle-bar hides and shows the running bar
+  process instead of restarting it, and the bar reads :bar-hidden from
+  the WM snapshot. The bar's space is reserved only while river reports
+  an exclusive zone at least as tall as the bar. A configure that
+  leaves the :bar settings alone keeps the bar, and two concurrent
+  starts launch one process.
 - `session-icons.lisp` — session management (lock command building,
   swayidle arming, logout confirm flow) and the bar icons module
   (icon discovery, 16x16 scaling, caching, per-entry actions).

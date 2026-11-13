@@ -1131,8 +1131,57 @@ here, the prompt surfaces live there)."
                             (wl:wl-proxy-hooks pointer)))))))
             (wl:wl-proxy-hooks seat)))))
 
+(defun bar-open-surface (state)
+  "Create the bar's layer surface on STATE's output: anchored to the
+top, inset by (:bar :margin), with an exclusive zone of twice the
+margin plus the height. The compositor's configure event maps it."
+  (let* ((surface (wl:wl-compositor.create-surface
+                   (gethash :compositor state)))
+         (layer-surface
+           (rwm:zwlr-layer-shell-v1.get-layer-surface
+             (gethash :layer-shell state) surface
+             (gethash :output state) :top "rhizome-bar"))
+         (margin (config-getf '(:bar) :margin :default 8))
+         (height (config-getf '(:bar) :height :default 28)))
+    (setf (gethash :surface state) surface
+          (gethash :layer-surface state) layer-surface)
+    (push (lambda (event-name &rest args)
+            (bar-layer-surface-handler state layer-surface
+                                       event-name args))
+          (wl:wl-proxy-hooks layer-surface))
+    (rwm:zwlr-layer-surface-v1.set-anchor layer-surface '(:top :left :right))
+    (rwm:zwlr-layer-surface-v1.set-margin layer-surface margin margin 0 margin)
+    (rwm:zwlr-layer-surface-v1.set-exclusive-zone layer-surface
+                                                  (+ (* 2 margin) height))
+    (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity layer-surface :none)
+    (rwm:zwlr-layer-surface-v1.set-size layer-surface 0 height)
+    (wl:wl-surface.commit surface)))
+
+(defun bar-close-surface (state)
+  "Destroy the bar's layer surface, wl_surface and shm buffer. River
+drops the bar's exclusive zone with the surface."
+  (when (gethash :layer-surface state)
+    (rwm:zwlr-layer-surface-v1.destroy (gethash :layer-surface state)))
+  (when (gethash :surface state)
+    (wl:wl-surface.destroy (gethash :surface state)))
+  (bar-destroy-shm state)
+  (setf (gethash :layer-surface state) nil
+        (gethash :surface state) nil
+        (gethash :mapped state) nil
+        *bar-last-content* nil))
+
+(defun bar-sync-visibility (state)
+  "Open or close the bar's surface to match :bar-hidden in the WM
+snapshot."
+  (let ((hidden (getf (bar-snapshot) :bar-hidden)))
+    (cond ((and hidden (gethash :surface state))
+           (bar-close-surface state))
+          ((and (not hidden) (null (gethash :surface state)))
+           (bar-open-surface state)))))
+
 (defun bar-run-loop (state)
-  "Open the bar's Wayland connection and drive its tick loop."
+  "Open the bar's Wayland connection and drive its tick loop. Each
+tick opens or closes the bar's surface to follow the WM snapshot."
   (flet ((safe-roundtrip (display)
            ;; Wayflan raises on events it cannot decode (e.g. wl_shm
            ;; advertises non-standard fourcc formats); skip and carry on.
@@ -1161,62 +1210,35 @@ here, the prompt surfaces live there)."
                          (gethash :layer-shell state))
               (format t "~&; Rhizome: bar: missing compositor/shm/layer-shell globals~%")
               (return-from bar-run-loop))
-            (let ((surface (wl:wl-compositor.create-surface
-                            (gethash :compositor state))))
-              (setf (gethash :surface state) surface)
-              (let ((layer-surface
-                      (rwm:zwlr-layer-shell-v1.get-layer-surface
-                        (gethash :layer-shell state) surface
-                        (gethash :output state) :top "rhizome-bar")))
-                (setf (gethash :layer-surface state) layer-surface)
-                (push (lambda (event-name &rest args)
-                        (bar-layer-surface-handler state layer-surface
-                                                   event-name args))
-                      (wl:wl-proxy-hooks layer-surface))
-                (rwm:zwlr-layer-surface-v1.set-anchor
-                  layer-surface '(:top :left :right))
-                ;; Floating pill bar: inset from the screen edges
-                ;; (:bar :margin, default 8; 0 = the classic strip).
-                ;; The exclusive zone covers margin + height so
-                ;; windows never tile under the floating bar.
-                (let ((margin (config-getf '(:bar) :margin :default 8)))
-                  (rwm:zwlr-layer-surface-v1.set-margin
-                    layer-surface margin margin 0 margin)
-                  (rwm:zwlr-layer-surface-v1.set-exclusive-zone
-                    layer-surface (+ (* 2 margin)
-                                     (config-getf '(:bar) :height
-                                                  :default 28))))
-                (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity
-                  layer-surface :none)
-                (rwm:zwlr-layer-surface-v1.set-size layer-surface
-                  0 (config-getf '(:bar) :height :default 28))
-                (wl:wl-surface.commit surface)
-                ;; Pointer input for clickable modules
-                (bar-setup-pointer state)
-                (loop for i below 100
-                      until (or (gethash :mapped state) (not *bar-running*))
-                      do (safe-roundtrip display)
-                         (sleep 0.05))
-                (loop while *bar-running*
-                      do (let ((tray-was *tray-changed*))
-                           (tray-drain)
-                           (when (/= tray-was *tray-changed*)
-                             ;; new/removed items: invalidate content
-                             (setf *bar-last-content* nil)))
-                         (when (and (gethash :mapped state)
-                                    (or (bar-content-changed-p)
-                                        (/= *tray-render-stamp*
-                                            *tray-changed*)))
-                           (setf *tray-render-stamp* *tray-changed*)
-                           (bar-render state))
-                         (loop while (and *bar-running*
-                                          (wl:wl-display-listen display))
-                               do (safe-dispatch display))
-                         (sleep (config-getf '(:bar) :interval :default 0.15)))
-                (bar-destroy-shm state)))))
+            ;; Pointer input for clickable modules
+            (bar-setup-pointer state)
+            (bar-sync-visibility state)
+            (loop for i below 100
+                  until (or (gethash :mapped state)
+                            (null (gethash :surface state))
+                            (not *bar-running*))
+                  do (safe-roundtrip display)
+                     (sleep 0.05))
+            (loop while *bar-running*
+                  do (bar-sync-visibility state)
+                     (let ((tray-was *tray-changed*))
+                       (tray-drain)
+                       (when (/= tray-was *tray-changed*)
+                         ;; new/removed items: invalidate content
+                         (setf *bar-last-content* nil)))
+                     (when (and (gethash :mapped state)
+                                (or (bar-content-changed-p)
+                                    (/= *tray-render-stamp*
+                                        *tray-changed*)))
+                       (setf *tray-render-stamp* *tray-changed*)
+                       (bar-render state))
+                     (loop while (and *bar-running*
+                                      (wl:wl-display-listen display))
+                           do (safe-dispatch display))
+                     (sleep (config-getf '(:bar) :interval :default 0.15)))
+            (bar-destroy-shm state)))
       (error (e)
         (format t "~&; Rhizome: bar thread error: ~A~%" e)))))
-
 
 (defparameter *bar-process-mode* nil
   "T in the bar process itself (set by run-bar BEFORE anything else).
@@ -1253,10 +1275,27 @@ no matter what the user config asks for."
   bar.lisp must not orphan a running bar (bar-reserved-height no
   longer depends on this, but toggle-bar still uses it).")
 
+(defvar *bar-start-lock* (bt:make-lock "bar-start")
+  "Serializes start-bar's alive check and launch: the supervisor
+thread and the main thread both call it.")
+
+(defvar *bar-starting* nil
+  "True while start-bar is launching a bar process.")
+
+(defvar *bar-launched-settings* nil
+  "The :bar settings, without :enabled, of the last bar launch.")
+
 (defun bar-alive-p ()
-  "Whether the bar process is running."
-  (and *bar-process*
-       (uiop:process-alive-p *bar-process*)))
+  "Whether a bar process is running or being launched."
+  (or *bar-starting*
+      (and *bar-process*
+           (uiop:process-alive-p *bar-process*))))
+
+(defun bar-settings ()
+  "The :bar config group without :enabled."
+  (let ((group (copy-list (config-get '(:bar)))))
+    (remf group :enabled)
+    group))
 
 (defun bar-log-path ()
   "Pathname of the bar process's log file."
@@ -1264,32 +1303,38 @@ no matter what the user config asks for."
                    (user-homedir-pathname)))
 
 (defun start-bar ()
-  "Start the bar as its own process (no-op if already running). The
-WM process only — and it first reaps any orphan bars left behind by
-past incidents (they would stack on screen)."
+  "Start the bar as its own process (no-op if one is running or being
+launched). The WM process only, and it first reaps any orphan bars
+left behind by past incidents (they would stack on screen)."
   (unless (and (boundp '*wm-process-mode*) *wm-process-mode*)
     (return-from start-bar))
   (when *bar-process-mode*
     (return-from start-bar))
-  (when (bar-alive-p)
-    (return-from start-bar))
-  ;; Reap orphan bar processes: exact-match the run-bar eval, never
-  ;; the WM (its arg is (rhizome:run))
-  (ignore-errors
-    (uiop:run-program '("pkill" "-f" "rhizome:run-bar")
-                      :ignore-error-status t))
-  (ensure-directories-exist (bar-log-path))
-  (with-open-file (s (bar-log-path) :direction :output
-                     :if-exists :supersede))
-  (setf *bar-process*
-        (uiop:launch-program
-          (list "sbcl"
-                "--non-interactive"
-                "--eval" "(ql:quickload :rhizome)"
-                "--eval" "(rhizome:run-bar)")
-          :output (bar-log-path)
-          :error-output :output))
-  (format t "~&; Rhizome: bar started~%"))
+  (bt:with-lock-held (*bar-start-lock*)
+    (when (bar-alive-p)
+      (return-from start-bar))
+    (setf *bar-starting* t)
+    (unwind-protect
+         (progn
+           ;; Reap orphan bar processes: exact-match the run-bar eval,
+           ;; never the WM (its arg is (rhizome:run))
+           (ignore-errors
+             (uiop:run-program '("pkill" "-f" "rhizome:run-bar")
+                               :ignore-error-status t))
+           (ensure-directories-exist (bar-log-path))
+           (with-open-file (s (bar-log-path) :direction :output
+                              :if-exists :supersede))
+           (setf *bar-launched-settings* (bar-settings))
+           (setf *bar-process*
+                 (uiop:launch-program
+                   (list "sbcl"
+                         "--non-interactive"
+                         "--eval" "(ql:quickload :rhizome)"
+                         "--eval" "(rhizome:run-bar)")
+                   :output (bar-log-path)
+                   :error-output :output))
+           (format t "~&; Rhizome: bar started~%"))
+      (setf *bar-starting* nil))))
 
 (defun stop-bar ()
   "Stop the bar process. Kills tracked AND orphan bars (the latter
@@ -1312,27 +1357,63 @@ left by past incidents); WM process only."
   (setf *bar-process* nil)
   (format t "~&; Rhizome: bar stopped~%"))
 
+(defvar *bar-non-exclusive-heights* (make-hash-table)
+  "Maps each output to the height of its non-exclusive area, as river
+last reported it.")
+
+(defun bar-zone-shown-p ()
+  "True when river reports an exclusive zone at least as tall as the
+bar on some output, or has reported no area at all."
+  (let ((bar-height (config-getf '(:bar) :height :default 28)))
+    (or (zerop (hash-table-count *bar-non-exclusive-heights*))
+        (loop for out being the hash-keys of *bar-non-exclusive-heights*
+                using (hash-value height)
+              thereis (>= (- (output-height out) height) bar-height)))))
+
 (defun bar-reserved-height ()
-  "Vertical pixels the layout must leave for the bar (0 when
-disabled): margin above + height + margin below, so windows tile
-with the same gap under the floating bar as above it. The WM
-reserves this itself in its layout math — river's exclusive zone
-can't help, because the WM positions windows explicitly."
-  (if (config-getf '(:bar) :enabled :default t)
+  "Vertical pixels the layout must leave for the bar: margin above +
+height + margin below, so windows tile with the same gap under the
+floating bar as above it. 0 when the bar is disabled, or when river
+reports output areas but no exclusive zone at least as tall as the bar
+(hidden or still starting). The WM reserves this itself in its
+layout math because it positions windows explicitly."
+  (if (and (config-getf '(:bar) :enabled :default t)
+           (bar-zone-shown-p))
       (+ (* 2 (config-getf '(:bar) :margin :default 8))
          (config-getf '(:bar) :height :default 28))
       0))
 
+(defun bar-retile ()
+  "Rescale every output's frame trees to the current reserved bar
+space and request a manage sequence."
+  (dolist (out (all-outputs))
+    (refit-output-frame-trees out))
+  (when *wm-proxy*
+    (request-manage-dirty)))
+
+(defun bar-note-non-exclusive-area (output height)
+  "Record river's non-exclusive area HEIGHT for OUTPUT, or forget
+OUTPUT when HEIGHT is NIL. Re-tile when the reserved bar space
+changes."
+  (let ((before (bar-reserved-height)))
+    (if height
+        (setf (gethash output *bar-non-exclusive-heights*) height)
+        (remhash output *bar-non-exclusive-heights*))
+    (unless (eql before (bar-reserved-height))
+      (bar-retile))))
+
 (defun toggle-bar ()
-  "Toggle the status bar on/off. Persists the intent into
-(:bar :enabled) so the supervisor honors it — a toggle-off must not
-be undone fifteen seconds later. bar-apply-config handles the
-start/stop and the reserved-space re-tiling."
+  "Hide or show the status bar without restarting its process.
+Persists the intent into (:bar :enabled) so the supervisor does not
+restart a hidden bar fifteen seconds later.
+bar-apply-config passes the intent to the bar and re-tiles."
   (when *bar-process-mode*
     (return-from toggle-bar))
   (unless (and (boundp '*wm-process-mode*) *wm-process-mode*)
     (return-from toggle-bar))
-  (configure (list :bar (list :enabled (not (bar-alive-p))))))
+  (configure (list :bar (list :enabled
+                              (not (config-getf '(:bar) :enabled
+                                                :default t))))))
 
 (defvar *bar-supervisor* nil
   "The WM's bar supervisor thread. The bar's deaths were silent and
@@ -1360,30 +1441,28 @@ persists the intent in (:bar :enabled)."
           :name "rhizome-bar-supervisor")))
 
 (defun bar-apply-config ()
-  "Apply the current config to the bar: start, stop or restart as
-needed. WM-process only — the bar process itself never manages bar
-processes (see *bar-process-mode*), and neither does anything else:
-a TEST process whose (configure '(:bar (:enabled nil))) used to
-flow into stop-bar's pkill and reap the user's live bar."
+  "Apply the current config to the bar. Disabling leaves a running bar
+process alive, and the bar reads :bar-hidden from the WM snapshot.
+Enabling starts a bar when none is alive, and restarts one only when
+the :bar settings differ from those it was launched with. WM-process
+only: any other process, the bar process (see *bar-process-mode*) or
+a test run included, must never start or stop bars, because stop-bar's
+pkill would reap the user's live bar."
   (unless (and (boundp '*wm-process-mode*) *wm-process-mode*)
     (return-from bar-apply-config))
   (when *bar-process-mode*
     (return-from bar-apply-config))
   (let ((before (bar-reserved-height)))
     (cond
-      ((not (config-getf '(:bar) :enabled :default t))
-       (when (bar-alive-p) (stop-bar)))
-      ((bar-alive-p)
-       ;; Restart to pick up structural changes (height, modules, colors
-       ;; are picked up by the new process from the config file).
-       (stop-bar)
+      ((not (config-getf '(:bar) :enabled :default t)))
+      ((not (bar-alive-p))
        (start-bar))
-      (t
+      ((not (equal (bar-settings) *bar-launched-settings*))
+       ;; The new process reads height, modules and colours from the
+       ;; config file.
+       (stop-bar)
        (start-bar)))
-    ;; The reserved space may have changed (height, enabled): rescale
-    ;; existing frame trees and re-tile into it
+    (when *wm-proxy*
+      (update-wm-snapshot))
     (unless (eql before (bar-reserved-height))
-      (dolist (out (all-outputs))
-        (refit-output-frame-trees out))
-      (when *wm-proxy*
-        (request-manage-dirty)))))
+      (bar-retile))))

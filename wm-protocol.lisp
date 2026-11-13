@@ -102,6 +102,7 @@ answered with another sequence — a self-sustaining churn."
                 :workspace (let ((outs (all-outputs)))
                              (when outs (current-workspace (first outs))))
                 :workspace-count *workspace-count*
+                :bar-hidden (not (config-getf '(:bar) :enabled :default t))
                 :occupied (let ((occ nil))
                             (dolist (win (all-windows))
                               (let ((ws (window-workspace win)))
@@ -501,8 +502,11 @@ window management updates."
           (handler-case
               (let ((ls-output (rwm:river-layer-shell-v1.get-output
                                  *river-layer-shell* (output-proxy output))))
-                (push (lambda (event-name &rest args)
-                        (declare (ignore event-name args)))
+                (push (let ((output output))
+                        (lambda (event-name &rest args)
+                          (when (eq event-name :non_exclusive_area)
+                            (bar-note-non-exclusive-area output
+                                                         (fourth args)))))
                       (wl:wl-proxy-hooks ls-output)))
             (error (e)
               (format t "~&; Rhizome: retroactive output layer shell registration failed: ~A~%" e))))

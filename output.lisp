@@ -78,8 +78,8 @@ re-sends the presentation mode (apply-presentation-mode diffs it)."
                     (case event-name
                       (:non_exclusive_area
                        (destructuring-bind (x y w h) args
-                         (declare (ignore x y w h)))
-                       nil)))
+                         (declare (ignore x y w))
+                         (bar-note-non-exclusive-area output h)))))
                   (wl:wl-proxy-hooks ls-output))
             (format t "~&; Rhizome: registered output with river_layer_shell_v1~%"))
           (error (e)
@@ -121,7 +121,8 @@ re-sends the presentation mode (apply-presentation-mode diffs it)."
 
     (:removed
      (format t "~&; Rhizome: output removed~%")
-     (remhash (output-proxy output) *outputs*))
+     (remhash (output-proxy output) *outputs*)
+     (bar-note-non-exclusive-area output nil))
 
     (t
      (format t "~&; Rhizome: unhandled output event ~A~%" event-name))))
