@@ -59,6 +59,9 @@ stubbed river requests. Run with:
 - `repl-server-config.lisp`: how the REPL server settings resolve.
   `:slynk` is read, an older `:swank` entry is honoured while `:slynk` is left at its
   defaults, `:slynk` wins when both are set, and the defaults apply.
+- `repl-server-port.lisp`: `repl-server-port` reports the port once the server
+  listens, and a second `start-slynk` starts no second server. Server creation
+  is stubbed; no slynk server is started.
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip

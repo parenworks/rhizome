@@ -52,6 +52,7 @@
    #:ipc-send-command
    #:start-slynk
    #:start-swank
+   #:repl-server-port
    ;; Interactive prompt and message window
    #:prompt-open
    #:prompt-close

@@ -467,6 +467,12 @@ REPL into the live window manager: redefine layouts, inspect windows,
 hot-patch anything, while it runs. Disable it with
 =(:slynk (:enabled nil))=.
 
+=(rhizome:repl-server-port)= returns the port that server listens on, or
+=nil= when it is disabled, not up yet, or failed to start, so a config
+can connect to the running server instead of starting another. Calling
+=start-slynk= again starts no second server; it returns the running port,
+or =nil= while the first start is still in progress.
+
 A config written for the earlier swank server keeps working: when you
 leave =:slynk= at its defaults, rhizome reads =:port= and =:enabled= from
 your =(:swank ...)= entry instead. Once you set =:slynk=, it wins and
