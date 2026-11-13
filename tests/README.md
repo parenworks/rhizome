@@ -74,3 +74,9 @@ stubbed river requests. Run with:
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
+- `workspace-focus.lisp` - keyboard focus across workspace changes:
+  switching to an empty workspace clears focus; switching back focuses
+  the window last focused there, or the newest unminimized window
+  there; moving the focused marked window off the visible workspace
+  hands focus to a window that stays; and when the focused window is
+  moved, the view follows the window and it keeps focus.

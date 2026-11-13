@@ -367,11 +367,17 @@ WIN queues a focus clear."
         (remove seat *pending-focus-requests* :key #'cdr :test #'eq))
   (push (cons win seat) *pending-focus-requests*))
 
+(defvar *workspace-last-focus* (make-hash-table :test 'equal)
+  "The window last given keyboard focus on each workspace, keyed
+(OUTPUT . WORKSPACE). Entries may name a window since closed or moved;
+readers check that it still lives there.")
+
 (defun focus-window (win seat)
   "Give keyboard focus to WIN on SEAT. The river request is queued
 and flushed during the next manage sequence (flush-focus-requests
 in the manage pass); the internal slots update immediately so
-borders/bars react at once."
+borders/bars react at once. WIN becomes its workspace's entry in
+*workspace-last-focus*."
   (when (and (window-proxy win) (seat-proxy seat))
     ;; Clear focus on all other windows
     (dolist (w (all-windows))
@@ -379,7 +385,10 @@ borders/bars react at once."
         (setf (window-focused-p w) nil)))
     (queue-focus-request win seat)
     (setf (window-focused-p win) t
-          (seat-focused-window seat) win)
+          (seat-focused-window seat) win
+          (gethash (cons (window-output win) (window-workspace win))
+                   *workspace-last-focus*)
+          win)
     (run-hook :focus-changed win)))
 
 (defvar *pending-pointer-warps* nil

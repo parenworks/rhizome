@@ -77,8 +77,31 @@ every unconfigured one."
   "Stamp WIN as belonging to WORKSPACE."
   (setf (gethash win *window-workspace*) workspace))
 
+(defun workspace-focus-target (output workspace)
+  "The window that takes focus when OUTPUT shows WORKSPACE, or NIL when
+the workspace has no unminimized window. The window last focused there
+wins while it is registered, unminimized, and still on OUTPUT and
+WORKSPACE; otherwise the unminimized window there with the highest
+registration number (the newest)."
+  (let ((wins (remove-if #'window-minimized-p
+                         (windows-on-workspace output workspace)))
+        (last (gethash (cons output workspace) *workspace-last-focus*)))
+    (cond ((and last
+                (gethash (window-proxy last) *windows*)
+                (member last wins :test #'eq))
+           last)
+          (wins
+           (reduce (lambda (a b)
+                     (if (> (window-registration b) (window-registration a))
+                         b
+                         a))
+                   wins)))))
+
 (defun switch-workspace (workspace &optional (output (first (all-outputs))))
-  "Switch OUTPUT to WORKSPACE (1-based), focusing its newest window."
+  "Switch OUTPUT to WORKSPACE (1-based) and focus its window on every
+seat (see workspace-focus-target). When WORKSPACE has no unminimized
+window, each
+seat focused on a window of OUTPUT has its focus cleared."
   (unless (and (<= 1 workspace *workspace-count*) output)
     (return-from switch-workspace))
   (let ((old-workspace (gethash output *output-workspace*)))
@@ -103,15 +126,16 @@ every unconfigured one."
     (format t "~&; Rhizome: switched to workspace ~D~%" workspace)
     (message "workspace ~D" workspace)
     (run-hook :workspace-changed workspace output)
-    ;; Focus the most recently registered window on the new workspace
-    (let* ((wins (windows-on-workspace output workspace))
-           (newest (if (and *last-registered-window*
-                            (member *last-registered-window* wins))
-                       *last-registered-window*
-                       (first wins))))
-      (when newest
-        (dolist (seat (all-seats))
-          (focus-window newest seat))))
+    ;; Focus the workspace's window; with none, no seat may keep a
+    ;; window the output no longer shows
+    (let ((target (workspace-focus-target output workspace)))
+      (dolist (seat (all-seats))
+        (cond (target
+               (focus-window target seat))
+              ((and (seat-focused-window seat)
+                    (eq (window-output (seat-focused-window seat)) output))
+               (setf (window-focused-p (seat-focused-window seat)) nil)
+               (clear-focus seat)))))
     ;; The explicit focus stands; don't let a pending auto-focus override it
     (setf *pending-autofocus* nil)
     ;; Warp the pointer to the output center so it lands on the new
@@ -136,6 +160,12 @@ every unconfigured one."
   ;; workspace's current frame on its next manage pass
   (frame-remove-window win)
   (assign-window-workspace win workspace)
+  ;; A focused WIN becomes WORKSPACE's last focused window, which
+  ;; switch-workspace focuses there
+  (when (window-focused-p win)
+    (setf (gethash (cons (window-output win) workspace)
+                   *workspace-last-focus*)
+          win))
   ;; Moving a minimized window restores it
   (setf (window-minimized-p win) nil)
   (format t "~&; Rhizome: moved window to workspace ~D~%" workspace)
@@ -152,13 +182,29 @@ every unconfigured one."
 
 (defun move-marked-to-workspace (workspace)
   "Move every marked window to WORKSPACE and clear the marks
-(StumpWM's gmove-marked)."
+(StumpWM's gmove-marked). The view stays put. A seat focused on a
+marked window that leaves its output's visible workspace moves to that
+window's close-successor among the windows that stay, or has its focus
+cleared when none is left (see refocus-after-close)."
   (let ((marked (marked-windows)))
     (if (null marked)
         (message "no marked windows")
-        (progn
-          (dolist (win marked)
-            (when (gethash (window-proxy win) *windows*)
+        (flet ((leaves-view-focused-p (win)
+                 (and (window-focused-p win)
+                      (window-output win)
+                      (eql (window-workspace win)
+                           (current-workspace (window-output win)))
+                      (not (eql workspace (window-workspace win))))))
+          (let* ((live (remove-if-not (lambda (win)
+                                        (gethash (window-proxy win) *windows*))
+                                      marked))
+                 (focused (remove-if-not #'leaves-view-focused-p live)))
+            ;; Unfocused windows leave first, so no successor is a
+            ;; window that is about to leave too
+            (dolist (win (set-difference live focused :test #'eq))
+              (move-window-to-workspace win workspace))
+            (dolist (win focused)
+              (refocus-after-close win)
               (move-window-to-workspace win workspace)))
           (clear-window-marks)
           (message "~D moved to workspace ~D"
