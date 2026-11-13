@@ -301,7 +301,10 @@
       ;; positioned at its frame rectangle; the other window in the
       ;; first frame stays hidden (monocle-per-frame)
       (let ((root (frame-tree-for out4 1)))
-        (split-current-frame out4 1 :horizontal)
+        (let ((*config* (merge-plist *config*
+                                     '(:tiling (:placement
+                                                (:new-frame :empty))))))
+          (split-current-frame out4 1 :horizontal))
         ;; t3 hidden; render must not show it (it is not the frame's
         ;; visible window) and must position t1 inside the left frame
         (setf calls '())

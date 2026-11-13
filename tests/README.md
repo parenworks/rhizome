@@ -23,6 +23,12 @@ stubbed river requests. Run with:
   window split open still close with it; `(:frames (:prune-empty :never))`
   keeps every empty frame and `:always` prunes user splits too; removing a
   split or collapsing to one frame leaves nothing marked.
+- `placement-policy.lisp` - frame placement policy: by default a split
+  fills its new half with the most recently focused hidden window and a
+  new window enters the focused frame; `:new-frame :empty`, the
+  `:new-window` preferences (`:empty`, `:last`, `:unfocused`, functions),
+  a custom policy class selected by name, the fallback for an unknown
+  name, and the workspace focus history.
 - `parity.lisp` — Alt+drag pointer bindings (drag floats tiled
   windows), the C-t h help system, describe-key, move-window-to-frame,
   and `:output` window rules.

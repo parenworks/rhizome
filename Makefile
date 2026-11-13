@@ -15,6 +15,7 @@ SBCL      ?= sbcl
 TYPST     ?= typst
 HOME_DIR  ?= $(HOME)
 SUITES    := animations decorations surface window-rules floating frame-pruning \
+             placement-policy \
              workspace-modes theming bar-guard session-icons quickwins \
              groups interactivity workspace-restore workspace-switch-away \
              takeover tray-menus

@@ -173,6 +173,8 @@ Returns (values value found-p)."
                            :height 24)))
   (rhizome:configure '(:bar (:enabled nil)))   ; disable the bar
   (rhizome:configure '(:frames (:prune-empty :never)))  ; keep every empty frame
+  ;; new windows fill an empty frame first (see placement.lisp)
+  (rhizome:configure '(:tiling (:placement (:new-window (:empty :focused)))))
 
 Restarting running components (e.g. the bar) is handled automatically."
   (setf *config* (merge-plist *config* plist))

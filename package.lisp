@@ -145,6 +145,13 @@
    #:frame-balance
    #:frame-clear
    #:set-workspace-tree
+   ;; Frame placement policy
+   #:placement-policy
+   #:placement-options
+   #:placement-new-frame-window
+   #:placement-new-window-frame
+   #:define-placement-policy
+   #:workspace-focus-history
    ;; Window numbers, messages, fullscreen, clipboard
    #:window-number
    #:select-window-by-number

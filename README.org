@@ -783,8 +783,9 @@ frames holding windows, one visible at a time:
 
 - Every workspace starts as a single full-screen frame; carve it up
   with =C-t s= (side-by-side) and =C-t S= (stacked), merge back with
-  =C-t R=. The current window stays put on a split; the next window
-  opened lands in the new frame.
+  =C-t R=. The current window stays put on a split; the new frame
+  shows a hidden window, the one you focused last when there is one,
+  or stays empty when no window is hidden (see placement below).
 - =C-t= arrows move focus between frames; =C-t n= / =C-t p= cycle
   the windows inside the current frame; =rhizome-cmd resize-split
   30= nudges a dividing line.
@@ -800,6 +801,26 @@ frames holding windows, one visible at a time:
   ;; :never   every empty frame stays, as in StumpWM
   ;; :always  every empty frame closes
   #+end_src
+- Placement is a policy, and the default mirrors StumpWM
+  (=*new-frame-action*= and =*new-window-preferred-frame*=). A split
+  fills its new half with a hidden window, the most recently focused
+  first (=:new-frame :last-window=; =:empty= leaves it empty), and a new
+  window enters the focused frame (=:new-window (:focused)=). The
+  =:new-window= list takes =:focused=, =:last= (the frame focused
+  before this one), =:empty=, =:unfocused=, or a function of
+  =(output workspace window history)=; the first entry that yields a
+  frame wins. Auto-split still divides an occupied frame.
+
+  #+begin_src lisp
+  ;; the next new window goes into the empty frame a split left
+  (rhizome:configure '(:tiling (:placement (:new-window (:empty :focused)))))
+  #+end_src
+
+  Define your own policy with =define-placement-policy= and select it
+  with =(:tiling (:placement (:policy :name)))=; give its class methods on
+  =placement-new-frame-window= and =placement-new-window-frame=, which
+  read the focus history from =workspace-focus-history=. An unknown
+  name is logged and the StumpWM policy is used.
 - Layout NAMES are frame-tree templates that rebuild the workspace's
   tree: =:monocle= (one frame), =:master-stack= (master + stack),
   =:even= (grid with a cell per window). Custom layouts defined with
