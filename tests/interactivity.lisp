@@ -108,9 +108,15 @@
             *iresize-active* t)
         (ok "iresize ignores other keys but stays"
             (progn (prefix-handle-key 119) *iresize-active*) t)
+        (prefix-handle-key 65361)          ; Left: shrink it back
+        (ok "iresize left shrinks the left frame"
+            (frame-width left) 960)
+        (prefix-handle-key 65363)          ; Right again
+        (ok "KP_F2 is not Enter: iresize stays"
+            (progn (prefix-handle-key 65393) *iresize-active*) t)
         (setf calls '())
-        (prefix-handle-key 65393)          ; Enter commits
-        (ok "Enter leaves iresize"
+        (prefix-handle-key 65293)          ; Return commits
+        (ok "Return leaves iresize"
             (list *iresize-active* *prefix-mode-active*) '(nil nil))
         (ok "resize kept its geometry"
             (frame-width left) 990)
