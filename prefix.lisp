@@ -118,6 +118,10 @@ the surface maps and receives keyboard focus."
 (defun open-prefix-capture-surface ()
   "Create the invisible keyboard-exclusive layer surface that routes
 keys to the WM's wl_keyboard, and set *prefix-mode-active*."
+  ;; Free any buffer the previous state still holds; a no-op when
+  ;; its close already freed it
+  (when *prefix-state*
+    (bar-destroy-shm *prefix-state*))
   (setf *prefix-state* (make-hash-table))
   (let ((state *prefix-state*))
     ;; The render helpers expect the global wl_shm in the state hash
@@ -135,6 +139,7 @@ keys to the WM's wl_keyboard, and set *prefix-mode-active*."
                      (prefix-capture-configure
                        state layer-surface serial width height)))
                   (:closed
+                   (bar-destroy-shm state)
                    (setf *prefix-mode-active* nil)
                    (reassert-seat-focus))))
               (wl:wl-proxy-hooks layer-surface))

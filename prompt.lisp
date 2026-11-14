@@ -182,6 +182,10 @@ takes free text and Enter calls ON-COMPLETE with the non-empty query."
   (unless (and *compositor* *shm* *layer-shell*)
     (format t "~&; Rhizome: cannot show prompt (missing globals)~%")
     (return-from prompt-open))
+  ;; Free any buffer the previous state still holds; a no-op when
+  ;; its close already freed it
+  (when *prompt-state*
+    (bar-destroy-shm *prompt-state*))
   (setf *prompt-title* title
         *prompt-query* initial
         *prompt-candidates* candidates
@@ -205,6 +209,7 @@ takes free text and Enter calls ON-COMPLETE with the non-empty query."
                      (prompt-configure-handler
                        state layer-surface serial width height)))
                   (:closed
+                   (bar-destroy-shm state)
                    (setf *prompt-active* nil)
                    (reassert-seat-focus))))
               (wl:wl-proxy-hooks layer-surface))

@@ -147,3 +147,11 @@ stubbed river requests. Run with:
   there; moving the focused marked window off the visible workspace
   hands focus to a window that stays; and when the focused window is
   moved, the view follows the window and it keeps focus.
+- `shm-buffers.lisp` - layer-surface shm buffers: repeated configures
+  of one surface hold one shm file, and tearing down the bar, the
+  message window, the prefix capture surface, the prompt or the eval
+  prompt leaves none; a second teardown is harmless. Covers the
+  compositor closing each overlay, a second message arriving before
+  the first is configured or during a resize (one surface, one
+  buffer), and reopening an overlay over a state that still holds a
+  buffer.

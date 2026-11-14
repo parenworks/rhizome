@@ -142,6 +142,10 @@ Errors are caught and shown instead of killing the WM."
   (unless (and *compositor* *shm* *layer-shell*)
     (format t "~&; Rhizome: cannot show eval prompt (missing globals)~%")
     (return-from show-eval-prompt))
+  ;; Free any buffer the previous state still holds; a no-op when
+  ;; its close already freed it
+  (when *eval-prompt-state*
+    (bar-destroy-shm *eval-prompt-state*))
   (setf *eval-prompt-query* ""
         *eval-prompt-result* nil
         *eval-prompt-result-visible* nil
@@ -162,6 +166,7 @@ Errors are caught and shown instead of killing the WM."
                      (eval-prompt-configure-handler
                        state layer-surface serial width height)))
                   (:closed
+                   (bar-destroy-shm state)
                    (setf *eval-prompt-active* nil)
                    (reassert-seat-focus))))
               (wl:wl-proxy-hooks layer-surface))
