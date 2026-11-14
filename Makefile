@@ -17,7 +17,7 @@ HOME_DIR  ?= $(HOME)
 SUITES    := animations decorations surface window-rules floating frame-pruning \
              workspace-modes theming bar-guard session-icons quickwins \
              groups interactivity workspace-restore workspace-switch-away \
-             takeover tray-menus display-brightness prompt-free-text palette-message pull-hidden server-side-decorations client-fullscreen
+             takeover tray-menus display-brightness prompt-free-text palette-message pull-hidden server-side-decorations client-fullscreen repl-server-config repl-server-port
 
 .PHONY: all build test install docs clean help
 

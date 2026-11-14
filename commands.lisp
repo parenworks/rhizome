@@ -3,7 +3,7 @@
 ;;; Commands can be triggered by:
 ;;;   - Keyboard bindings (via river-xkb-bindings-v1, future)
 ;;;   - Pointer bindings (via river_seat_v1.get_pointer_binding)
-;;;   - The REPL (via SLIME/SLY - the StumpWM way)
+;;;   - The REPL (via SLY - the StumpWM way)
 ;;;
 ;;; From the REPL:
 ;;;   (rhizome:execute-command output :focus-next nil)

@@ -532,10 +532,10 @@ window management updates."
       ;; Idle locker (swayidle) if (:lock :idle-seconds) is set
       (start-idle-locker)
 
-      ;; IPC command socket (stumpish equivalent) and SLIME server
+      ;; IPC command socket (stumpish equivalent) and SLY server
       (when (config-getf '(:ipc) :enabled :default t)
         (start-ipc-server))
-      (start-swank)
+      (start-slynk)
 
       ;; Main event loop: poll the compositor socket and drain the IPC
       ;; queue so IPC commands execute on this (main) thread
@@ -563,22 +563,76 @@ window management updates."
   (setf *display* nil
         *wm-proxy* nil))
 
+(defvar *repl-server-port* nil
+  "Port the slynk server started by START-SLYNK listens on, or NIL.")
+
+(defvar *repl-server-starting* nil
+  "True while a START-SLYNK thread is creating the server.")
+
+(defvar *repl-server-lock* (bt:make-lock "rhizome-repl-server")
+  "Guards *REPL-SERVER-PORT* and *REPL-SERVER-STARTING*.")
+
+(defun repl-server-port ()
+  "Return the port the slynk server started by START-SLYNK listens on,
+or NIL when the server is disabled, not started yet, or failed to start."
+  (bt:with-lock-held (*repl-server-lock*)
+    *repl-server-port*))
+
+(defun repl-server-create (port)
+  "Load slynk and create a server on 127.0.0.1:PORT. Return the value of
+SLYNK:CREATE-SERVER, the port the server listens on."
+  (ql:quickload :slynk :silent t)
+  (funcall (find-symbol "CREATE-SERVER" "SLYNK")
+           :port port :dont-close t :interface "127.0.0.1"))
+
+(defun start-slynk ()
+  "Start a slynk (SLY) server on 127.0.0.1 when REPL-SERVER-SETTINGS
+enables it, so the running WM can be driven from Emacs. The server is
+created in a thread so loading slynk never delays WM startup;
+REPL-SERVER-PORT returns its port once it listens.
+When a server started here is running or still starting, start no
+second one: log it and return the running port, or NIL while it starts.
+Return NIL otherwise. A start failure is logged, never signalled."
+  (multiple-value-bind (enabled port) (repl-server-settings)
+    (let ((running nil)
+          (start nil))
+      (bt:with-lock-held (*repl-server-lock*)
+        (cond (*repl-server-port* (setf running *repl-server-port*))
+              (*repl-server-starting*)
+              (enabled (setf *repl-server-starting* t
+                             start t))))
+      (cond (running
+             (format t "~&; Rhizome: slynk (SLY) server already on port ~A~%"
+                     running)
+             running)
+            ((and enabled (not start))
+             (format t "~&; Rhizome: slynk (SLY) server already starting~%")
+             nil)
+            (start
+             (handler-case
+                 (bt:make-thread
+                  (lambda ()
+                    (let ((listening nil))
+                      (handler-case
+                          (let ((actual (repl-server-create port)))
+                            (setf listening (if (integerp actual) actual port))
+                            (format t "~&; Rhizome: slynk (SLY) server on port ~A~%"
+                                    listening))
+                        (error (e)
+                          (format t "~&; Rhizome: slynk failed to start: ~A~%" e)))
+                      (bt:with-lock-held (*repl-server-lock*)
+                        (setf *repl-server-port* listening
+                              *repl-server-starting* nil))))
+                  :name "rhizome-slynk")
+               (error (e)
+                 (bt:with-lock-held (*repl-server-lock*)
+                   (setf *repl-server-starting* nil))
+                 (format t "~&; Rhizome: slynk failed to start: ~A~%" e)))
+             nil)))))
+
 (defun start-swank ()
-  "Start a swank (SLIME) server so the running WM can be driven from
-Emacs. Gated by (:swank :enabled t) in the config; runs in a thread so
-loading swank never delays WM startup."
-  (when (config-getf '(:swank) :enabled :default t)
-    (bt:make-thread
-      (lambda ()
-        (handler-case
-            (let ((port (config-getf '(:swank) :port :default 4005)))
-              (ql:quickload :swank :silent t)
-              (funcall (find-symbol "CREATE-SERVER" "SWANK")
-                       :port port :dont-close t)
-              (format t "~&; Rhizome: swank (SLIME) server on port ~A~%" port))
-          (error (e)
-            (format t "~&; Rhizome: swank failed to start: ~A~%" e))))
-      :name "rhizome-swank")))
+  "Deprecated name for start-slynk."
+  (start-slynk))
 
 (defun stop ()
   "Stop the rhizome event loop."

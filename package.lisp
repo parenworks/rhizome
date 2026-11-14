@@ -45,12 +45,14 @@
    ;; Power
    #:shutdown-machine
    #:reboot-machine
-   ;; IPC (stumpish equivalent) and SLIME
+   ;; IPC (stumpish equivalent) and SLY
    #:start-ipc-server
    #:stop-ipc-server
    #:ipc-socket-path
    #:ipc-send-command
+   #:start-slynk
    #:start-swank
+   #:repl-server-port
    ;; Interactive prompt and message window
    #:prompt-open
    #:prompt-close

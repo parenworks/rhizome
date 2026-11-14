@@ -154,8 +154,25 @@ Returns (values value found-p)."
                :selected-color "#f0e6ff"
                :entry-color "#aa96c8")
     :ipc (:enabled t)
-    :swank (:enabled t
+    ;; Slynk REPL server on 127.0.0.1 (M-x sly-connect). A :swank
+    ;; group in user config is still read when :slynk is left at
+    ;; these defaults; see REPL-SERVER-SETTINGS.
+    :slynk (:enabled t
             :port 4005)))
+
+(defun repl-server-settings (&key (config *config*))
+  "Return (values enabled-p port) for the REPL server in CONFIG.
+Read the :slynk group. When CONFIG holds a :swank group and the
+:slynk group still equals its default, read :swank instead, so a
+configuration written for the earlier swank server keeps its port and
+its :enabled switch. Missing keys default to enabled and port 4005."
+  (let ((group (if (and (nth-value 1 (config-get '(:swank) :config config))
+                        (equal (getf config :slynk)
+                               (getf (default-config) :slynk)))
+                   '(:swank)
+                   '(:slynk))))
+    (values (config-getf group :enabled :config config :default t)
+            (config-getf group :port :config config :default 4005))))
 
 (defun theme-border-rgb (focused-p)
   "Focused/unfocused window border color as (values r g b), from
