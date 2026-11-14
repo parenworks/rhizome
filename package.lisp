@@ -179,7 +179,47 @@
    #:window-output
    ;; Keybindings
    #:define-key
+   #:undefine-key
+   #:key-binding
    #:setup-default-keybindings
+   ;; Keymaps
+   #:keymap
+   #:keymap-p
+   #:make-keymap
+   #:keymap-name
+   #:keymap-doc
+   #:keymap-parents
+   #:keymap-lookup
+   #:keymap-bind
+   #:keymap-binding-doc
+   #:map-keymap
+   #:keymap-keys
+   #:*top-map*
+   #:*prefix-map*
+   #:bind-key-sequence
+   #:event-binding
+   #:event-binding-p
+   #:sticky-keymap
+   #:enter-sticky-keymap
+   #:press-key
+   ;; Keys
+   #:kbd
+   #:make-key
+   #:key-keysym
+   #:key-modifiers
+   #:key-description
+   #:sequence-description
+   #:*modifier-map*
+   #:set-modifier
+   ;; Key events and the specials bound around a binding
+   #:key-event
+   #:key-event-key
+   #:key-event-sequence
+   #:key-event-seat
+   #:*current-key-event*
+   #:*current-seat*
+   #:*prefix-argument*
+   #:*focused-window*
    #:*mod*
    #:set-user-mod
    #:*mod-alt*

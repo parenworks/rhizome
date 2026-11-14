@@ -84,12 +84,12 @@
         (ok "unexpired prefix mode stays" *prefix-mode-active* t)
 
         ;; Default bindings present
-        (setf *prefix-map* (make-keymap)
+        (setf *prefix-map* (make-keymap :parents (list *default-prefix-map*))
               *prefix-mode-active* nil *prefix-current-map* nil)
         (setup-default-prefix-bindings)
-        (ok "default map binds windowlist" (functionp (gethash 119 *prefix-map*)) t)
-        (ok "default map binds eval" (functionp (gethash 58 *prefix-map*)) t)
-        (ok "default map binds shell" (functionp (gethash 33 *prefix-map*)) t))))
+        (ok "default map binds windowlist" (functionp (keymap-lookup *prefix-map* 119)) t)
+        (ok "default map binds eval" (functionp (keymap-lookup *prefix-map* 58)) t)
+        (ok "default map binds shell" (functionp (keymap-lookup *prefix-map* 33)) t))))
 
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
   (uiop:quit (if (zerop fail) 0 1)))

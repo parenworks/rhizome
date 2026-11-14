@@ -97,6 +97,30 @@ stubbed river requests. Run with:
   is stubbed; no slynk server is started.
 - `hooks-and-eval.lisp` — hook firing/removal/error isolation and the
   eval prompt's evaluator.
+- `keymap-layers.lisp` - keymap objects (parents, shadowing,
+  enumeration) and the user/default layering: user bindings win over
+  defaults whether made before or after them, and survive repeated
+  manage sequences, set-user-mod, and set-prefix-key; reload-config
+  replaces the user layer; define-key, define-prefix-key and
+  define-keymap-key keep working.
+- `key-sequences.lisp` - kbd parsing (C M s H A S, sequences), a
+  direct key bound to a keymap (s-x then f), modifiers on later keys
+  of a sequence (s-x C-M-f), the prefix key as an ordinary binding
+  (C-t, C-', set-prefix-key to s-t), zero-argument and event-taking
+  bindings with their specials, sticky keymaps, and grabs skipped for
+  an unmapped modifier until set-modifier maps it.
+- `key-grabs.lisp` - grab sync against stubbed river requests: river
+  grabs exactly the first keys the top keymaps bind; binding,
+  unbinding, undefine-key, set-user-mod, set-modifier, set-prefix-key,
+  clearing the user keymaps, and seats coming and going move only the
+  grabs that change; a sync with nothing changed sends no requests; an
+  undefined key inside a sequence runs nothing.
+- `key-names.lisp` - key names and keysym printing: kbd reads
+  ISO_Left_Tab and the brightness, volume, and mute keys,
+  key-description prints them back, and a keysym prints as its name,
+  as its character (Latin-1, legacy, and Unicode keysyms), or as #N,
+  in which-key text and the key-pressed log, while its binding still
+  runs.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
 - `display-brightness.lisp` - display menu brightness argv: signed

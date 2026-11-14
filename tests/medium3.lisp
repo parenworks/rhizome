@@ -32,7 +32,6 @@
           *window-number-map* (make-hash-table)
           *window-number-overflow* 10
           *marked-windows* (make-hash-table)
-          *keybindings* (make-hash-table :test 'equal)
           *prefix-key-binding* (cons 116 '(:ctrl)))
 
     ;; --- Frame dump/restore ---
@@ -193,15 +192,17 @@
     (multiple-value-bind (mods keysym) (parse-key-spec "C-banana")
       (ok "junk suffix rejected" (list mods keysym) '((:ctrl) nil)))
 
-    ;; set-prefix-key swaps the binding in the table
-    (setf *keybindings* (make-hash-table :test 'equal)
-          *prefix-key-binding* (cons 116 '(:ctrl)))
-    (setf (gethash (cons 116 '(:ctrl)) *keybindings*) :old)
+    ;; set-prefix-key moves the default prefix binding
+    (clear-keymap *top-map*)
+    (setf *prefix-key-binding* (cons 116 '(:ctrl)))
+    (build-default-top-map)
+    (ok "prefix bound before the move"
+        (and (key-binding 116 '(:ctrl)) t) t)
     (set-prefix-key "C-z")
     (ok "old prefix binding removed"
-        (gethash (cons 116 '(:ctrl)) *keybindings*) nil)
+        (key-binding 116 '(:ctrl)) nil)
     (ok "new prefix binding installed"
-        (and (gethash (cons 122 '(:ctrl)) *keybindings*) t) t)
+        (and (key-binding 122 '(:ctrl)) t) t)
     (ok "prefix binding tracked"
         *prefix-key-binding* '(122 . (:ctrl)))
     (set-prefix-key "C-banana")

@@ -40,8 +40,7 @@
           *prefix-describe-key-pending* nil
           *minor-mode-keymaps* (make-hash-table)
           *minor-mode-stack* nil
-          *prefix-map* (make-keymap)
-          *prefix-key-docs* (make-hash-table))
+          *prefix-map* (make-keymap :parents (list *default-prefix-map*)))
 
     ;; --- Fuzzy matching ---
 

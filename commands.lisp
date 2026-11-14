@@ -105,12 +105,12 @@ describe-command."
   (toggle-float-focused))
 
 (define-command :focus-next (output args)
-  "Focus the next frame."
+  "Cycle to the next window in the current frame."
   (declare (ignore args))
   (focus-next output))
 
 (define-command :focus-previous (output args)
-  "Focus the previous frame."
+  "Cycle to the previous window in the current frame."
   (declare (ignore args))
   (focus-previous output))
 

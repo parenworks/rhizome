@@ -62,8 +62,7 @@
 
     ;; --- which-key text ---
 
-    (setf *prefix-map* (make-keymap)
-          *prefix-key-docs* (make-hash-table))
+    (clear-keymap *prefix-map*)
     (setup-default-prefix-bindings)
     (let ((text (which-key-text "C-t" *prefix-map*)))
       (ok "which-key titled with the chain"
@@ -75,7 +74,7 @@
       (ok "which-key is multi-line"
           (<= 3 (length (message-lines text))) t))
     ;; nested maps list their (docless) keys
-    (let* ((help-map (gethash 104 *prefix-map*))
+    (let* ((help-map (keymap-lookup *prefix-map* 104))
            (text (which-key-text "C-t h" help-map)))
       (ok "nested which-key titled with the chain"
           (and (search "C-t h:" text) t) t)

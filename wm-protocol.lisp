@@ -291,10 +291,8 @@ handlers should make window management requests here."
     (format t "~&; Rhizome [debug]: on-manage-sequence - ~D outputs, ~D windows~%"
             (hash-table-count *outputs*) (hash-table-count *windows*)))
 
-  ;; Set up default keybindings on first manage sequence
-  (setup-default-keybindings)
-
-  ;; Install keybindings if not yet installed
+  ;; Sync key grabs with the keymaps (builds the defaults once; never
+  ;; writes user bindings)
   (install-keybindings-if-needed)
 
   ;; Enable the Alt+drag pointer bindings (defined in seat.lisp,
