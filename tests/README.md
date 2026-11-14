@@ -71,3 +71,7 @@ stubbed river requests. Run with:
   run from the command palette or over IPC: the command's own message
   stays, a non-empty reply is shown when the command showed nothing,
   and an empty reply never replaces a message.
+- `pull-hidden.lisp` - pull-hidden-next and its previous direction:
+  hidden windows cycle in window-number order whatever order the
+  workspace lists them in, wrapping at either end; unnumbered windows
+  come after the numbered ones.

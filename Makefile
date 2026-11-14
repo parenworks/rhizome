@@ -17,7 +17,7 @@ HOME_DIR  ?= $(HOME)
 SUITES    := animations decorations surface window-rules floating \
              workspace-modes theming bar-guard session-icons quickwins \
              groups interactivity workspace-restore workspace-switch-away \
-             takeover tray-menus display-brightness prompt-free-text palette-message
+             takeover tray-menus display-brightness prompt-free-text palette-message pull-hidden
 
 .PHONY: all build test install docs clean help
 

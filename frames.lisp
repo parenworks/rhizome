@@ -340,33 +340,37 @@ With a single window this is a no-op."
                   (frame-leaves (frame-tree-for output workspace)))))
 
 (defun pull-hidden-next (output workspace &optional (delta 1))
-  "Pull the next (or previous, DELTA -1) window not displayed in any
-frame into the current frame, in number order (StumpWM's
-pull-hidden-next/previous)."
+  "Pull the hidden window next (or previous, DELTA -1) by number from
+the focused window into the current frame, wrapping at either end;
+unnumbered windows sort last (StumpWM's pull-hidden-next/previous).
+With no focused window on WORKSPACE, DELTA 1 takes the first hidden
+window and DELTA -1 the last."
   (let* ((visible (visible-frame-windows output workspace))
-         (hidden (remove-if (lambda (w)
-                              (or (window-floating-p w)
-                                  (member w visible :test #'eq)))
-                            (windows-on-workspace output workspace)))
-         (focused (find-if #'window-focused-p (all-windows))))
-    (cond ((null hidden)
-           (message "no hidden windows"))
-          (t
-           ;; Number order; the focused window's number anchors the walk
-           (let* ((cur-n (and focused (window-number focused)))
-                  (next (or (if (plusp delta)
-                                (find-if (lambda (w)
-                                           (and cur-n
-                                                (> (window-number w) cur-n)))
-                                         hidden)
-                                (find-if (lambda (w)
-                                           (and cur-n
-                                                (< (window-number w) cur-n)))
-                                         hidden :from-end t))
-                            (if (plusp delta)
-                                (first hidden)
-                                (first (last hidden))))))
-             (pull-window-into-current-frame next output workspace))))))
+         (tiled (remove-if #'window-floating-p
+                           (windows-on-workspace output workspace)))
+         (hidden (remove-if (lambda (w) (member w visible :test #'eq))
+                            tiled))
+         (focused (find-if #'window-focused-p tiled)))
+    (flet ((by-number (windows)
+             (stable-sort (copy-list windows)
+                          (lambda (a b) (and a (or (null b) (< a b))))
+                          :key #'window-number)))
+      (if (null hidden)
+          (message "no hidden windows")
+          (let* ((ring (by-number
+                        (remove-if-not (lambda (w)
+                                         (or (eq w focused)
+                                             (member w hidden :test #'eq)))
+                                       tiled)))
+                 (pos (and focused (position focused ring :test #'eq)))
+                 (next (if pos
+                           (nth (mod (+ pos (if (plusp delta) 1 -1))
+                                     (length ring))
+                                ring)
+                           (if (plusp delta)
+                               (first ring)
+                               (car (last ring))))))
+            (pull-window-into-current-frame next output workspace))))))
 
 (defun exchange-window-direction (output workspace direction)
   "Swap the current frame's window with the one in the frame in
