@@ -250,22 +250,22 @@ MOD+period); focus stays where it was."
 
 ;;; --- IPC/binding wrappers (resolve the current output) ---
 
-(defun scroll-focus-left (&optional (output (first (all-outputs))))
+(defun scroll-focus-left (&optional (output (current-output)))
   "Focus the column to the left; the viewport follows."
   (when output
     (scroll-focus output (current-workspace output) -1)))
 
-(defun scroll-focus-right (&optional (output (first (all-outputs))))
+(defun scroll-focus-right (&optional (output (current-output)))
   "Focus the column to the right; the viewport follows."
   (when output
     (scroll-focus output (current-workspace output) 1)))
 
-(defun scroll-viewport-left (&optional (output (first (all-outputs))))
+(defun scroll-viewport-left (&optional (output (current-output)))
   "Scroll the ribbon viewport left (half a screen)."
   (when output
     (scroll-viewport output (current-workspace output) -1)))
 
-(defun scroll-viewport-right (&optional (output (first (all-outputs))))
+(defun scroll-viewport-right (&optional (output (current-output)))
   "Scroll the ribbon viewport right (half a screen)."
   (when output
     (scroll-viewport output (current-workspace output) 1)))

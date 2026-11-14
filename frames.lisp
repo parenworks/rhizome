@@ -598,7 +598,7 @@ With a single window this is a no-op."
            (focus-window win seat))
          (request-manage-dirty))))
 
-(defun pull-window-by-number (n &optional (output (first (all-outputs)))
+(defun pull-window-by-number (n &optional (output (current-output))
                                    (workspace (current-workspace output)))
   "Pull the window with number N into the current frame
 (StumpWM's pull N)."

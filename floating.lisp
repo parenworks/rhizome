@@ -253,7 +253,8 @@ dimensions of floats on the current workspace."
     (dolist (win (all-windows))
       (unless (or (window-minimized-p win)
                    (not (window-floating-p win)))
-        (cond ((null (window-output win))
+        (cond ((and (null (window-output win))
+                    (window-arrives-on-p win output))
                ;; Adopt: same as the tiling path stamping placements
                (setf (window-output win) output)
                (assign-window-workspace win workspace)

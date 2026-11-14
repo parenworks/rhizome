@@ -466,24 +466,23 @@ build-default-top-map, which directs the writes to *default-top-map*."
   ;; MOD+J - focus next
   (define-key +xkb-key-J+ *mod*
     (lambda ()
-      (let ((outputs (all-outputs)))
-        (when outputs
-          (focus-next (first outputs))))))
+      (let ((out (current-output)))
+        (when out
+          (focus-next out)))))
 
   ;; MOD+K - focus previous
   (define-key +xkb-key-K+ *mod*
     (lambda ()
-      (let ((outputs (all-outputs)))
-        (when outputs
-          (focus-previous (first outputs))))))
+      (let ((out (current-output)))
+        (when out
+          (focus-previous out)))))
 
   ;; MOD+Space - cycle layout
   (define-key +xkb-key-Space+ *mod*
     (lambda ()
-      (let ((outputs (all-outputs)))
-        (when outputs
-          (let* ((out (first outputs))
-                 (current (output-current-layout out))
+      (let ((out (current-output)))
+        (when out
+          (let* ((current (output-current-layout out))
                  (next (case current
                          (:master-stack :even)
                          (:even :monocle)
