@@ -755,6 +755,21 @@ protocol-safe by construction.
             :opacity 0.95)))
 #+end_src
 
+** Titlebars (server-side decorations)
+
+Like StumpWM, rhizome gives windows no titlebar. Every client that
+supports server-side decoration (its decoration_hint is anything
+but only_supports_csd) is told use_ssd, so kitty, Firefox and GTK
+apps drop their own titlebar and buttons; rhizome draws borders and
+nothing in the titlebar's place. A client that only supports
+client-side decoration keeps its own. Set =:client= to let every
+client draw its own titlebar again.
+
+#+begin_src lisp
+(rhizome:configure
+  '(:windows (:decorations :server)))   ; default; :client for CSD
+#+end_src
+
 ** Pseudo-shadows on floats (decorations)
 
 river_decoration_v1, used as intended: every floating window gets

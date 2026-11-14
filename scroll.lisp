@@ -181,6 +181,7 @@ arrivals as new columns right after the focused one."
         (let ((ch (scroll-content-height output))
               (cw (getf state :column-width)))
           (dolist (win (getf state :columns))
+            (mark-window-tiled win)
             (propose-window-dimensions win cw ch)))
         (let ((columns (getf state :columns)))
           (when columns

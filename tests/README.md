@@ -60,3 +60,6 @@ stubbed river requests. Run with:
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
+- `server-side-decorations.lisp`: decoration_hint handling, use_ssd
+  and use_csd sent only in the manage pass, the
+  `(:windows :decorations)` key, and set_tiled edges for tiled windows.

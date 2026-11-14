@@ -93,6 +93,12 @@ Returns (values value found-p)."
               :network (:interval 10
                         :on-click "nm-connection-editor"))
     :window-rules ()
+    :windows (:decorations :server
+              ;; :server asks every client that supports it for
+              ;; server-side decorations (no client titlebar; rhizome
+              ;; draws only borders). :client leaves clients to draw
+              ;; their own titlebars.
+              )
     :workspaces (:types nil
                  ;; (2 :floating 5 :scroll) — per-workspace GROUP
                  ;; TYPES: :tile (frame trees, default), :floating
