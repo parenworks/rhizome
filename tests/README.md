@@ -60,3 +60,6 @@ stubbed river requests. Run with:
   eval prompt's evaluator.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
+- `display-brightness.lisp` - display menu brightness argv: signed
+  steps use brightnessctl's relative N%+ / N%- syntax, absolute levels
+  plain N%.
