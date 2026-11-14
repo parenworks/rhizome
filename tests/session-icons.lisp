@@ -110,6 +110,7 @@
     (setf *detach-pending* nil
           spawned nil)
     (let ((*window-state-path* #p"/tmp/rhizome-test-detach-state.sexp")
+          (*takeover-state-path* #p"/tmp/rhizome-test-detach-takeover.sexp")
           (*window-state* (make-hash-table :test 'equal))
           (stopped 0))
       (setf (symbol-function 'rwm:river-window-manager-v1.stop)
@@ -146,6 +147,7 @@
               (symbol-function 'request-manage-dirty) real-dirty)))
     (setf *config* (default-config))
     (ignore-errors (delete-file #p"/tmp/rhizome-test-detach-state.sexp"))
+    (ignore-errors (delete-file #p"/tmp/rhizome-test-detach-takeover.sexp"))
 
     ;; --- Bar icons ---
 
@@ -156,37 +158,43 @@
     (ok "icons width counts entries"
         (bar-icons-width '(:icons ((:icon "a") (:icon "b"))))
         40)                          ; 2 x (16 + 4)
-    ;; icon discovery: name → hicolor PNG (flameshot ships one)
-    (ok "icon name resolved to a real PNG"
-        (and (find-icon-file "flameshot")
-             (and (search ".png" (find-icon-file "flameshot")) t))
-        t)
-    (ok "missing icon resolves to nothing"
-        (find-icon-file "definitely-not-an-icon-xyz") nil)
-    ;; absolute path passthrough
-    (ok "absolute icon path passes through"
-        (find-icon-file
-          "/usr/share/icons/hicolor/48x48/apps/flameshot.png")
-        "/usr/share/icons/hicolor/48x48/apps/flameshot.png")
-    ;; scaling: 48x48 source → 16x16 output
-    (let* ((png (pngload:load-file
-                  "/usr/share/icons/hicolor/48x48/apps/flameshot.png"
-                  :flatten t))
-           (scaled (scale-icon (pngload:width png)
-                              (pngload:height png)
-                              (pngload:data png)
-                              16)))
-      (ok "icon scaled to 16x16"
-          (list (first scaled) (second scaled)
-                (length (third scaled)))
-          '(16 16 1024)))
-    ;; load-icon caches and returns scaled data
-    (let ((icon (load-icon "flameshot")))
-      (ok "load-icon decodes to bar size"
-          (and icon (= (first icon) 16) (= (length (third icon)) 1024))
-          t)
-      (ok "load-icon caches"
-          (eq (load-icon "flameshot") icon) t))
+    ;; Icons come from the 48x48 fixture PNG under fixtures/, so no
+    ;; installed icon theme is needed.
+    (let* ((fixtures (namestring
+                       (merge-pathnames
+                         "fixtures/"
+                         (uiop:pathname-directory-pathname
+                           *load-truename*))))
+           (icon-file (concatenate 'string fixtures
+                                   "rhizome-test-icon.png"))
+           (*bar-icon-dirs* (list fixtures)))
+      ;; icon discovery: name → PNG in a search directory
+      (ok "icon name resolved to a real PNG"
+          (find-icon-file "rhizome-test-icon")
+          icon-file)
+      (ok "missing icon resolves to nothing"
+          (find-icon-file "definitely-not-an-icon-xyz") nil)
+      ;; absolute path passthrough
+      (ok "absolute icon path passes through"
+          (find-icon-file icon-file)
+          icon-file)
+      ;; scaling: 48x48 source → 16x16 output
+      (let* ((png (pngload:load-file icon-file :flatten t))
+             (scaled (scale-icon (pngload:width png)
+                                (pngload:height png)
+                                (pngload:data png)
+                                16)))
+        (ok "icon scaled to 16x16"
+            (list (first scaled) (second scaled)
+                  (length (third scaled)))
+            '(16 16 1024)))
+      ;; load-icon caches and returns scaled data
+      (let ((icon (load-icon "rhizome-test-icon")))
+        (ok "load-icon decodes to bar size"
+            (and icon (= (first icon) 16) (= (length (third icon)) 1024))
+            t)
+        (ok "load-icon caches"
+            (eq (load-icon "rhizome-test-icon") icon) t)))
     ;; icon entries carry their own actions
     (ok "icon entry :on-click found by the action chain"
         (bar-module-action '(:icon "flameshot" :on-click "flameshot gui")
@@ -202,18 +210,32 @@
 
     ;; --- Launcher: user-local desktop files + rescan ---
 
+    ;; Expected path built by string concatenation, independent of the
+    ;; merge-pathnames call under test.
     (ok "home applications dir resolves with the username intact"
-        (and (member #P"/home/glenn/.local/share/applications/"
+        (and (member (pathname
+                       (concatenate 'string
+                                    (string-right-trim
+                                      "/" (uiop:getenv "HOME"))
+                                    "/.local/share/applications/"))
                      (launcher-desktop-paths)
                      :test #'equal)
              t)
         t)
-    (ok "launcher rescan repopulates the app list"
-        (let ((*launcher-app-list* nil))
-          (launcher-refresh-app-list)
-          (and *launcher-app-list*
-               (plusp (length *launcher-app-list*))))
-        t))
+    ;; Rescan reads only the fixture applications dir, so the result
+    ;; does not depend on what the host has installed.
+    (let ((real-paths (symbol-function 'launcher-desktop-paths))
+          (apps (merge-pathnames
+                  "fixtures/applications/"
+                  (uiop:pathname-directory-pathname *load-truename*))))
+      (setf (symbol-function 'launcher-desktop-paths)
+            (lambda () (list apps)))
+      (ok "launcher rescan repopulates the app list"
+          (let ((*launcher-app-list* nil))
+            (launcher-refresh-app-list)
+            *launcher-app-list*)
+          '(("Rhizome Test App" "true" "rhizome-test-icon")))
+      (setf (symbol-function 'launcher-desktop-paths) real-paths)))
 
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
   (unless (zerop fail) (uiop:quit 1)))

@@ -41,24 +41,30 @@ build:
 
 # Each suite prints an "=== N passed, M failed ===" summary and
 # exits non-zero on failure. A crashed suite prints no summary,
-# which is itself the failure signal. Run a subset with:
+# which is itself the failure signal. Every suite runs; the target
+# fails at the end if any suite failed or crashed. Run a subset with:
 #   make test SUITES="surface decorations"
 test:
 	@echo ";;; Running $(words $(SUITES)) test suites: $(SUITES)"
-	@for suite in $(SUITES); do \
+	@failed=""; \
+	for suite in $(SUITES); do \
 	  out=$$($(SBCL) --non-interactive --load tests/$$suite.lisp 2>&1 \
 	         | grep -o '[0-9]* passed, [0-9]* failed' | tail -1); \
 	  if [ -z "$$out" ]; then \
-	    echo "CRASHED — re-running to show the tail:"; \
+	    echo ";;; $$suite CRASHED; re-running to show the tail:"; \
 	    $(SBCL) --non-interactive --load tests/$$suite.lisp 2>&1 | tail -15; \
-	    exit 1; \
+	    failed="$$failed $$suite"; \
+	    continue; \
 	  fi; \
 	  printf ';;; %-22s %s\n' "$$suite" "$$out"; \
 	  case "$$out" in \
 	    *", 0 failed") ;; \
-	    *) echo ";;; SUITE FAILED: $$suite"; exit 1 ;; \
+	    *) failed="$$failed $$suite" ;; \
 	  esac; \
 	done; \
+	if [ -n "$$failed" ]; then \
+	  echo ";;; SUITES FAILED:$$failed"; exit 1; \
+	fi; \
 	echo ";;; ALL SUITES GREEN"
 
 install: build
@@ -69,5 +75,6 @@ docs:
 	@echo ";;; docs/testing-day.pdf rebuilt"
 
 clean:
-	@rm -rf ~/.cache/common-lisp/*/*/home/glenn/SourceCode/rhizome
+	@rm -rf $(HOME)/.cache/common-lisp/*$(CURDIR) \
+	       $(HOME)/.cache/common-lisp/*/*$(CURDIR)
 	@echo ";;; fasl cache purged"

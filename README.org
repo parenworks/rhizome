@@ -283,7 +283,7 @@ everyone else points their display manager (or a TTY) at
 
 The Makefile is the conventional front door for the rest, too:
 =make build= compile-checks the system, =make test= runs all 16
-regression suites (aggregated, fails on the first red one), and
+regression suites, failing if any is red, and
 =make docs= rebuilds the testing-day PDF.
 
 *** Hard requirements, every distro
