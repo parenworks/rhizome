@@ -507,6 +507,17 @@ REPL into the live window manager: redefine layouts, inspect windows,
 hot-patch anything, while it runs. Disable it with
 =(:slynk (:enabled nil))=.
 
+One limit to know when hot-patching: redefining a function updates
+every /future/ call, but a frame already executing old compiled code —
+the main loop, an in-flight cleanup form — runs that code to
+completion. So a change to the main loop or to shutdown paths
+(the =unwind-protect= cleanup in =run=) does not take effect in the
+running process, no matter what you load into it; that is what the
+WM hot-swap is for. To live-verify a shutdown-path change, detach
+first so the successor starts on the new code, then trigger it.
+Everything else — layouts, commands, modules, rendering — applies
+on the next call, immediately.
+
 =(rhizome:repl-server-port)= returns the port that server listens on, or
 =nil= when it is disabled, not up yet, or failed to start, so a config
 can connect to the running server instead of starting another. Calling
