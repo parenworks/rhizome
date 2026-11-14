@@ -112,11 +112,13 @@ Returns OUTPUT, or NIL when it is not a registered output."
     output))
 
 (defun move-window-to-output (win output)
-  "Move WIN to OUTPUT's current workspace and focus it. WIN leaves
-its frame; the next manage pass adopts it into OUTPUT's current
-frame and prunes the emptied frame. A float keeps its offset from
-the output's origin. Returns WIN, or NIL when nothing moves."
-  (let ((source (and win (window-output win))))
+  "Move WIN to OUTPUT's current workspace and focus it; return WIN, or
+NIL when nothing moves. A float keeps its offset from the output's
+origin. A tiled WIN joins OUTPUT's current frame at once, as a new
+window does, so a render pass before the next manage pass cannot
+stack it on that frame's window."
+  (let ((source (and win (window-output win)))
+        (workspace (and output (current-workspace output))))
     (when (and win (live-output-p output) (not (eq source output)))
       (frame-remove-window win)
       (when (and (window-floating-p win) source
@@ -126,7 +128,11 @@ the output's origin. Returns WIN, or NIL when nothing moves."
       (setf (window-output win) output
             (window-minimized-p win) nil
             *selected-output* output)
-      (assign-window-workspace win (current-workspace output))
+      (assign-window-workspace win workspace)
+      (unless (or (window-floating-p win)
+                  (floating-workspace-p output workspace)
+                  (scroll-workspace-p output workspace))
+        (frame-adopt-window win output workspace))
       (dolist (seat (all-seats))
         (focus-window win seat))
       (setf *pending-autofocus* nil)

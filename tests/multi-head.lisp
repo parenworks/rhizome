@@ -202,17 +202,20 @@
                    (move-window-next-output)
                    (list (eq (window-output term) dvi)
                          (window-workspace term)
-                         (window-frame term)
+                         (and (window-frame term)
+                              (member (window-frame term)
+                                      (frame-leaves (frame-tree-for dvi 3)))
+                              t)
                          (eq (focused-window) term)
                          (eq (current-output) dvi)))
-                 '(t 3 nil t t))
+                 '(t 3 t t t))
             (ok "the moved window left its frame on the old output"
                 (some (lambda (leaf) (member term (frame-windows leaf)))
                       (frame-leaves (frame-tree-for hdmi 1)))
                 nil)
             (setf calls '())
             (manage-pass)
-            (ok "the next manage pass adopts it into the target's frame"
+            (ok "after the manage pass it stays in the target's frame"
                 (and (window-frame term)
                      (member (window-frame term)
                              (frame-leaves (frame-tree-for dvi 3)))
@@ -294,7 +297,54 @@
                    (focus-window kitty seat)
                    (switch-workspace 5)
                    (list (current-workspace dvi) (current-workspace hdmi)))
-                 '(5 1))))))
+                 '(5 1))
+
+            ;; --- A moved window splits an occupied target frame ---
+            ;; A render pass can run between the move and the next
+            ;; manage pass; it must not stack the moved window on the
+            ;; target frame's window and hide it.
+
+            (let ((occupant (new-window :occupant-proxy "foot"))
+                  (mover (new-window :mover-proxy "foot")))
+              (setf (window-output occupant) dvi
+                    (window-output mover) hdmi)
+              (assign-window-workspace occupant 5)
+              (assign-window-workspace mover 1)
+              (manage-pass)
+              (render-pass)
+              (focus-window mover seat)
+              (move-window-to-output mover dvi)
+              (render-pass)
+              (ok "a render before the manage pass leaves the occupant alone"
+                  (list (frame-windows (window-frame occupant))
+                        (window-hidden-p occupant))
+                  (list (list occupant) nil))
+              (ok "the moved window takes its own frame on the target"
+                  (and (window-frame mover)
+                       (not (eq (window-frame mover)
+                                (window-frame occupant)))
+                       (member (window-frame mover)
+                               (frame-leaves (frame-tree-for dvi 5)))
+                       (not (window-hidden-p mover)))
+                  t)
+              (manage-pass)
+              (ok "the target tree holds two leaves, one window each"
+                  (mapcar #'frame-windows
+                          (frame-leaves (frame-tree-for dvi 5)))
+                  (list (list occupant) (list mover)))
+
+              ;; A frameless tiled window (e.g. just unfloated) that
+              ;; reaches a render pass first splits the frame too
+              (let ((stray (new-window :stray-proxy "foot")))
+                (setf (window-output stray) dvi)
+                (assign-window-workspace stray 5)
+                (render-pass)
+                (ok "a render pass adopts a frameless window into its own frame"
+                    (list (length (frame-leaves (frame-tree-for dvi 5)))
+                          (length (frame-windows (window-frame stray)))
+                          (window-hidden-p occupant)
+                          (window-hidden-p mover))
+                    '(3 1 nil nil))))))))
 
     (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
     (unless (zerop fail) (uiop:quit 1))))
