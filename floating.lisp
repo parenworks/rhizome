@@ -284,10 +284,11 @@ exclude them from its hide logic."
         (multiple-value-bind (ax ay)
             (animation-apply win (window-float-x win) (window-float-y win))
           (set-window-position win ax ay))
-        (multiple-value-bind (r g b) (theme-border-rgb (window-focused-p win))
+        (multiple-value-bind (r g b a)
+            (theme-border-rgba32 (window-focused-p win))
           (set-window-borders win '(:top :bottom :left :right)
                               (if (window-focused-p win) 2 1)
-                              r g b #xff))
+                              r g b a))
         ;; Show only on transition: river treats every show/hide as a
         ;; state change and starts a new manage/render sequence.
         (when (window-hidden-p win)

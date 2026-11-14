@@ -211,10 +211,11 @@ from its hide logic."
             (set-window-position win ax ay))
           (setf (window-x win) x
                 (window-y win) y)
-          (multiple-value-bind (r g b) (theme-border-rgb (window-focused-p win))
+          (multiple-value-bind (r g b a)
+              (theme-border-rgba32 (window-focused-p win))
             (set-window-borders win '(:top :bottom :left :right)
                                 (if (window-focused-p win) 2 1)
-                                r g b #xff))
+                                r g b a))
           (when (window-hidden-p win)
             (show-window win))
           (push win rendered))))
