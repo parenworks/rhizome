@@ -165,3 +165,7 @@ stubbed river requests. Run with:
   the module directory are registered with ASDF, an unknown module
   fails quietly, the first load loads the system, the second is an
   idempotent no-op, and the registry never duplicates an entry.
+- `bar-adoption.lisp` - a WM restart adopts a surviving bar instead
+  of cold-starting a fresh one: pgrep parsing, adoption in start-bar
+  (extras reaped, nothing launched), adopted liveness in bar-alive-p,
+  and the handover flag. All subprocess calls stubbed.

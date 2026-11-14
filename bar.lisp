@@ -1289,10 +1289,13 @@ thread and the main thread both call it.")
   "The :bar settings, without :enabled, of the last bar launch.")
 
 (defun bar-alive-p ()
-  "Whether a bar process is running or being launched."
+  "Whether a bar process is running or being launched — our own
+child, or one adopted from a previous WM."
   (or *bar-starting*
       (and *bar-process*
-           (uiop:process-alive-p *bar-process*))))
+           (uiop:process-alive-p *bar-process*))
+      (and *adopted-bar-pid*
+           (external-pid-alive-p *adopted-bar-pid*))))
 
 (defun bar-settings ()
   "The :bar config group without :enabled."
@@ -1316,6 +1319,14 @@ left behind by past incidents (they would stack on screen)."
   (bt:with-lock-held (*bar-start-lock*)
     (when (bar-alive-p)
       (return-from start-bar))
+    ;; A surviving bar (detach, crash recovery) is adopted rather
+    ;; than cold-started: a fresh SBCL is the 40-second black strip
+    (let ((pids (external-bar-pids)))
+      (when pids
+        (setf *adopted-bar-pid* (first pids))
+        (reap-extra-bars *adopted-bar-pid*)
+        (format t "~&; Rhizome: bar adopted (pid ~A)~%" *adopted-bar-pid*)
+        (return-from start-bar)))
     (setf *bar-starting* t)
     (unwind-protect
          (progn
@@ -1357,8 +1368,47 @@ left by past incidents); WM process only."
   (ignore-errors
     (uiop:run-program '("pkill" "-f" "rhizome:run-bar")
                       :ignore-error-status t))
-  (setf *bar-process* nil)
+  (setf *bar-process* nil
+        *adopted-bar-pid* nil)
   (format t "~&; Rhizome: bar stopped~%"))
+
+(defvar *adopted-bar-pid* nil
+  "PID of a bar process this WM found already running at startup and
+adopted instead of launching a fresh one. A WM restart (detach, crash
+recovery) leaves the bar running — the successor adopts it, and the
+~40-second cold-start black strip (#9) never happens.")
+
+(defun external-bar-pids ()
+  "PIDs of running bar processes this WM did not launch, oldest
+first. Exact-matches the run-bar eval, never the WM (its arg is
+(rhizome:run))."
+  (handler-case
+      (let* ((out (uiop:run-program '("pgrep" "-f" "rhizome:run-bar")
+                                    :output :string
+                                    :ignore-error-status t))
+             (lines (uiop:split-string out :separator '(#\newline))))
+        (loop for line in lines
+              for trimmed = (string-trim " " line)
+              for pid = (and (plusp (length trimmed))
+                             (parse-integer trimmed :junk-allowed t))
+              when pid collect pid))
+    (error () nil)))
+
+(defun external-pid-alive-p (pid)
+  "Whether the process PID still exists (/proc/PID)."
+  (and pid
+       (probe-file (make-pathname
+                     :directory (list :absolute
+                                      "proc" (princ-to-string pid))))
+       t))
+
+(defun reap-extra-bars (keep-pid)
+  "Kill every running bar except KEEP-PID (extras stack on screen)."
+  (dolist (pid (external-bar-pids))
+    (unless (= pid keep-pid)
+      (ignore-errors
+        (uiop:run-program (list "kill" (princ-to-string pid))
+                          :ignore-error-status t)))))
 
 (defvar *bar-non-exclusive-heights* (make-hash-table)
   "Maps each output to the height of its non-exclusive area, as river

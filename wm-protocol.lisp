@@ -559,7 +559,10 @@ window management updates."
                  (unless (wl:wl-display-listen display)
                    (sleep 0.05))))
         (format t "~&; Rhizome: shutting down~%")
-        (stop-bar)
+        ;; A detach hands the bar to the successor; everything else
+        ;; stops it with the WM
+        (unless *bar-handover-p*
+          (stop-bar))
         (stop-ipc-server))))
 
   (setf *display* nil

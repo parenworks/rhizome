@@ -95,14 +95,19 @@ either way."
 (defvar *detach-pending* nil
   "A detach was requested; river's finished event completes it.")
 
+(defvar *bar-handover-p* nil
+  "A detach is leaving the bar process running for the successor WM
+to adopt (see start-bar / #9). The shutdown path checks this instead
+of *detach-pending*, which :finished clears before the loop exits.")
+
 (defun detach-wm ()
   "Stop managing this river session WITHOUT ending it: send
 river_window_manager_v1.stop, and when river answers finished,
 destroy the manager and exit — river's WM hot-swap. Another
 window manager (a fresh rhizome build, anything speaking
 river-window-management-v1) can then bind the global and take
-over live. The bar stops (and its supervisor stands down via the
-persisted :enabled intent), WM-owned surfaces close, and every
+over live. The bar keeps running for the successor WM to adopt
+(start-bar), WM-owned surfaces close, and every
 identified window's placement is remembered first — no :closed
 events ever arrive after a detach."
   (message "detaching: another WM may take over")
@@ -120,10 +125,11 @@ events ever arrive after a detach."
   (handler-case (message-hide) (error () nil))
   (handler-case (prompt-close) (error () nil))
   (handler-case (hide-launcher) (error () nil))
-  ;; Stop the bar process cleanly; the successor WM starts a fresh
-  ;; one (the supervisor dies with this process, so nothing
-  ;; restarts it in the gap)
-  (handler-case (stop-bar) (error () nil))
+  ;; Leave the bar RUNNING: the successor WM adopts it (start-bar)
+  ;; — a fresh SBCL cold-start is the 40-second black strip (#9).
+  ;; The supervisor dies with this process, so nothing restarts or
+  ;; double-starts the bar in the gap either way.
+  (setf *bar-handover-p* t)
   ;; Tell river we no longer want events; :finished completes this
   (when *wm-proxy*
     (setf *detach-pending* t)
