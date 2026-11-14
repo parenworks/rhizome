@@ -70,6 +70,22 @@
 ;;; closes a frame a new window split open once its window goes.
 ;;; :never keeps every empty frame, as StumpWM does. :always closes
 ;;; every empty frame.
+;;;
+;;; Placement is a policy, StumpWM's by default:
+;;;
+;;;   (configure '(:tiling (:placement (:policy :stumpwm
+;;;                                     :new-frame :last-window
+;;;                                     :new-window (:focused)))))
+;;;
+;;; A split shows the most recently focused hidden window in its new
+;;; half (:new-frame :empty leaves it empty), and a new window enters
+;;; the focused frame. :new-window is a preference list over :focused,
+;;; :last, :empty, :unfocused, or a function of (output workspace
+;;; window history); the first entry that yields a frame wins.
+;;; Auto-split still divides an occupied frame. To send the next new
+;;; window into the empty frame a split left:
+;;;
+;;;   (configure '(:tiling (:placement (:new-window (:empty :focused)))))
 
 (configure '(:frames (:prune-empty :auto)))  ; default
 

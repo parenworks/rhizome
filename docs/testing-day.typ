@@ -108,7 +108,7 @@ get its own frame.
 #table(
   columns: (auto, 1fr, 1fr),
   [ ], [Action], [Expected],
-  [#cb], [C-t s, C-t S], [Manual side-by-side and stacked splits; focus moves to the new empty frame],
+  [#cb], [C-t s, C-t S], [Manual side-by-side and stacked splits; the current frame stays on the original half, and the new half shows a hidden window or stays empty],
   [#cb], [C-t arrows], [Focus moves to the nearest frame in that direction, preferring edge-sharing neighbors],
   [#cb], [C-t +/-], [Dividing line nudges ±30px; iresize (C-t r) then arrows works continuously, Enter commits, Escape cancels],
   [#cb], [C-t M + arrows], [Moves the focused window into that frame],

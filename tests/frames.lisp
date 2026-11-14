@@ -84,11 +84,12 @@
               (list (frame-width left) (frame-width right)) '(960 960))
           (ok "window stays in the first child"
               (window-frame a) left)
-          (ok "focus moves to the new frame"
-              (current-frame-for out 2) right)
+          (ok "the current frame stays on the original half"
+              (eq (current-frame-for out 2) left) t)
           (ok "split has two leaves" (length (frame-leaves root)) 2))
 
-        ;; Split the right frame stacked
+        ;; Move to the right frame and split it stacked
+        (focus-frame-direction out 2 :right)
         (split-current-frame out 2 :vertical)
         (ok "nested split gives three leaves"
             (length (frame-leaves root)) 3)
@@ -301,7 +302,10 @@
       ;; positioned at its frame rectangle; the other window in the
       ;; first frame stays hidden (monocle-per-frame)
       (let ((root (frame-tree-for out4 1)))
-        (split-current-frame out4 1 :horizontal)
+        (let ((*config* (merge-plist *config*
+                                     '(:tiling (:placement
+                                                (:new-frame :empty))))))
+          (split-current-frame out4 1 :horizontal))
         ;; t3 hidden; render must not show it (it is not the frame's
         ;; visible window) and must position t1 inside the left frame
         (setf calls '())
@@ -501,6 +505,7 @@
                                :width 1920 :height 1080))
            (root (frame-tree-for out6 7)))
       (split-current-frame out6 7 :horizontal)   ; 960 | 960
+      (focus-frame-direction out6 7 :right)
       (split-current-frame out6 7 :vertical)     ; right half: 540/540
       (setf (gethash (frame-key out6 7) *current-frames*)
             (frame-first-child root))

@@ -148,21 +148,24 @@ stacked) at RATIO (0.0-1.0). Returns the new (second) child frame."
     second))
 
 (defun split-current-frame (output workspace direction &optional (ratio 1/2))
-  "Split the current frame; focus moves to the new (second) frame so
-the next window opened lands there. The current window stays in the
-first child. The split is user-made, so its frames stay when they go
-empty (see prune-empty-frames)."
+  "Split the current frame. The current window stays in the first
+child; the placement policy picks what the new (second) child shows
+(see placement-fill-new-frame). The current frame stays on the
+original half, the first child, as StumpWM's hsplit and vsplit keep
+focus. The split is user-made, so its frames stay when they go empty (see
+prune-empty-frames)."
   (let ((frame (current-frame-for output workspace)))
     (split-frame frame direction ratio)
     (setf (frame-user-split frame) t)
-    ;; Windows move down to the first child; the new frame is empty
+    ;; Windows move down to the first child
     (let ((first (frame-first-child frame)))
       (dolist (win (frame-windows frame))
         (setf (window-frame win) first))
       (setf (frame-windows first) (frame-windows frame)
             (frame-windows frame) nil))
+    (placement-fill-new-frame (frame-second-child frame) output workspace)
     (setf (gethash (frame-key output workspace) *current-frames*)
-          (frame-second-child frame))
+          (frame-first-child frame))
     (message "split")
     (request-manage-dirty)))
 
@@ -779,11 +782,12 @@ Placeholder: redefined by groups.lisp."
          (ftype (function (t t t) t) float-adopt-window))
 
 (defun frame-adopt-window (win output workspace)
-  "Adopt a frameless WIN into the tiling. Dynamic tiling by default:
-if the current frame is occupied, split it first so every new window
-gets its own frame (dwm-style) — (:tiling (:auto-split nil)) opts
+  "Adopt a frameless WIN into the tiling, in the frame the placement
+policy picks (see placement-frame-for-new-window). Dynamic tiling by
+default: if that frame is occupied, split it first so every new window
+gets its own frame (dwm-style); (:tiling (:auto-split nil)) opts
 back into strict StumpWM (one window per frame, hidden behind)."
-  (let ((frame (current-frame-for output workspace)))
+  (let ((frame (placement-frame-for-new-window win output workspace)))
     (if (and (config-getf '(:tiling) :auto-split :default t)
              (frame-windows frame)
              (>= (frame-width frame) (* 2 *frame-min-size*))
