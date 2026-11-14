@@ -53,7 +53,12 @@ order, case-insensitive; substring matches rank first)."
 ;;; --- Key handling ---
 
 (defun prompt-handle-key (keysym)
-  "Handle a key press while the prompt is open. Returns T."
+  "Handle KEYSYM while the prompt is open. Return T.
+Enter completes in one of two modes. A prompt opened with candidates
+calls the completion function with the selected candidate, and with
+nothing when no candidate matches. A prompt opened without candidates
+calls it with the typed query, and with nothing when the query is
+empty."
   (let ((filtered-count (length (prompt-filtered))))
     (cond
       ;; Escape — cancel
@@ -62,7 +67,10 @@ order, case-insensitive; substring matches rank first)."
       ;; Enter — complete with the selection
       ((= keysym 65293)
        ;; Capture the callback before closing: prompt-close clears it
-       (let* ((choice (prompt-selected))
+       (let* ((choice (if *prompt-candidates*
+                          (prompt-selected)
+                          (and (plusp (length *prompt-query*))
+                               *prompt-query*)))
               (on-complete *prompt-on-complete*))
          (prompt-close)
          (when (and choice on-complete)
@@ -165,8 +173,10 @@ order, case-insensitive; substring matches rank first)."
 ;;; --- Open / close ---
 
 (defun prompt-open (title &key candidates on-complete (initial ""))
-  "Open an interactive prompt. CANDIDATES is a list of strings,
-ON-COMPLETE is called with the selected string on Enter."
+  "Open an interactive prompt titled TITLE, with INITIAL as the query.
+CANDIDATES is a list of strings. With candidates, Enter calls
+ON-COMPLETE with the selected candidate. Without candidates, the prompt
+takes free text and Enter calls ON-COMPLETE with the non-empty query."
   (when *prompt-active*
     (prompt-close))
   (unless (and *compositor* *shm* *layer-shell*)

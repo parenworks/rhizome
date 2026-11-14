@@ -40,10 +40,16 @@
 
 ;;; --- Command dispatch ---
 
+(defvar *command-reply-seconds* 1
+  "Seconds ipc-dispatch-line shows a command's reply (see
+show-command-reply).")
+
 (defun ipc-dispatch-line (line)
   "Execute one command LINE and return the result as a string.
 A line starting with ( is evaluated as a Lisp form in the RHIZOME
-package; otherwise it is NAME ARGS..., looked up in *command-table*."
+package; otherwise it is NAME ARGS..., looked up in *command-table*.
+A command's reply is shown on screen only when it is non-empty and the
+command showed no message of its own."
   (let ((line (string-trim " " (remove #\newline line))))
     (cond
       ((zerop (length line)) "")
@@ -68,15 +74,15 @@ package; otherwise it is NAME ARGS..., looked up in *command-table*."
               (handler (gethash command *command-table*)))
          (cond
            (handler
-             (let ((result
-                     (handler-case
-                         (let ((r (funcall handler (first (all-outputs))
-                                                args)))
-                           (format nil "~A" (or r "")))
-                       (error (e)
-                         (format nil "error: ~A" e)))))
-               (show-message result 1)
-               result))
+             (let ((serial *message-serial*)
+                    (result
+                      (handler-case
+                          (let ((r (funcall handler (first (all-outputs))
+                                                 args)))
+                            (format nil "~A" (or r "")))
+                        (error (e)
+                          (format nil "error: ~A" e)))))
+               (show-command-reply result serial *command-reply-seconds*)))
            (t
              (format nil "unknown command: ~A (try: ~{~A~^ ~})"
                      command (sort (loop for k being the hash-keys of *command-table*

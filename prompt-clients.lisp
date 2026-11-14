@@ -61,8 +61,14 @@ focus it."
                  :candidates commands
                  :on-complete
                  (lambda (choice)
-                   (message "~A"
-                            (ipc-dispatch-line choice))))))
+                   ;; Replies show for 3 s, never over the command's
+                   ;; own message; an unknown-command reply, which the
+                   ;; dispatcher does not show, is shown here
+                   (let ((serial *message-serial*))
+                     (show-command-reply
+                      (let ((*command-reply-seconds* 3))
+                        (ipc-dispatch-line choice))
+                      serial))))))
 
 (defun run-shell-command-prompt ()
   "Prompt for a shell command and run it in the background
