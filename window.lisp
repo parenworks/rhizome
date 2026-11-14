@@ -18,6 +18,11 @@
    (output      :initarg :output      :accessor window-output :initform nil)
    (frame       :initarg :frame       :accessor window-frame :initform nil)
    (fullscreen  :initarg :fullscreen  :accessor window-fullscreen-p :initform nil)
+   (fullscreen-request-output :initarg :fullscreen-request-output
+                              :accessor window-fullscreen-request-output
+                              :initform nil
+                              :documentation "Output proxy named by the client's
+fullscreen request, or NIL for no preference.")
    (hidden      :initarg :hidden      :accessor window-hidden-p :initform nil)
    (focused     :initarg :focused     :accessor window-focused-p :initform nil)
    (floating    :initarg :floating    :accessor window-floating-p :initform nil)
@@ -155,35 +160,66 @@ C-t #)."
   "Drop WIN's mark (window closed)."
   (remhash win *marked-windows*))
 
-;;; --- Fullscreen (WM-initiated) ---
+;;; --- Fullscreen (WM- and client-initiated) ---
 
 (defvar *pending-fullscreen-requests* nil
-  "Windows whose fullscreen request is waiting for the next manage
-sequence (river_window_v1.fullscreen is a manage-sequence request).")
+  "Windows whose fullscreen state waits for the next manage sequence.
+The river_window_v1 fullscreen and exit_fullscreen requests are
+manage-sequence requests.")
+
+(defun fullscreen-output (win)
+  "Output proxy to make WIN fullscreen on, or NIL when no output is known.
+Order: the client-requested output, then WIN's output, then
+FIND-OUTPUT-FOR-WINDOW. Each candidate must still be in *OUTPUTS*."
+  (let ((requested (window-fullscreen-request-output win))
+        (own (window-output win)))
+    (cond ((and requested (gethash requested *outputs*))
+           requested)
+          ((and own (eq (gethash (output-proxy own) *outputs*) own))
+           (output-proxy own))
+          (t
+           (let ((fallback (find-output-for-window win)))
+             (and fallback (output-proxy fallback)))))))
+
+(defun queue-fullscreen-request (win fullscreen-p &optional output)
+  "Set WIN's fullscreen flag to FULLSCREEN-P and queue the request for
+the next manage pass. OUTPUT is the output proxy a client asked for,
+or NIL for no preference."
+  (setf (window-fullscreen-p win) fullscreen-p
+        (window-fullscreen-request-output win) (and fullscreen-p output))
+  (pushnew win *pending-fullscreen-requests*)
+  (request-manage-dirty))
 
 (defun flush-fullscreen-requests ()
-  "Send pending fullscreen requests (called during a manage
-sequence). The request MATCHES the flag: fullscreen-p t means the
-window wants to BE fullscreen — the original code had the two
-requests inverted, so a first C-t F11 sent exit-fullscreen (a
-no-op) and only the second press fullscreened, and fullscreen
-window rules (Flameshot) never reached river at all."
+  "Send each queued window's fullscreen state to river and empty the
+queue. Call inside a manage sequence.
+A window with the fullscreen flag gets fullscreen on FULLSCREEN-OUTPUT
+and inform_fullscreen.
+Any other window gets exit_fullscreen and inform_not_fullscreen.
+A fullscreen request with no known output is dropped.
+A request that signals an error is logged and dropped."
   (dolist (win *pending-fullscreen-requests*)
     (handler-case
-        (if (window-fullscreen-p win)
-            (rwm:river-window-v1.fullscreen (window-proxy win))
-            (rwm:river-window-v1.exit-fullscreen (window-proxy win)))
+        (let ((proxy (window-proxy win)))
+          (if (window-fullscreen-p win)
+              (let ((output (fullscreen-output win)))
+                (cond (output
+                       (rwm:river-window-v1.fullscreen proxy output)
+                       (rwm:river-window-v1.inform-fullscreen proxy))
+                      (t
+                       (format t "~&; Rhizome: no output for fullscreen request~%"))))
+              (progn
+                (rwm:river-window-v1.exit-fullscreen proxy)
+                (rwm:river-window-v1.inform-not-fullscreen proxy))))
       (error (e)
         (format t "~&; Rhizome: fullscreen request failed: ~A~%" e))))
   (setf *pending-fullscreen-requests* nil))
 
 (defun toggle-fullscreen (win)
-  "Toggle WIN's fullscreen (StumpWM's C-t F11). The fullscreen
-request itself is flushed by the manage pass."
+  "Toggle WIN's fullscreen (StumpWM's C-t F11) on the next manage pass.
+Does nothing when WIN is NIL."
   (when win
-    (setf (window-fullscreen-p win) (not (window-fullscreen-p win)))
-    (pushnew win *pending-fullscreen-requests*)
-    (request-manage-dirty)))
+    (queue-fullscreen-request win (not (window-fullscreen-p win)))))
 
 (defun register-window (proxy)
   "Register a new river_window_v1 proxy and set up event handlers."
@@ -251,13 +287,10 @@ request itself is flushed by the manage pass."
 
         (:fullscreen-requested
          (destructuring-bind (output) args
-           (declare (ignore output))
-           (setf (window-fullscreen-p win) t)
-           (request-manage-dirty)))
+           (queue-fullscreen-request win t output)))
 
         (:exit-fullscreen-requested
-         (setf (window-fullscreen-p win) nil)
-           (request-manage-dirty))
+         (queue-fullscreen-request win nil))
 
         (:maximize-requested
          ;; Client wants to be maximized: honor it as a float
