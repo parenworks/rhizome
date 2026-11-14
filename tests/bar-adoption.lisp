@@ -77,6 +77,8 @@
              (start-bar)
              (ok "start-bar adopts the first external bar"
                  rhizome::*adopted-bar-pid* 999)
+             (ok "adoption stamps the bar settings"
+                 (and *bar-launched-settings* t) t)
              (ok "start-bar launches nothing while adopting"
                  *stub-launches* 0)
              (ok "extra bars are reaped, the adopted one is not"

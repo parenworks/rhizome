@@ -1323,7 +1323,11 @@ left behind by past incidents (they would stack on screen)."
     ;; than cold-started: a fresh SBCL is the 40-second black strip
     (let ((pids (external-bar-pids)))
       (when pids
-        (setf *adopted-bar-pid* (first pids))
+        (setf *adopted-bar-pid* (first pids)
+              ;; stamp the settings the adopted bar runs with, or
+              ;; apply-config's changed-settings comparison sees
+              ;; this WM's nil and restarts it anyway
+              *bar-launched-settings* (bar-settings))
         (reap-extra-bars *adopted-bar-pid*)
         (format t "~&; Rhizome: bar adopted (pid ~A)~%" *adopted-bar-pid*)
         (return-from start-bar)))
