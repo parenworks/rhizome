@@ -828,8 +828,18 @@ frames holding windows, one visible at a time:
 - =C-t= arrows move focus between frames; =C-t n= / =C-t p= cycle
   the windows inside the current frame; =rhizome-cmd resize-split
   30= nudges a dividing line.
-- New windows open into the current frame; closed windows leave the
-  frame behind — the layout is yours and it stays.
+- Frames you split stay when they go empty, so you can split and then
+  move a window in, or move the last window out, and the frame waits
+  for the next one; =C-t R= removes a split and =C-t Q= collapses to
+  one frame. A frame that a new window split open for itself (dynamic
+  tiling) closes with its last window, and its neighbours grow.
+
+  #+begin_src lisp
+  (rhizome:configure '(:frames (:prune-empty :never)))
+  ;; :auto    the default: your splits stay, dynamic splits close
+  ;; :never   every empty frame stays, as in StumpWM
+  ;; :always  every empty frame closes
+  #+end_src
 - Layout NAMES are frame-tree templates that rebuild the workspace's
   tree: =:monocle= (one frame), =:master-stack= (master + stack),
   =:even= (grid with a cell per window). Custom layouts defined with

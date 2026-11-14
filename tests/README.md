@@ -18,6 +18,11 @@ stubbed river requests. Run with:
 - `frames.lisp` — frame tree operations: splits, merges, resizes,
   directional focus, cycling, tree construction from rectangles,
   layout templates, and manage/render integration.
+- `frame-pruning.lisp` - empty-frame pruning: frames a user split makes
+  survive manage passes and the move of their last window; frames a new
+  window split open still close with it; `(:frames (:prune-empty :never))`
+  keeps every empty frame and `:always` prunes user splits too; removing a
+  split or collapsing to one frame leaves nothing marked.
 - `parity.lisp` — Alt+drag pointer bindings (drag floats tiled
   windows), the C-t h help system, describe-key, move-window-to-frame,
   and `:output` window rules.

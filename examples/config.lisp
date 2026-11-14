@@ -64,6 +64,15 @@
 
 (configure '(:gaps (:inner 6)))              ; default
 
+;;; --- Frames ----------------------------------------------------------
+;;;
+;;; Which empty frames close. :auto keeps the frames you split and
+;;; closes a frame a new window split open once its window goes.
+;;; :never keeps every empty frame, as StumpWM does. :always closes
+;;; every empty frame.
+
+(configure '(:frames (:prune-empty :auto)))  ; default
+
 ;;; --- Animations ------------------------------------------------------
 ;;;
 ;;; Window glide: workspace slide-ins, expose gliding into the

@@ -108,6 +108,12 @@ Returns (values value found-p)."
            ;; Adjacent windows show twice this between them, screen
            ;; edges once. 0 restores the classic flush tiling.
            )
+    :frames (:prune-empty :auto
+             ;; Which empty frames close. :auto keeps the frames a
+             ;; user split makes and prunes a frame a new window split
+             ;; open once it is empty; :never keeps every empty frame,
+             ;; as StumpWM does; :always prunes every empty frame.
+             )
     :animations (:enabled t
                  :duration-ms 200
                  ;; :easing :ease-out-cubic (default) | :linear |
@@ -166,6 +172,7 @@ Returns (values value found-p)."
                                           :right (:battery))
                            :height 24)))
   (rhizome:configure '(:bar (:enabled nil)))   ; disable the bar
+  (rhizome:configure '(:frames (:prune-empty :never)))  ; keep every empty frame
 
 Restarting running components (e.g. the bar) is handled automatically."
   (setf *config* (merge-plist *config* plist))
