@@ -29,6 +29,10 @@ stubbed river requests. Run with:
 - `quickwins.lisp` — StumpWM quick-wins: window numbering (1..9, 0,
   overflow, reuse, renumber), pull/exchange/only/balance/fclear,
   lastmsg/time, quit-confirm, fullscreen request queueing, F-keys.
+- `client-fullscreen.lisp` - client fullscreen and exit-fullscreen
+  requests queue the same manage-pass request as C-t F11; the
+  requested output is used when river still reports it, otherwise
+  the window's own output.
 - `interactivity.lisp` — multi-line messages, which-key hints,
   iresize (arrows resize until Enter/Esc), and command mode (sticky
   prefix: multiple commands until Escape).

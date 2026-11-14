@@ -321,7 +321,7 @@ handlers should make window management requests here."
   ;; floating.lisp, which loads later.
   (float-op-manage-pass)
 
-  ;; Flush pending WM-initiated fullscreen requests
+  ;; Flush pending fullscreen requests from the WM and from clients
   ;; (river_window_v1.fullscreen is a manage-sequence request)
   (flush-fullscreen-requests)
 

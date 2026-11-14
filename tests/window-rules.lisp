@@ -59,6 +59,9 @@
       (setf (symbol-function 'rwm:river-window-v1.exit-fullscreen)
             (lambda (&rest args) (push (cons :exit args) sent) nil))
       (configure '(:window-rules ((:match "fs-test" :fullscreen t))))
+      ;; river_window_v1.fullscreen names an output: give it one
+      (setf (gethash :fs-out *outputs*)
+            (make-instance 'rhizome-output :proxy :fs-out))
       (let ((win (make-instance 'rhizome-window :proxy :fs1)))
         (setf (gethash :fs1 *windows*) win
               (window-app-id win) "fs-test")
@@ -80,6 +83,7 @@
         (flush-fullscreen-requests)
         (check "flush sends EXIT-FULLSCREEN for an unflagged window"
                (first (first sent)) :exit))
+      (remhash :fs-out *outputs*)
       (setf *pending-fullscreen-requests* nil
             *config* (default-config))
       ;; Restore the two-rule config the flow tests below expect
