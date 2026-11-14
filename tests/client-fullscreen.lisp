@@ -4,6 +4,7 @@
 ;;; when river knows it. River requests are stubbed and recorded, so no
 ;;; compositor is needed.
 (ql:quickload :rhizome)
+(require :sb-introspect)
 
 (in-package #:rhizome)
 
