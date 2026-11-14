@@ -905,6 +905,7 @@ propose each leaf's visible window its rectangle."
               (gaps-inset-rect (frame-x leaf) (frame-y leaf)
                                (frame-width leaf) (frame-height leaf))
             (declare (ignore _x _y))
+            (mark-window-tiled win)
             (propose-window-dimensions win w h)))))))
 
 (defun frames-render-decisions (output workspace wins)

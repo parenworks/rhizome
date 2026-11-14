@@ -36,7 +36,14 @@
    (identifier :initarg :identifier :accessor window-identifier
                :initform nil)
    (unreliable-pid :initarg :unreliable-pid :accessor window-unreliable-pid
-                   :initform nil))
+                   :initform nil)
+   (decoration-hint :initarg :decoration-hint
+                    :accessor window-decoration-hint :initform nil
+                    :documentation "Latest decoration_hint keyword, or NIL.")
+   (decoration-sent :accessor window-decoration-sent :initform nil
+                    :documentation "Last decoration request sent: :ssd, :csd, or NIL.")
+   (decoration-stale :accessor window-decoration-stale-p :initform nil
+                     :documentation "True when a hint arrived since the last request."))
   (:documentation "Represents a managed window in the river compositor."))
 
 (defvar *last-registered-window* nil
@@ -220,6 +227,14 @@ request itself is flushed by the manage pass."
                  (window-hint-min-height win) min-h
                  (window-hint-max-width win) max-w
                  (window-hint-max-height win) max-h)))
+
+        (:decoration-hint
+         ;; May arrive several times. The request it prompts is
+         ;; manage-state: sync-window-decorations sends it.
+         (destructuring-bind (hint) args
+           (setf (window-decoration-hint win) hint
+                 (window-decoration-stale-p win) t)
+           (request-manage-dirty)))
 
         (:title
          (destructuring-bind (title) args
@@ -411,6 +426,40 @@ sequence (flush-close-requests)."
       (push win *pending-close-requests*))
     t))
 
+(defun decoration-mode ()
+  "The configured (:windows :decorations) mode: :server (the default)
+or :client. Any value other than :client reads as :server."
+  (if (eq (config-getf '(:windows) :decorations :default :server) :client)
+      :client
+      :server))
+
+(defun window-decoration-request (win)
+  "The decoration request WIN needs: :ssd, :csd, or NIL for none.
+A window with no hint yet, or one that only supports CSD, needs none.
+Under :client, only a window previously sent :ssd needs :csd."
+  (let ((hint (window-decoration-hint win)))
+    (cond ((member hint '(nil :only-supports-csd)) nil)
+          ((eq (decoration-mode) :client)
+           (and (eq (window-decoration-sent win) :ssd) :csd))
+          (t :ssd))))
+
+(defun sync-window-decorations ()
+  "Send use_ssd or use_csd to every window whose decoration request
+differs from the last one sent, or that sent a hint since. Call only
+inside a manage sequence: river 0.5 terminates a client that sends
+either request outside one."
+  (dolist (win (all-windows))
+    (let ((want (window-decoration-request win)))
+      (when (and want
+                 (window-proxy win)
+                 (or (window-decoration-stale-p win)
+                     (not (eq want (window-decoration-sent win)))))
+        (if (eq want :ssd)
+            (rwm:river-window-v1.use-ssd (window-proxy win))
+            (rwm:river-window-v1.use-csd (window-proxy win)))
+        (setf (window-decoration-sent win) want))
+      (setf (window-decoration-stale-p win) nil))))
+
 (defun propose-window-dimensions (win width height)
   "Propose dimensions for WIN during a manage sequence."
   (rwm:river-window-v1.propose-dimensions (window-proxy win) width height))
@@ -467,9 +516,13 @@ clip is ignored while the window is fullscreen."
 
 (defun set-window-tiled-state (win edges)
   "Tell WIN which EDGES it is tiled on (manage-sequence request).
-An empty/none list means the window is not part of the tiling, so
-clients draw their own decorations — what floating windows want."
+(:none) means the window is not part of the tiling."
   (rwm:river-window-v1.set-tiled (window-proxy win) edges))
+
+(defun mark-window-tiled (win)
+  "Tell WIN it is tiled on all four edges (manage-sequence request).
+Every side of a tiled window faces a neighbour or the output edge."
+  (set-window-tiled-state win '(:top :bottom :left :right)))
 
 (defun place-node-above (node other-node)
   "Place render NODE directly above OTHER-NODE (z-order,

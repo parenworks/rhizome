@@ -305,6 +305,9 @@ handlers should make window management requests here."
   ;; is manage-state, only legal inside a sequence
   (flush-focus-requests)
 
+  ;; use_ssd / use_csd answer decoration hints: manage-state too
+  (sync-window-decorations)
+
   (maphash (lambda (output-proxy output)
              (declare (ignore output-proxy))
              (when (debug-events-p)

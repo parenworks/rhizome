@@ -105,6 +105,14 @@
                      :accent "#7aa2f7"
                      :opacity 0.95)))
 
+;;; --- Titlebars ----------------------------------------------------
+;;;
+;;; :server asks every client that supports it for server-side
+;;; decorations, so windows draw no titlebar of their own. :client
+;;; leaves clients to draw their own titlebars and buttons.
+
+(configure '(:windows (:decorations :server)))  ; default
+
 ;;; --- Decoration shadows ----------------------------------------------
 ;;;
 ;;; river_decoration_v1 pseudo-shadows on floating windows,

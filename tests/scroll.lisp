@@ -23,6 +23,8 @@
           (lambda (&rest args) (declare (ignore args)) nil))
     (setf (symbol-function 'propose-window-dimensions)
           (lambda (&rest args) (declare (ignore args)) nil))
+    (setf (symbol-function 'set-window-tiled-state)
+          (lambda (&rest args) (declare (ignore args)) nil))
     (setf (symbol-function 'make-window-node)
           (lambda (&rest args) (declare (ignore args)) nil))
     (setf (symbol-function 'set-window-position)

@@ -80,3 +80,6 @@ stubbed river requests. Run with:
   hidden windows cycle in window-number order whatever order the
   workspace lists them in, wrapping at either end; unnumbered windows
   come after the numbered ones.
+- `server-side-decorations.lisp`: decoration_hint handling, use_ssd
+  and use_csd sent only in the manage pass, the
+  `(:windows :decorations)` key, and set_tiled edges for tiled windows.
