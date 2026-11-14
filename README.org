@@ -757,6 +757,39 @@ The launcher's selected row carries a 3px accent edge
 ((:launcher :accent ...)). A complete, commented configuration
 covering every group lives in =examples/config.lisp=.
 
+** Modules
+
+A module is an ASDF system in its own directory under
+=~/.config/rhizome/modules/=:
+
+#+begin_example
+~/.config/rhizome/modules/
+  my-placement/
+    my-placement.asd
+    policy.lisp
+#+end_example
+
+Load one by name from =config.lisp= or the REPL:
+
+#+begin_src lisp
+(rhizome:load-module "my-placement")
+#+end_src
+
+=load-module= makes the module's directory visible to ASDF for the
+session (a plain =*central-registry*= push — nothing global is
+rewritten), quickloads the system, and is idempotent: loading an
+already-loaded module is a no-op, like Quicklisp. Nothing is
+loaded unless the config asks for it.
+
+A module may register placement policies
+(=define-placement-policy=), commands (=define-command=), keymaps,
+hooks, and window rules — everything the config itself can use. It
+should not redefine core functions; a missing seam is an issue
+first, a patch second. State a module keeps across live reloads
+belongs in =defvar=s, not =defparameter=s (the live-reload rule
+the WM itself follows). A complete, commented one-file example
+lives in =examples/modules/rhizome-hello/=.
+
 ** Animations
 
 River renders, so rhizome animates the only way the protocol

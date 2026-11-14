@@ -161,3 +161,7 @@ stubbed river requests. Run with:
   the first is configured or during a resize (one surface, one
   buffer), and reopening an overlay over a state that still holds a
   buffer.
+- `modules.lisp` - load-module: only .asd-carrying directories in
+  the module directory are registered with ASDF, an unknown module
+  fails quietly, the first load loads the system, the second is an
+  idempotent no-op, and the registry never duplicates an entry.

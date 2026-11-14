@@ -2,3 +2,5 @@
 (rhizome:configure (list :modules (list :display (list :on-click "rhizome-cmd display-menu"))))
 ;; Flameshot: float its editor so it doesn't split the tiling.
 (rhizome:configure '(:window-rules ((:match "flameshot" :float t))))
+;; Modules
+(rhizome:load-module "rhizome-hello")

@@ -229,6 +229,8 @@
    #:configure
    #:reload-config
    #:config-pathname
+   #:load-module
+   #:module-directory
    ;; Bar
    #:run-bar
    #:start-bar
