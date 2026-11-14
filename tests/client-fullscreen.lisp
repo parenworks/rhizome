@@ -152,7 +152,23 @@
       (handle-window-event video :fullscreen-requested nil)
       (ok "with no output, nothing is sent" (flush) nil)
       (ok "with no output, the queue still drains"
-          *pending-fullscreen-requests* nil)))
+          *pending-fullscreen-requests* nil)
+
+      ;; --- a dropped request leaves the window not fullscreen ---
+
+      (handle-window-event video :fullscreen-requested :right-proxy)
+      (ok "a dropped request sends nothing" (flush) nil)
+      (ok "a dropped request clears the fullscreen flag and output"
+          (list (window-fullscreen-p video)
+                (window-fullscreen-request-output video))
+          '(nil nil))
+      (setf (gethash :left-proxy *outputs*) left
+            (window-output video) left)
+      (toggle-fullscreen video)
+      (ok "after a dropped request, C-t F11 enters fullscreen"
+          (flush)
+          '((:fullscreen :video-proxy :left-proxy)
+            (:inform-fullscreen :video-proxy)))))
 
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
   (unless (zerop fail) (uiop:quit 1)))

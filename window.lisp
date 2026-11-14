@@ -196,7 +196,8 @@ queue. Call inside a manage sequence.
 A window with the fullscreen flag gets fullscreen on FULLSCREEN-OUTPUT
 and inform_fullscreen.
 Any other window gets exit_fullscreen and inform_not_fullscreen.
-A fullscreen request with no known output is dropped.
+A fullscreen request with no known output is dropped, and the
+window's fullscreen flag and requested output are cleared.
 A request that signals an error is logged and dropped."
   (dolist (win *pending-fullscreen-requests*)
     (handler-case
@@ -207,6 +208,9 @@ A request that signals an error is logged and dropped."
                        (rwm:river-window-v1.fullscreen proxy output)
                        (rwm:river-window-v1.inform-fullscreen proxy))
                       (t
+                       ;; River never saw it: match its state
+                       (setf (window-fullscreen-p win) nil
+                             (window-fullscreen-request-output win) nil)
                        (format t "~&; Rhizome: no output for fullscreen request~%"))))
               (progn
                 (rwm:river-window-v1.exit-fullscreen proxy)
