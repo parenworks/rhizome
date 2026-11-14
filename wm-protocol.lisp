@@ -514,7 +514,7 @@ window management updates."
               (let ((ls-seat (rwm:river-layer-shell-v1.get-seat
                               *river-layer-shell* (seat-proxy seat))))
                 (push (lambda (event-name &rest args)
-                        (declare (ignore event-name args)))
+                        (apply #'handle-layer-shell-seat-event event-name args))
                       (wl:wl-proxy-hooks ls-seat)))
             (error (e)
               (format t "~&; Rhizome: retroactive seat layer shell registration failed: ~A~%" e))))

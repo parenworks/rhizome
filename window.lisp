@@ -6,6 +6,10 @@
 
 (in-package #:rhizome)
 
+(defvar *window-registration-count* 0
+  "Windows registered so far; each new window takes the next value as its
+registration number.")
+
 (defclass rhizome-window ()
   ((proxy       :initarg :proxy       :accessor window-proxy)
    (node        :initarg :node        :accessor window-node :initform nil)
@@ -48,7 +52,10 @@ fullscreen request, or NIL for no preference.")
    (decoration-sent :accessor window-decoration-sent :initform nil
                     :documentation "Last decoration request sent: :ssd, :csd, or NIL.")
    (decoration-stale :accessor window-decoration-stale-p :initform nil
-                     :documentation "True when a hint arrived since the last request."))
+                     :documentation "True when a hint arrived since the last request.")
+   (registration :reader window-registration
+                 :initform (incf *window-registration-count*)
+                 :documentation "Registration number: higher is newer."))
   (:documentation "Represents a managed window in the river compositor."))
 
 (defvar *last-registered-window* nil
@@ -295,6 +302,10 @@ Does nothing when WIN is NIL."
          ;; Remember the placement (identifier windows) before we forget
          (handler-case (remember-window-state win)
            (error () nil))
+         ;; Seats focused on the closing window move to a live one
+         (handler-case (refocus-after-close win)
+           (error (e)
+             (format t "~&; Rhizome: refocus after close failed: ~A~%" e)))
          ;; A dying window must not keep the animation pump alive:
          ;; nothing renders it, so its offset would never clear
          (remhash win *animations*)
@@ -395,27 +406,41 @@ Does nothing when WIN is NIL."
 
 (defvar *pending-focus-requests* nil
   "Focus requests queued for the next manage sequence, newest per
-seat. focus_window is a window-management-state request: river 0.5
+seat. Each entry is (WINDOW . SEAT); a NIL WINDOW clears that seat's
+focus. focus_window is a window-management-state request: river 0.5
 TERMINATES the client for sending it outside a manage sequence,
 and switch-workspace (a keybinding path) is always outside one.")
+
+(defun queue-focus-request (win seat)
+  "Queue a focus request for WIN on SEAT for the next manage sequence.
+One request per seat: the newest replaces any queued for SEAT. A NIL
+WIN queues a focus clear."
+  (setf *pending-focus-requests*
+        (remove seat *pending-focus-requests* :key #'cdr :test #'eq))
+  (push (cons win seat) *pending-focus-requests*))
+
+(defvar *workspace-last-focus* (make-hash-table :test 'equal)
+  "The window last given keyboard focus on each workspace, keyed
+(OUTPUT . WORKSPACE). Entries may name a window since closed or moved;
+readers check that it still lives there.")
 
 (defun focus-window (win seat)
   "Give keyboard focus to WIN on SEAT. The river request is queued
 and flushed during the next manage sequence (flush-focus-requests
 in the manage pass); the internal slots update immediately so
-borders/bars react at once."
+borders/bars react at once. WIN becomes its workspace's entry in
+*workspace-last-focus*."
   (when (and (window-proxy win) (seat-proxy seat))
     ;; Clear focus on all other windows
     (dolist (w (all-windows))
       (unless (eq w win)
         (setf (window-focused-p w) nil)))
-    ;; One queued request per seat, newest wins
-    (setf *pending-focus-requests*
-          (remove-if (lambda (r) (eq (cdr r) seat))
-                     *pending-focus-requests*))
-    (push (cons win seat) *pending-focus-requests*)
+    (queue-focus-request win seat)
     (setf (window-focused-p win) t
-          (seat-focused-window seat) win)
+          (seat-focused-window seat) win
+          (gethash (cons (window-output win) (window-workspace win))
+                   *workspace-last-focus*)
+          win)
     (run-hook :focus-changed win)))
 
 (defvar *pending-pointer-warps* nil
@@ -424,13 +449,17 @@ pointer_warp modifies window management state, sequence-only.")
 
 (defun flush-focus-requests ()
   "Send queued focus requests and pointer warps (manage-sequence
-context — called from the manage pass). Dead windows are dropped."
+context: called from the manage pass). Dead windows are dropped.
+A queued NIL window sends clear_focus for its seat."
   (dolist (r (nreverse *pending-focus-requests*))
     (let ((win (car r)) (seat (cdr r)))
-      (when (and (gethash (window-proxy win) *windows*)
-                 (seat-proxy seat))
-        (rwm:river-seat-v1.focus-window (seat-proxy seat)
-                                        (window-proxy win)))))
+      (cond ((null win)
+             (when (seat-proxy seat)
+               (rwm:river-seat-v1.clear-focus (seat-proxy seat))))
+            ((and (gethash (window-proxy win) *windows*)
+                  (seat-proxy seat))
+             (rwm:river-seat-v1.focus-window (seat-proxy seat)
+                                             (window-proxy win))))))
   (setf *pending-focus-requests* nil)
   ;; Queued window closes (MOD+Q): close is manage-state too
   (dolist (win (nreverse *pending-close-requests*))
@@ -448,6 +477,95 @@ context — called from the manage pass). Dead windows are dropped."
             ;; Pre-v3 river or transient seat state: no warp, no crash
             nil)))))
   (setf *pending-pointer-warps* nil))
+
+(defun close-successor (win)
+  "Return the live window that takes keyboard focus when WIN closes,
+or NIL. A candidate is registered, is not WIN, is not minimized, and
+has WIN's output and workspace; that workspace must be the one the
+output shows. Rules, first match wins:
+  1. WIN in a frame: the candidate after WIN in frame order, wrapping
+     (where cycle-frame-window moves from WIN).
+  2. WIN a scroll ribbon column: the candidate column after WIN, else
+     the last one.
+  3. The candidate with the highest registration number, which is the
+     one registered most recently, whatever registered after it on
+     other workspaces or outputs."
+  (let ((output (window-output win))
+        (workspace (window-workspace win)))
+    (unless (and output workspace
+                 (eql workspace (current-workspace output)))
+      (return-from close-successor nil))
+    (labels ((candidate-p (w)
+               (and (not (eq w win))
+                    (gethash (window-proxy w) *windows*)
+                    (not (window-minimized-p w))
+                    (eq (window-output w) output)
+                    (eql (window-workspace w) workspace)))
+             (pick-after (sequence wrap)
+               (let* ((kept (remove-if-not
+                             (lambda (w) (or (eq w win) (candidate-p w)))
+                             sequence))
+                      (pos (position win kept :test #'eq))
+                      (candidates (remove win kept :test #'eq)))
+                 (when (and pos candidates)
+                   (if wrap
+                       (nth (mod pos (length candidates)) candidates)
+                       (or (nth pos candidates)
+                           (car (last candidates))))))))
+      (let ((frame (window-frame win))
+            (columns (getf (scroll-state output workspace) :columns)))
+        (or (and frame (pick-after (frame-windows frame) t))
+            (and (member win columns :test #'eq)
+                 (pick-after columns nil))
+            (let ((wins (remove-if-not #'candidate-p
+                                       (windows-on-workspace output
+                                                             workspace))))
+              (when wins
+                (reduce (lambda (a b)
+                          (if (> (window-registration b)
+                                 (window-registration a))
+                              b
+                              a))
+                        wins))))))))
+
+(defun refocus-after-close (win)
+  "Move every seat focused on WIN to (close-successor WIN), or clear
+its focus when there is none or the move does not take, then unmark
+WIN as focused. Request a manage sequence when any seat moved. Return
+the successor or NIL. Call while WIN is still registered."
+  (let ((successor (close-successor win))
+        (moved nil))
+    (dolist (seat (all-seats))
+      (when (eq (seat-focused-window seat) win)
+        (setf moved t)
+        (when successor
+          (focus-window successor seat))
+        ;; focus-window is a no-op for a seat without a proxy
+        (when (eq (seat-focused-window seat) win)
+          (clear-focus seat))))
+    (setf (window-focused-p win) nil)
+    (when moved
+      (request-manage-dirty))
+    successor))
+
+(defun reassert-seat-focus ()
+  "Queue each seat's live focused window again for the next manage
+sequence, and request one when anything was queued. Return the number
+of requests queued. Focus state and the :focus-changed hook are left
+as they are. River leaves keyboard focus unassigned when a
+keyboard-exclusive layer surface goes away, and ignores focus requests
+while one holds the keyboard."
+  (let ((queued 0))
+    (dolist (seat (all-seats))
+      (let ((win (seat-focused-window seat)))
+        (when (and win
+                   (seat-proxy seat)
+                   (gethash (window-proxy win) *windows*))
+          (queue-focus-request win seat)
+          (incf queued))))
+    (when (plusp queued)
+      (request-manage-dirty))
+    queued))
 
 (defvar *pending-close-requests* nil
   "Windows whose close request is queued for the next manage

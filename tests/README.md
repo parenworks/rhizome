@@ -15,6 +15,20 @@ stubbed river requests. Run with:
 - `window-rules.lisp` — app-id/title regex rules assign workspaces.
 - `floating.lisp` — float/tile state, geometry clamps, interactive
   resize math, manage/render integration, and `:float` window rules.
+- `focus-on-close.lisp` - focus recovery when a window closes: the next
+  window in its frame (or the next column of a scroll ribbon), else the
+  newest window on its workspace, else a cleared seat; focus and clear
+  requests reach river only in the manage pass; unfocused closes and
+  windows on other workspaces or outputs leave focus alone.
+- `focus-after-capture.lisp` - keyboard focus returns to each seat's
+  focused window when the prefix capture, a prompt, the eval prompt, a
+  context menu, or the launcher closes; focus state does not change, and
+  a missing or closed window gets nothing.
+- `layer-focus.lisp` - layer shell focus events delivered as wayflan
+  reads them: focus_none gives each seat's focused window the keyboard
+  back in the next manage pass without changing focus state;
+  focus_exclusive and focus_non_exclusive are logged and queue nothing;
+  a missing or closed window gets nothing.
 - `frames.lisp` — frame tree operations: splits, merges, resizes,
   directional focus, cycling, tree construction from rectangles,
   layout templates, and manage/render integration.
@@ -103,3 +117,9 @@ stubbed river requests. Run with:
 - `server-side-decorations.lisp`: decoration_hint handling, use_ssd
   and use_csd sent only in the manage pass, the
   `(:windows :decorations)` key, and set_tiled edges for tiled windows.
+- `workspace-focus.lisp` - keyboard focus across workspace changes:
+  switching to an empty workspace clears focus; switching back focuses
+  the window last focused there, or the newest unminimized window
+  there; moving the focused marked window off the visible workspace
+  hands focus to a window that stays; and when the focused window is
+  moved, the view follows the window and it keeps focus.

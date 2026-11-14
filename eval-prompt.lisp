@@ -162,7 +162,8 @@ Errors are caught and shown instead of killing the WM."
                      (eval-prompt-configure-handler
                        state layer-surface serial width height)))
                   (:closed
-                   (setf *eval-prompt-active* nil))))
+                   (setf *eval-prompt-active* nil)
+                   (reassert-seat-focus))))
               (wl:wl-proxy-hooks layer-surface))
         (rwm:zwlr-layer-surface-v1.set-anchor layer-surface nil)
         (rwm:zwlr-layer-surface-v1.set-size layer-surface
@@ -189,4 +190,5 @@ Errors are caught and shown instead of killing the WM."
         (format t "~&; Rhizome: error closing eval prompt: ~A~%" e)))
     (bar-destroy-shm state)
     (setf *eval-prompt-state* nil))
+  (reassert-seat-focus)
   (format t "~&; Rhizome: eval prompt closed~%"))

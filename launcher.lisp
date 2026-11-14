@@ -1285,7 +1285,8 @@ surface, created BEFORE the launcher (stacks below it in the same
                       (launcher-configure-handler serial width height)))
                    (:closed
                     (format t "~&; Rhizome: launcher surface closed~%")
-                    (setf *launcher-active* nil))))
+                    (setf *launcher-active* nil)
+                    (reassert-seat-focus))))
                (wl:wl-proxy-hooks *launcher-layer-surface*))
          ;; Set size, anchor (center = no anchor edges), keyboard interactivity
          (rwm:zwlr-layer-surface-v1.set-size *launcher-layer-surface*
@@ -1303,7 +1304,8 @@ surface, created BEFORE the launcher (stacks below it in the same
         (setf *launcher-layer-surface* nil))
       (when *launcher-surface*
         (wl:wl-surface.destroy *launcher-surface*)
-        (setf *launcher-surface* nil)))))
+        (setf *launcher-surface* nil))
+      (reassert-seat-focus))))
 
 (defun hide-launcher ()
   "Hide the native launcher popup."
@@ -1323,7 +1325,8 @@ surface, created BEFORE the launcher (stacks below it in the same
   (setf *launcher-layer-surface* nil
         *launcher-surface* nil)
   (launcher-destroy-backdrop)
-  (launcher-destroy-shm))
+  (launcher-destroy-shm)
+  (reassert-seat-focus))
 
 (defun launcher-handle-key (keysym modifiers)
   "Handle a key press while the launcher is active.

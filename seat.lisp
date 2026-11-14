@@ -89,6 +89,26 @@ during the expose overview a click picks the window)."
    (op-state       :initarg :op-state       :accessor seat-op-state :initform nil))
   (:documentation "Represents an input seat managed by rhizome."))
 
+(defun handle-layer-shell-seat-event (event-name &rest args)
+  "Handle a river_layer_shell_seat_v1 event. :focus-none queues each
+seat's focused window again for the next manage sequence: river assigns
+the keyboard to no window when a layer surface releases it.
+:focus-exclusive and :focus-non-exclusive only log: river ignores focus
+requests while an exclusive surface holds the keyboard, and a request in
+the sequence that grants non-exclusive focus keeps it from the surface."
+  (declare (ignore args))
+  (case event-name
+    (:focus-exclusive
+     (format t "~&; Rhizome: layer shell exclusive focus~%"))
+    (:focus-non-exclusive
+     (format t "~&; Rhizome: layer shell non-exclusive focus~%"))
+    (:focus-none
+     (format t "~&; Rhizome: layer shell focus none~%")
+     (handler-case
+         (reassert-seat-focus)
+       (error (e)
+         (format t "~&; Rhizome: layer shell focus none failed: ~A~%" e))))))
+
 (defun register-seat (proxy)
   "Register a new river_seat_v1 proxy and set up event handlers."
   (let ((seat (make-instance 'rhizome-seat :proxy proxy)))
@@ -128,13 +148,7 @@ during the expose overview a click picks the window)."
           (let ((ls-seat (rwm:river-layer-shell-v1.get-seat
                            *river-layer-shell* proxy)))
             (push (lambda (event-name &rest args)
-                    (case event-name
-                      (:focus_exclusive
-                       (format t "~&; Rhizome: layer shell exclusive focus~%"))
-                      (:focus_non_exclusive
-                       (format t "~&; Rhizome: layer shell non-exclusive focus~%"))
-                      (:focus_none
-                       (format t "~&; Rhizome: layer shell focus none~%"))))
+                    (apply #'handle-layer-shell-seat-event event-name args))
                   (wl:wl-proxy-hooks ls-seat))
             (format t "~&; Rhizome: registered seat with river_layer_shell_v1~%"))
         (error (e)
@@ -372,6 +386,9 @@ shift) so that Lisp expressions can be typed in the eval prompt."
   (loop for seat being the hash-values of *seats* collect seat))
 
 (defun clear-focus (seat)
-  "Clear keyboard focus on SEAT."
-  (rwm:river-seat-v1.clear-focus (seat-proxy seat))
-  (setf (seat-focused-window seat) nil))
+  "Clear keyboard focus on SEAT. clear_focus is manage-sequence state:
+the request is queued for the next manage sequence, and one is
+requested."
+  (queue-focus-request nil seat)
+  (setf (seat-focused-window seat) nil)
+  (request-manage-dirty))

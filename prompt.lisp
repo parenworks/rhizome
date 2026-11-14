@@ -205,7 +205,8 @@ takes free text and Enter calls ON-COMPLETE with the non-empty query."
                      (prompt-configure-handler
                        state layer-surface serial width height)))
                   (:closed
-                   (setf *prompt-active* nil))))
+                   (setf *prompt-active* nil)
+                   (reassert-seat-focus))))
               (wl:wl-proxy-hooks layer-surface))
         (rwm:zwlr-layer-surface-v1.set-anchor layer-surface nil)
         (rwm:zwlr-layer-surface-v1.set-size layer-surface
@@ -233,7 +234,8 @@ takes free text and Enter calls ON-COMPLETE with the non-empty query."
         (format t "~&; Rhizome: error closing prompt: ~A~%" e)))
     (bar-destroy-shm state)
     (setf *prompt-state* nil
-          *prompt-on-complete* nil)))
+          *prompt-on-complete* nil))
+  (reassert-seat-focus))
 
 (defun rhizome-rounded-clear (ptr width height r g b)
   "The shared surface treatment for message window and prompts:
