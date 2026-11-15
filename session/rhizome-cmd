@@ -6,7 +6,13 @@
 #   rhizome-cmd current-workspace
 #   rhizome-cmd "(* 2 21)"
 
-SOCK="${XDG_RUNTIME_DIR:-/tmp}/rhizome.sock"
+# The WM listens on $XDG_RUNTIME_DIR/rhizome.sock, or on
+# /tmp/rhizome-UID.sock when XDG_RUNTIME_DIR is unset or empty.
+if [[ -n "${XDG_RUNTIME_DIR:-}" ]]; then
+  SOCK="$XDG_RUNTIME_DIR/rhizome.sock"
+else
+  SOCK="/tmp/rhizome-$(id -u).sock"
+fi
 
 if [[ ! -S "$SOCK" ]]; then
   echo "rhizome-cmd: no socket at $SOCK (is rhizome running?)" >&2

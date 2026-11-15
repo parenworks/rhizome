@@ -478,9 +478,10 @@ Also: =remove-hook=, =clear-hook=, =list-hooks=, =run-hook=.
 
 ** IPC — the stumpish equivalent
 
-A Unix domain socket (=$XDG_RUNTIME_DIR/rhizome.sock=) accepts one
-command per line and replies with the result. The =rhizome-cmd= helper
-(in ~~/.local/bin/~) sends commands from the shell or scripts:
+A Unix domain socket (=$XDG_RUNTIME_DIR/rhizome.sock=, or
+=/tmp/rhizome-UID.sock= when =XDG_RUNTIME_DIR= is unset or empty)
+accepts one command per line and replies with the result. The
+=rhizome-cmd= helper (in ~~/.local/bin/~) sends commands from the shell or scripts:
 
 #+begin_src bash
 rhizome-cmd current-workspace

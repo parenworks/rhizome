@@ -179,3 +179,7 @@ stubbed river requests. Run with:
   output: zone reported on A reserves on A, hidden on B reserves
   nothing on B, no reports fall back to config, and the no-argument
   form keeps any-output semantics.
+- `ipc-socket-path.lisp` - the WM and session/rhizome-cmd name the
+  same socket: $XDG_RUNTIME_DIR/rhizome.sock, or /tmp/rhizome-UID.sock
+  when XDG_RUNTIME_DIR is unset or empty. The client's path is read
+  from its "no socket" message; no socket is opened.
