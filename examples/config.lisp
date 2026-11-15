@@ -194,8 +194,10 @@
 ;;; :match is a case-insensitive regex against the app-id (use
 ;;; :key :title or :key :any for titles). :float t starts the
 ;;; window floating; :workspace N + :follow t opens it on that
-;;; workspace and switches to it; :layout switches the output's
-;;; layout when the rule fires.
+;;; workspace and switches to it; :layout gives the window's
+;;; workspace that layout and rebuilds its frames, as switch-layout
+;;; does. A workspace that already has the rule's layout keeps its
+;;; frames when the rule matches again.
 
 #-(and) (configure
   '(:window-rules ((:match "vivaldi" :workspace 2 :follow t)

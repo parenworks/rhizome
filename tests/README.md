@@ -179,3 +179,9 @@ stubbed river requests. Run with:
   output: zone reported on A reserves on A, hidden on B reserves
   nothing on B, no reports fall back to config, and the no-argument
   form keeps any-output semantics.
+- `layout-rule-frames.lisp` - a window rule's :layout: the rule's
+  workspace stores the layout and its frame tree is rebuilt from the
+  layout's template, with the matching window in it even before it
+  has an output; the output's layout mirror follows only the
+  showing workspace; a repeated match keeps the frames; an unknown
+  layout changes nothing.

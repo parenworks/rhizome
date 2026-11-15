@@ -252,10 +252,37 @@ cleared when none is left (see refocus-after-close)."
         #'<
         :key (lambda (o) (+ (* (output-y o) 65536) (output-x o)))))
 
+(defun apply-window-rule-layout (win layout-name)
+  "Give the workspace WIN is on the layout LAYOUT-NAME, for a window
+rule's :layout. The output is WIN's own, else find-output-for-window's;
+the workspace is WIN's own, else that output's current one. A WIN with
+no output or workspace yet is stamped with them first, so it takes a
+frame in the rebuilt tree. Does nothing when LAYOUT-NAME is not a
+defined layout. Leaves the frames alone when the workspace shows the
+scroll ribbon or already has that layout set: rules fire on every title
+change."
+  (let* ((output (or (window-output win) (find-output-for-window win)))
+         (workspace (and output
+                         (or (window-workspace win)
+                             (current-workspace output)))))
+    (when (and output (gethash layout-name *layouts*))
+      (unless (window-output win)
+        (setf (window-output win) output))
+      (unless (window-workspace win)
+        (assign-window-workspace win workspace))
+      (unless (or (scroll-workspace-p output workspace)
+                  (eq (gethash (frame-key output workspace)
+                               *workspace-layouts*)
+                      layout-name))
+        (apply-layout-to-workspace output workspace layout-name)
+        (when (eql workspace (current-workspace output))
+          (run-hook :layout-changed output layout-name))))))
+
 (defun apply-window-rules (win)
   "Apply the first matching window rule to WIN: assign its workspace
-or output, optionally switch the output's layout and/or follow the
-window. Returns the matched rule, if any."
+or output, optionally give its workspace a layout (see
+apply-window-rule-layout) and/or follow the window. Returns the
+matched rule, if any."
   (dolist (rule (config-get '(:window-rules)))
     (when (window-rule-matches-p win rule)
       (let ((workspace (getf rule :workspace))
@@ -285,10 +312,7 @@ window. Returns the matched rule, if any."
           (assign-window-workspace win workspace)
           (setf (window-minimized-p win) nil))
         (when layout
-          (let ((outs (all-outputs)))
-            (when (and outs (gethash (find-layout-symbol layout) *layouts*))
-              (setf (output-current-layout (first outs))
-                    (find-layout-symbol layout)))))
+          (apply-window-rule-layout win (find-layout-symbol layout)))
         (when (and follow workspace)
           (let ((outs (all-outputs)))
             (when outs
