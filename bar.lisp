@@ -50,6 +50,24 @@ read from the snapshot file. Refreshed at most once per tick."
 
 ;;; --- Pointer state (module click/scroll support) ---
 
+(defparameter *bar-output-states* (make-hash-table)
+  "Per-output bar state: output proxy → the state hash holding that
+output's :surface :layer-surface :width :height :mapped :shm-fd
+:shm-ptr :shm-size :wl-pool :wl-buffer :hitboxes. One bar process,
+one surface (and one shm buffer) per output.")
+
+(defparameter *bar-surface-states* (make-hash-table)
+  "wl_surface proxy → that output's bar state (pointer routing).")
+
+(defparameter *bar-pointer-ostate* nil
+  "The per-output bar state whose surface holds the pointer, or NIL.")
+
+(defun bar-pointer-hitboxes ()
+  "The hitboxes of the bar the pointer is over (any output's when
+the pointer is off the bars)."
+  (or (and *bar-pointer-ostate* (gethash :hitboxes *bar-pointer-ostate*))
+      *bar-hitboxes*))
+
 (defparameter *bar-pointer-x* nil
   "Pointer x position on the bar surface, NIL when outside.")
 (defparameter *bar-axis-accumulator* 0
@@ -894,9 +912,28 @@ visual glitches and double commits — that the font engine turned
 fatal (a freetype face corrupts under concurrent FT_Load_Char, see
 font.lisp's *font-lock*).")
 
-(defun bar-render (state)
+(defun bar-render (ostate)
+  "Render ONE output's bar into its own buffer; its hitboxes land
+in the ostate (dynamically collected — the draw code keeps pushing
+to *bar-hitboxes*)."
   (bt:with-lock-held (*bar-render-lock*)
-    (%bar-render state)))
+    (let ((*bar-hitboxes* nil))
+      (%bar-render ostate)
+      (setf (gethash :hitboxes ostate) *bar-hitboxes*))))
+
+(defun bar-render-all ()
+  "Render every open output's bar: same content, each surface its
+own buffer and its own hitboxes (segment x-offsets differ per
+output width)."
+  (dolist (ostate (loop for o being the hash-values of *bar-output-states*
+                        collect o))
+    (when (gethash :mapped ostate)
+      (bar-render ostate))))
+
+(defun bar-any-mapped-p ()
+  "Whether any output's bar is mapped."
+  (loop for o being the hash-values of *bar-output-states*
+        thereis (gethash :mapped o)))
 
 ;;; --- Shm buffer management ---
 
@@ -986,10 +1023,12 @@ Return T, or NIL when the shm file or mapping cannot be created."
         ((string= interface "zwlr_layer_shell_v1")
          (setf (gethash :layer-shell state)
                (wl:wl-registry.bind registry name iface-class version)))
-        ((and (string= interface "wl_output")
-              (null (gethash :output state)))
-         (setf (gethash :output state)
-               (wl:wl-registry.bind registry name iface-class version)))
+        ((string= interface "wl_output")
+         ;; per-output bars: bind EVERY output (hotplug arrivals
+         ;; come through here too — the registry hook keeps firing)
+         (let ((output (wl:wl-registry.bind registry name iface-class
+                                            version)))
+           (pushnew output (gethash :outputs state))))
         ((and (string= interface "wl_seat")
               (null (gethash :seat state)))
          (setf (gethash :seat state)
@@ -1011,11 +1050,14 @@ Return T, or NIL when the shm file or mapping cannot be created."
            (bar-render state)
            (setf (gethash :mapped state) t)))))
     (:closed
-     ;; River closed our layer surface. This is how the bar dies
-     ;; silently — say so before *bar-running* stops the loop (the
-     ;; WM's supervisor will restart us within 15s).
-     (format t "~&; Rhizome: bar: layer surface closed by compositor, exiting~%")
-     (setf *bar-running* nil))))
+     ;; River closed this output's layer surface (the output went
+     ;; away, or the surface was killed). Drop THIS output's bar;
+     ;; the process only dies when no bars remain — the WM's
+     ;; supervisor restarts us within 15s if it comes to that.
+     (format t "~&; Rhizome: bar: layer surface closed by compositor~%")
+     (bar-close-surface state)
+     (when (zerop (hash-table-count *bar-output-states*))
+       (setf *bar-running* nil)))))
 
 ;;; --- Change detection ---
 ;;;
@@ -1047,7 +1089,9 @@ last commit. Re-renders are skipped when nothing changed."
 (defun bar-hover-module-now ()
   "The module under the pointer (or '%none), from the CURRENT
 hitboxes and pointer position."
-  (or (and *bar-pointer-x* (bar-module-at *bar-pointer-x*))
+  (or (and *bar-pointer-x*
+            (let ((*bar-hitboxes* (bar-pointer-hitboxes)))
+              (bar-module-at *bar-pointer-x*)))
       '%none))
 
 (defun bar-module-at (x)
@@ -1055,7 +1099,7 @@ hitboxes and pointer position."
   (let ((hit (find-if (lambda (hb)
                         (and (<= (second hb) x)
                              (< x (third hb))))
-                      *bar-hitboxes*)))
+                      (bar-pointer-hitboxes))))
     (when hit (first hit))))
 
 (defun bar-run-command (command)
@@ -1079,7 +1123,7 @@ entries carry their actions inline."
   (let* ((hit (find-if (lambda (hb)
                          (and (<= (second hb) x)
                               (< x (third hb))))
-                       *bar-hitboxes*))
+                       (bar-pointer-hitboxes)))
          (module (first hit)))
     (when module
       (cond
@@ -1107,7 +1151,7 @@ here, the prompt surfaces live there)."
   (let* ((hit (find-if (lambda (hb)
                          (and (<= (second hb) x)
                               (< x (third hb))))
-                       *bar-hitboxes*))
+                       (bar-pointer-hitboxes)))
          (module (first hit)))
     (when (and (listp module) (getf module :name) (getf module :menu))
       (format t "~&; Rhizome: bar: tray menu ~A~%" (getf module :name))
@@ -1142,12 +1186,15 @@ here, the prompt surfaces live there)."
       (case event-name
         (:enter
          (destructuring-bind (surface x y) args
-           (declare (ignore surface y))
-           (setf *bar-pointer-x* x)))
+           (declare (ignore y))
+           ;; which output's bar the pointer is over: its hitboxes
+           (setf *bar-pointer-ostate* (gethash surface *bar-surface-states*)
+                 *bar-pointer-x* x)))
         (:leave
          (destructuring-bind (surface) args
            (declare (ignore surface))
-           (setf *bar-pointer-x* nil)))
+           (setf *bar-pointer-ostate* nil
+                 *bar-pointer-x* nil)))
         (:motion
          (destructuring-bind (time x y) args
            (declare (ignore time y))
@@ -1195,22 +1242,30 @@ here, the prompt surfaces live there)."
                             (wl:wl-proxy-hooks pointer)))))))
             (wl:wl-proxy-hooks seat)))))
 
-(defun bar-open-surface (state)
-  "Create the bar's layer surface on STATE's output: anchored to the
-top, inset by (:bar :margin), with an exclusive zone of twice the
-margin plus the height. The compositor's configure event maps it."
-  (let* ((surface (wl:wl-compositor.create-surface
-                   (gethash :compositor state)))
+(defun bar-open-surface (state output)
+  "Create the bar's layer surface on OUTPUT: anchored to the top,
+inset by (:bar :margin), with an exclusive zone of twice the margin
+plus the height. The compositor's configure event maps it. Per
+output: its own state hash (surface, shm buffer, hitboxes),
+registered in *bar-output-states* / *bar-surface-states*."
+  (let* ((ostate (make-hash-table))
+         (surface (wl:wl-compositor.create-surface
+                    (gethash :compositor state)))
          (layer-surface
            (rwm:zwlr-layer-shell-v1.get-layer-surface
              (gethash :layer-shell state) surface
-             (gethash :output state) :top "rhizome-bar"))
+             output :top "rhizome-bar"))
          (margin (config-getf '(:bar) :margin :default 8))
          (height (config-getf '(:bar) :height :default 28)))
-    (setf (gethash :surface state) surface
-          (gethash :layer-surface state) layer-surface)
+    (setf (gethash :output ostate) output
+          (gethash :shm ostate) (gethash :shm state)
+          (gethash :height ostate) height
+          (gethash :surface ostate) surface
+          (gethash :layer-surface ostate) layer-surface)
+    (setf (gethash output *bar-output-states*) ostate
+          (gethash surface *bar-surface-states*) ostate)
     (push (lambda (event-name &rest args)
-            (bar-layer-surface-handler state layer-surface
+            (bar-layer-surface-handler ostate layer-surface
                                        event-name args))
           (wl:wl-proxy-hooks layer-surface))
     (rwm:zwlr-layer-surface-v1.set-anchor layer-surface '(:top :left :right))
@@ -1219,29 +1274,37 @@ margin plus the height. The compositor's configure event maps it."
                                                   (+ (* 2 margin) height))
     (rwm:zwlr-layer-surface-v1.set-keyboard-interactivity layer-surface :none)
     (rwm:zwlr-layer-surface-v1.set-size layer-surface 0 height)
-    (wl:wl-surface.commit surface)))
+    (wl:wl-surface.commit surface)
+    ostate))
 
-(defun bar-close-surface (state)
-  "Destroy the bar's layer surface, wl_surface and shm buffer. River
-drops the bar's exclusive zone with the surface."
-  (when (gethash :layer-surface state)
-    (rwm:zwlr-layer-surface-v1.destroy (gethash :layer-surface state)))
-  (when (gethash :surface state)
-    (wl:wl-surface.destroy (gethash :surface state)))
-  (bar-destroy-shm state)
-  (setf (gethash :layer-surface state) nil
-        (gethash :surface state) nil
-        (gethash :mapped state) nil
-        *bar-last-content* nil))
+(defun bar-close-surface (ostate)
+  "Destroy one output's bar: layer surface, wl_surface and shm
+buffer. River drops that output's exclusive zone with the surface."
+  (when (gethash :layer-surface ostate)
+    (rwm:zwlr-layer-surface-v1.destroy (gethash :layer-surface ostate)))
+  (when (gethash :surface ostate)
+    (wl:wl-surface.destroy (gethash :surface ostate)))
+  (bar-destroy-shm ostate)
+  (when (eq *bar-pointer-ostate* ostate)
+    (setf *bar-pointer-ostate* nil *bar-pointer-x* nil))
+  (remhash (gethash :output ostate) *bar-output-states*)
+  (remhash (gethash :surface ostate) *bar-surface-states*)
+  (setf *bar-last-content* nil))
 
 (defun bar-sync-visibility (state)
-  "Open or close the bar's surface to match :bar-hidden in the WM
-snapshot."
-  (let ((hidden (getf (bar-snapshot) :bar-hidden)))
-    (cond ((and hidden (gethash :surface state))
-           (bar-close-surface state))
-          ((and (not hidden) (null (gethash :surface state)))
-           (bar-open-surface state)))))
+  "Open or close the bar's surfaces to match :bar-hidden in the WM
+snapshot: a bar on EVERY bound output, or none."
+  (let ((hidden (getf (bar-snapshot) :bar-hidden))
+        (outputs (gethash :outputs state)))
+    (cond (hidden
+           (dolist (ostate (loop for o being the hash-values
+                                    of *bar-output-states*
+                                  collect o))
+             (bar-close-surface ostate)))
+          (t
+           (dolist (output outputs)
+             (unless (gethash output *bar-output-states*)
+               (bar-open-surface state output)))))))
 
 (defun bar-run-loop (state)
   "Open the bar's Wayland connection and drive its tick loop. Each
@@ -1278,8 +1341,8 @@ tick opens or closes the bar's surface to follow the WM snapshot."
             (bar-setup-pointer state)
             (bar-sync-visibility state)
             (loop for i below 100
-                  until (or (gethash :mapped state)
-                            (null (gethash :surface state))
+                  until (or (bar-any-mapped-p)
+                            (null (gethash :outputs state))
                             (not *bar-running*))
                   do (safe-roundtrip display)
                      (sleep 0.05))
@@ -1290,19 +1353,21 @@ tick opens or closes the bar's surface to follow the WM snapshot."
                        (when (/= tray-was *tray-changed*)
                          ;; new/removed items: invalidate content
                          (setf *bar-last-content* nil)))
-                     (when (and (gethash :mapped state)
+                     (when (and (bar-any-mapped-p)
                                 (or (bar-content-changed-p)
                                     (/= *tray-render-stamp*
                                         *tray-changed*)
                                     (not (eq (bar-hover-module-now)
                                              *bar-hover-rendered*))))
                        (setf *tray-render-stamp* *tray-changed*)
-                       (bar-render state))
+                       (bar-render-all))
                      (loop while (and *bar-running*
                                       (wl:wl-display-listen display))
                            do (safe-dispatch display))
                      (sleep (config-getf '(:bar) :interval :default 0.15)))
-            (bar-destroy-shm state)))
+            (dolist (ostate (loop for o being the hash-values
+                                     of *bar-output-states* collect o))
+              (bar-close-surface ostate))))
       (error (e)
         (format t "~&; Rhizome: bar thread error: ~A~%" e)))))
 
