@@ -5,6 +5,15 @@
 
 (in-package #:rhizome)
 
+;; The display configurator is a MODULE now: load it from the repo's
+;; modules/ directory (the same way a user loads it)
+(let ((*module-directory*
+        (make-pathname
+          :directory (append (pathname-directory
+                               (asdf:system-source-directory :rhizome))
+                              '("modules")))))
+  (load-module "rhizome-display"))
+
 ;; Bar off: no call made while this suite runs may spawn a bar process.
 (configure '(:bar (:enabled nil)))
 

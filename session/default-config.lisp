@@ -5,4 +5,6 @@
 ;; Modules
 (rhizome:load-module "rhizome-hello")
 (rhizome:load-module "rhizome-net")
+(rhizome:load-module "rhizome-display")
+(rhizome:load-module "rhizome-scratchpads")
 (rhizome:configure '(:modules (:network (:on-click "rhizome-cmd network-menu"))))

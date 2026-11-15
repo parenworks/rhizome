@@ -1,3 +1,12 @@
+;;; rhizome-scratchpads — the scratchpad module.
+;;;
+;;; C-t ; toggles the default scratchpad (a floating foot
+;;; terminal); rhizome-cmd scratchpad toggle via IPC; multiple
+;;; scratchpads via :scratchpads :entries config. Loaded with
+;;; (rhizome:load-module "rhizome-scratchpads") — the binding and
+;;; the command install at module load (the keymap layer keeps
+;;; them across default re-builds).
+
 ;;; Scratchpads — the StumpWM C-t ; toggle
 ;;;
 ;;; A scratchpad is a hidden floating window (typically a terminal)
@@ -149,3 +158,14 @@ on first use; hides it if visible; shows it if hidden or dead."
                                     (window-minimized-p (getf state :window)))
                      :floating (and (getf state :window)
                                    (window-floating-p (getf state :window))))))
+
+;;; --- install: binding + command, at module load ---
+
+(define-prefix-key 59 (lambda () (toggle-scratchpad))
+  "toggle the scratchpad")
+
+(define-command :scratchpad (output args)
+  "Toggle a scratchpad (default: term). Use arg LIST to see all."
+  (if (and args (string= (first args) "list"))
+      (list-scratchpads)
+      (toggle-scratchpad (and args (first args)))))
