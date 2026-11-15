@@ -169,3 +169,7 @@ stubbed river requests. Run with:
   of cold-starting a fresh one: pgrep parsing, adoption in start-bar
   (extras reaped, nothing launched), adopted liveness in bar-alive-p,
   and the handover flag. All subprocess calls stubbed.
+- `network-menu.lisp` - the network configurator: nmcli terse-line
+  parsing (escaped colons in SSIDs), scan dedupe by SSID (strongest
+  band wins) and signal sort, signal bars, connect/toggle argv.
+  All nmcli calls stubbed.

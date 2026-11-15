@@ -57,6 +57,12 @@ read from the snapshot file. Refreshed at most once per tick."
 (defparameter *tray-render-stamp* 0
   "The *tray-changed* value at the last render; a mismatch forces a
 bar re-render even when text modules are unchanged.")
+
+(defparameter *bar-hover-rendered* '%none
+  "The module under the pointer as of the last render ('%none when
+the pointer is off the bar). Pointer motion alone must re-render —
+the hover veil otherwise bakes into the buffer at click time and
+stays greyed over the module until unrelated content changes.")
 (defparameter *bar-hitboxes* nil
   "Module click regions: list of (module-name start-x end-x),
 recorded during rendering.")
@@ -447,14 +453,60 @@ what is actually drawn."
   "Pixel width of an icons module (icons + inter-icon gaps)."
   (* (+ *bar-icon-size* 4) (length (bar-icons-entries module))))
 
+(defun icon-svg-cache-path (svg)
+  "Where SVG's rasterized PNG lives (~/.cache/rhizome/icons/)."
+  (let* ((name (pathname-name svg))
+         (dir (merge-pathnames #P".cache/rhizome/icons/"
+                               (user-homedir-pathname))))
+    (ensure-directories-exist dir)
+    (merge-pathnames (make-pathname :name name :type "png") dir)))
+
+(defun rasterize-icon-svg (svg)
+  "Rasterize SVG to a 64x64 PNG via rsvg-convert (cached by name).
+Returns the PNG path, or NIL when the tool is missing or fails."
+  (let ((png (icon-svg-cache-path svg)))
+    (or (and (probe-file png) png)
+        (handler-case
+            (progn
+              (uiop:run-program
+                (list "rsvg-convert" "-w" "64" "-h" "64"
+                      "--output" (namestring png) (namestring svg))
+                :ignore-error-status t)
+              (and (probe-file png) png))
+          (error () nil)))))
+
+(defun icon-theme-search (spec)
+  "Search every installed icon theme's category directories for
+SPEC.png or SPEC.svg (the SNI items that only ship themed icons —
+variety-indicator, for one — live in panel/status categories the
+hicolor apps search never sees). Returns a PNG path or NIL."
+  (labels ((find-ext (type)
+             (loop for root in (append
+                                  (list (merge-pathnames
+                                          #P".local/share/icons/"
+                                          (user-homedir-pathname)))
+                                  (uiop:directory* #P"/usr/share/icons/*/"))
+                   for hits = (directory
+                                (merge-pathnames
+                                  (make-pathname
+                                    :directory '(:relative :wild-inferiors)
+                                    :name spec :type type)
+                                  root))
+                   when hits return (first hits))))
+    (or (find-ext "png")
+        (let ((svg (find-ext "svg")))
+          (and svg (rasterize-icon-svg svg))))))
+
 (defun find-icon-file (spec)
   "Resolve an :icon spec — an absolute path, or an icon name searched
-in the standard theme directories (PNG only)."
+in the standard hicolor apps directories (PNG), then every theme's
+category directories (PNG or rasterized SVG)."
   (cond ((and (find #\/ spec) (probe-file spec)) spec)
-        (t (loop for dir in *bar-icon-dirs*
-                 for file = (concatenate 'string dir spec ".png")
-                 when (probe-file file)
-                   return file))))
+        (t (or (loop for dir in *bar-icon-dirs*
+                     for file = (concatenate 'string dir spec ".png")
+                     when (probe-file file)
+                       return file)
+               (icon-theme-search spec)))))
 
 (defun scale-icon (source-w source-h source-data target-size)
   "Scale decoded RGBA data to TARGET-SIZE x TARGET-SIZE,
@@ -823,10 +875,13 @@ after it."
               (dolist (hb *bar-hitboxes*)
                 (when (and (<= (second hb) *bar-pointer-x*)
                            (< *bar-pointer-x* (third hb)))
-                  (fill-rounded-rect ptr width height
-                                     (second hb) 2
-                                     (- (third hb) (second hb)) (- height 4)
-                                     ar ag ab :alpha 35 :radius 4))))))))
+                  (blend-rounded-rect ptr width height
+                                      (second hb) 2
+                                      (- (third hb) (second hb)) (- height 4)
+                                      ar ag ab :alpha 35 :radius 4))))))))
+    ;; stamp the hovered module even when no veil was drawn, so the
+    ;; tick loop re-renders when the pointer leaves the bar
+    (setf *bar-hover-rendered* (bar-hover-module-now))
     (wl:wl-surface.attach (gethash :surface state) (gethash :wl-buffer state) 0 0)
     (wl:wl-surface.damage (gethash :surface state) 0 0 width height)
     (wl:wl-surface.commit (gethash :surface state))))
@@ -988,6 +1043,12 @@ last commit. Re-renders are skipped when nothing changed."
       t)))
 
 ;;; --- Pointer handling (clickable modules) ---
+
+(defun bar-hover-module-now ()
+  "The module under the pointer (or '%none), from the CURRENT
+hitboxes and pointer position."
+  (or (and *bar-pointer-x* (bar-module-at *bar-pointer-x*))
+      '%none))
 
 (defun bar-module-at (x)
   "The module whose rendered area contains X, or NIL."
@@ -1232,7 +1293,9 @@ tick opens or closes the bar's surface to follow the WM snapshot."
                      (when (and (gethash :mapped state)
                                 (or (bar-content-changed-p)
                                     (/= *tray-render-stamp*
-                                        *tray-changed*)))
+                                        *tray-changed*)
+                                    (not (eq (bar-hover-module-now)
+                                             *bar-hover-rendered*))))
                        (setf *tray-render-stamp* *tray-changed*)
                        (bar-render state))
                      (loop while (and *bar-running*

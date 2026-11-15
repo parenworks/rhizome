@@ -41,6 +41,14 @@ menu-path-or-nil).")
                       :id nil :title nil :status nil
                       :icon-name nil :icon nil :menu nil)))
       (tray-refresh-item item)
+      (format t "~&; Rhizome: tray: ~A icon=~s icon-name=~s title=~s~%"
+              bus-name
+              (and (getf item :icon)
+                   (list (first (getf item :icon))
+                         (second (getf item :icon))
+                         (length (third (getf item :icon)))))
+              (getf item :icon-name)
+              (getf item :title))
       (push item *tray-items*)
       (setf *tray-items* (nreverse *tray-items*))
       (incf *tray-changed*)

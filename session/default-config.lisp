@@ -4,3 +4,4 @@
 (rhizome:configure '(:window-rules ((:match "flameshot" :float t))))
 ;; Modules
 (rhizome:load-module "rhizome-hello")
+(rhizome:configure '(:modules (:network (:on-click "rhizome-cmd network-menu"))))

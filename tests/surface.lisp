@@ -95,7 +95,20 @@
         (blend-pixel ptr w h 0 0 255 255 255 :alpha 0)
         (ok "alpha-0 blend is a no-op"
             (get-pixel-argb ptr w h 0 0) before))
-      (cffi:foreign-free ptr))
+      ;; blend-rounded-rect: hovers veil OVER pixels, never replace
+      (let* ((vw 50) (vh 30)
+             (ptr (cffi:foreign-alloc :unsigned-char
+                                      :count (* 4 vw vh))))
+        (put-pixel-argb ptr vw vh 1 1 (make-argb 200 40 60))
+        (blend-rounded-rect ptr vw vh 0 0 vw vh 122 162 247 :alpha 35)
+        (let ((p (get-pixel-argb ptr vw vh 1 1)))
+          (ok "hover blend keeps the pixel opaque"
+              (logand 255 (ash p -24)) 255)
+          (ok "hover blend shifts red toward the accent"
+              (< 122 (logand 255 (ash p -16)) 200) t)
+          (ok "hover blend is subtle"
+              (< (abs (- (logand 255 (ash p -16)) 181)) 40) t))
+        (cffi:foreign-free ptr)))
 
     (format t "~&=== ~D passed, ~D failed ===~%" pass fail)
     (uiop:quit (if (zerop fail) 0 1))))

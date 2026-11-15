@@ -141,6 +141,26 @@ selection-pill primitive. Bounds-checked; premultiplied."
             (put-pixel-argb ptr width height px py
                             (make-argb r g b :alpha alpha))))))))
 
+(defun blend-rounded-rect (ptr width height x y w h r g b
+                           &key (alpha 255) (radius 0))
+  "Blend a (rounded when RADIUS > 0) translucent rect OVER the
+existing pixels (source-over) — unlike fill-rounded-rect, which
+REPLACES them: the bar's hover veil must keep the module pixels
+it covers, not punch a transparent hole through the bar.
+Bounds-checked; premultiplied."
+  (loop for dy below h
+        for py = (+ y dy)
+        while (< py height) do
+    (loop for dx below w
+          for px = (+ x dx)
+          while (and (< px width) (>= px 0) (>= py 0)) do
+      (when (and (>= px 0) (>= dy 0))
+        (multiple-value-bind (inside border-p)
+            (rounded-rect-test dx dy w h radius)
+          (declare (ignore border-p))
+          (when inside
+            (blend-pixel ptr width height px py r g b :alpha alpha)))))))
+
 (defun paint-rounded-surface (ptr width height r g b
                               &key (alpha 255) (radius 0)
                                 (border-r 255) (border-g 255)
