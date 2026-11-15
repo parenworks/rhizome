@@ -34,6 +34,18 @@ describe-command."
         (funcall handler output args)
         (format t "~&; Rhizome: unknown command ~A~%" command))))
 
+(defvar *rest-of-line-commands* '(:wse :putsel)
+  "Commands that take the rest of an IPC command line as one string
+argument, spaces included, instead of one argument per word.")
+
+(defun command-integer-argument (arg)
+  "ARG as an integer, or NIL. An integer is returned unchanged and a
+string is parsed with junk allowed: IPC hands handlers integers, and
+Lisp callers of execute-command may pass strings."
+  (typecase arg
+    (integer arg)
+    (string (parse-integer arg :junk-allowed t))))
+
 (defun describe-command-prompt ()
   "Prompt for a command name and show its documentation."
   (prompt-open "Describe command"
@@ -76,7 +88,7 @@ describe-command."
   "Move the current split's dividing line by ARG pixels (default +30)."
   (resize-current-split output (current-workspace output)
                         (or (and args
-                                 (parse-integer (first args) :junk-allowed t))
+                                 (command-integer-argument (first args)))
                             30)))
 
 (define-command :focus-left (output args)
@@ -147,14 +159,14 @@ describe-command."
 (define-command :select-window (output args)
   "Focus the window with number N. Usage: select-window <n>"
   (when args
-    (select-window-by-number (or (parse-integer (first args) :junk-allowed t)
+    (select-window-by-number (or (command-integer-argument (first args))
                                  -1))))
 
 (define-command :pull (output args)
   "Pull the window with number N into the current frame.
 Usage: pull <n>"
   (when args
-    (pull-window-by-number (or (parse-integer (first args) :junk-allowed t)
+    (pull-window-by-number (or (command-integer-argument (first args))
                                -1)
                            output
                            (current-workspace output))))
@@ -217,7 +229,7 @@ Usage: pull <n>"
   "Move every marked window to WORKSPACE and clear the marks
 (StumpWM: gmove-marked). Usage: move-marked <workspace>"
   (when args
-    (let ((ws (or (parse-integer (first args) :junk-allowed t)
+    (let ((ws (or (command-integer-argument (first args))
                   -1)))
       (move-marked-to-workspace ws))))
 
@@ -263,11 +275,16 @@ Usage: enable-minor-mode <name>"
 
 (define-command :wse (output args)
   "List windows matching a selection expression.
-Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))"
+Usage: wse <expr>  e.g. wse (:and (:app-id \"firefox\") (:float t))
+or, without the outer parentheses, wse :app-id \"firefox\""
   (declare (ignore output))
   (when args
-    (let ((wins (wse-windows (read-from-string
-                               (format nil "(~A)" (first args))))))
+    (let* ((text (string-trim " " (princ-to-string (first args))))
+           (wins (wse-windows (read-from-string
+                               (if (and (plusp (length text))
+                                        (char= (char text 0) #\())
+                                   text
+                                   (format nil "(~A)" text))))))
       (format nil "~D: ~{~A~^, ~}"
               (length wins)
               (mapcar (lambda (w) (or (window-title w)

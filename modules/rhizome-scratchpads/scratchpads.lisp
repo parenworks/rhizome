@@ -166,6 +166,8 @@ on first use; hides it if visible; shows it if hidden or dead."
 
 (define-command :scratchpad (output args)
   "Toggle a scratchpad (default: term). Use arg LIST to see all."
-  (if (and args (string= (first args) "list"))
-      (list-scratchpads)
-      (toggle-scratchpad (and args (first args)))))
+  (declare (ignore output))
+  (cond ((null args) (toggle-scratchpad))
+        ((string= (princ-to-string (first args)) "list")
+         (list-scratchpads))
+        (t (toggle-scratchpad (princ-to-string (first args))))))

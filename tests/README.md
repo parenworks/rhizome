@@ -179,3 +179,9 @@ stubbed river requests. Run with:
   output: zone reported on A reserves on A, hidden on B reserves
   nothing on B, no reports fall back to config, and the no-argument
   form keeps any-output semantics.
+- `ipc-command-args.lisp` - IPC command lines reach their handlers
+  with each argument parsed once: select-window, pull, move-marked,
+  and resize-split take an integer argument over IPC or a string one
+  from execute-command; wse and putsel take the rest of the line,
+  spaces included; scratchpad with no argument keeps the default
+  scratchpad. Downstream calls stubbed.
