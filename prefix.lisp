@@ -647,8 +647,6 @@ expose, C-t Return). Placeholder: redefined by expose.lisp."
   "Bind the default C-t keymap, mapped onto rhizome's features. Called
 by setup-default-prefix-bindings, which directs the writes to
 *default-prefix-map*."
-  ;; C-t ; toggles the scratchpad (StumpWM classic)
-  (define-prefix-key 59 (lambda () (toggle-scratchpad)) "toggle the scratchpad")
   ;; C-t w — windowlist (StumpWM: windowlist)
   (define-prefix-key 119 (lambda () (windowlist)) "windowlist")   ; w
   ;; C-t g — workspace picker (StumpWM: group commands)

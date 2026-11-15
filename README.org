@@ -799,7 +799,10 @@ should not redefine core functions; a missing seam is an issue
 first, a patch second. State a module keeps across live reloads
 belongs in =defvar=s, not =defparameter=s (the live-reload rule
 the WM itself follows). A complete, commented one-file example
-lives in =examples/modules/rhizome-hello/=.
+lives in =examples/modules/rhizome-hello/=, and the network
+configurator ships as a real module under =modules/rhizome-net/=
+(symlink or copy it into the module directory and add
+=(rhizome:load-module "rhizome-net")= to your config).
 
 ** Animations
 

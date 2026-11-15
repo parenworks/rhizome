@@ -5,6 +5,16 @@
 
 (in-package #:rhizome)
 
+;; The network menu is a MODULE now: load it from the repo's
+;; modules/ directory (the same way a user loads it from
+;; ~/.config/rhizome/modules/)
+(let ((*module-directory*
+        (make-pathname
+          :directory (append (pathname-directory
+                               (asdf:system-source-directory :rhizome))
+                              '("modules")))))
+  (load-module "rhizome-net"))
+
 (configure '(:bar (:enabled nil)))
 
 (defparameter *stub-out* "")
