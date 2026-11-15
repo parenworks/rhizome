@@ -63,9 +63,13 @@ one surface (and one shm buffer) per output.")
   "The per-output bar state whose surface holds the pointer, or NIL.")
 
 (defun bar-pointer-hitboxes ()
-  "The hitboxes of the bar the pointer is over (any output's when
-the pointer is off the bars)."
+  "The hitboxes of the bar the pointer is over — its own ostate's,
+or any bar's when the surface is unknown (the render loop collects
+hitboxes into each ostate; the old global stopped being populated
+by the per-output rework, which killed clicks and hover)."
   (or (and *bar-pointer-ostate* (gethash :hitboxes *bar-pointer-ostate*))
+      (loop for o being the hash-values of *bar-output-states*
+              thereis (gethash :hitboxes o))
       *bar-hitboxes*))
 
 (defparameter *bar-pointer-x* nil
@@ -1185,11 +1189,14 @@ here, the prompt surfaces live there)."
   (handler-case
       (case event-name
         (:enter
-         (destructuring-bind (surface x y) args
-           (declare (ignore y))
-           ;; which output's bar the pointer is over: its hitboxes
-           (setf *bar-pointer-ostate* (gethash surface *bar-surface-states*)
-                 *bar-pointer-x* x)))
+         ;; wayflan's arity here has varied by event (the serial may
+         ;; ride along); take the LAST three args: surface x y
+         (let* ((a (last args 3))
+                (surface (first a))
+                (x (second a)))
+           (setf *bar-pointer-ostate*
+                   (gethash surface *bar-surface-states*)
+                 *bar-pointer-x* (and x (round x)))))
         (:leave
          (destructuring-bind (surface) args
            (declare (ignore surface))
@@ -1198,7 +1205,7 @@ here, the prompt surfaces live there)."
         (:motion
          (destructuring-bind (time x y) args
            (declare (ignore time y))
-           (setf *bar-pointer-x* x)))
+           (setf *bar-pointer-x* (round x))))
         (:button
          (destructuring-bind (serial time button state) args
            (declare (ignore serial time))
