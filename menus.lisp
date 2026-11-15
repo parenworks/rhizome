@@ -45,20 +45,6 @@
 (defvar *menu-row-height* 26)
 (defvar *menu-padding* 8)
 
-(defun menu-color (key)
-  "A menu color as (values r g b), from (:menus KEY)."
-  (parse-hex-color
-    (config-getf '(:menus) key
-                 :default (case key
-                            (:background "#1f1633")
-                            (:item-color "#c9b8e8")
-                            (:hover-background "#4b3a78")
-                            (:hover-color "#f0e6ff")
-                            (:accent "#7aa2f7")
-                            (:border-color "#4a3a72")
-                            (:disabled "#565f89")
-                            (otherwise "#ffffff")))))
-
 (defun menu-corner-radius ()
   "The menu's corner radius (px) — matching the launcher."
   (config-getf '(:menus) :corner-radius :default 10))
@@ -172,9 +158,9 @@ menu), the first output otherwise (the tray dbusmenu)."
   (setf *menu-shm-size* 0))
 
 (defun menu-render ()
-  "Render the menu into its shm buffer (premultiplied ARGB): the
-hovered row fills with the hover color and carries the accent
-edge; every row's label draws through the font module."
+  "Render the menu into its shm buffer (premultiplied ARGB) in the
+theme's :menu-* colours: the hovered row fills with a pill; every
+row's label draws through the font module."
   (let ((ptr *menu-shm-ptr*))
     (when (or (null ptr) (cffi:null-pointer-p ptr))
       (return-from menu-render))
@@ -182,20 +168,21 @@ edge; every row's label draws through the font module."
     (let* ((w *menu-width*) (h *menu-height*)
            (sa (round (* 255 (min 1.0 (max 0.0
                     (config-getf '(:menus) :opacity :default 0.95))))))
-           (bg-pixel (multiple-value-bind (r g b) (menu-color :background)
+           (bg-pixel (multiple-value-bind (r g b) (theme-rgb :menu-background)
                        (logior (ash sa 24)
                                (ash (round (* r sa) 255) 16)
                                (ash (round (* g sa) 255) 8)
                                (round (* b sa) 255))))
-           (hover-pixel (multiple-value-bind (r g b) (menu-color :hover-background)
+           (hover-pixel (multiple-value-bind (r g b)
+                            (theme-rgb :menu-hover-background)
                           (logior (ash sa 24)
                                   (ash (round (* r sa) 255) 16)
                                   (ash (round (* g sa) 255) 8)
                                   (round (* b sa) 255)))))
       ;; Background: the shared rounded treatment (corners +
       ;; hairline border), one visual language with the launcher
-      (multiple-value-bind (br bg bb) (menu-color :background)
-        (multiple-value-bind (rdr rdg rdb) (menu-color :border-color)
+      (multiple-value-bind (br bg bb) (theme-rgb :menu-background)
+        (multiple-value-bind (rdr rdg rdb) (theme-rgb :menu-border)
           (paint-rounded-surface ptr w h br bg bb
                                  :alpha sa
                                  :radius (menu-corner-radius)
@@ -203,7 +190,7 @@ edge; every row's label draws through the font module."
       ;; Hover: a rounded PILL fill on the hovered row (the accent
       ;; edge bar is retired), inset from the padding
       (when (>= *menu-hover* 0)
-        (multiple-value-bind (r g b) (menu-color :hover-background)
+        (multiple-value-bind (r g b) (theme-rgb :menu-hover-background)
           (fill-rounded-rect ptr w h
                              (- *menu-padding* 4)
                              (+ *menu-padding*
@@ -212,8 +199,8 @@ edge; every row's label draws through the font module."
                              (- *menu-row-height* 4)
                              r g b :alpha sa :radius 6)))
       ;; Labels
-      (multiple-value-bind (ir ig ib) (menu-color :item-color)
-        (multiple-value-bind (hvr hvg hvb) (menu-color :hover-color)
+      (multiple-value-bind (ir ig ib) (theme-rgb :menu-item)
+        (multiple-value-bind (hvr hvg hvb) (theme-rgb :menu-hover-foreground)
           (loop for i from 0 below (length *menu-items*)
                 for y = (+ *menu-padding* (* i *menu-row-height*))
                 for label = (first (nth i *menu-items*))

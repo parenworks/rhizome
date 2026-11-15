@@ -1,0 +1,18 @@
+Credits for the colour themes in this directory
+
+Each .theme file carries its own header with its origin, authors, and
+licence. This file collects those headers in one place.
+
+tokyo-night.theme
+  Origin: rhizome's default colours. The bar, prompt, message, border,
+    and recording colours come from the Tokyo Night palette; the
+    launcher and menu purples, the unfocused border, and the shadow
+    base are rhizome's own.
+  Authors: Tokyo Night palette by Enkia (tokyo-night-vscode-theme,
+    https://github.com/tokyo-night/tokyo-night-vscode-theme), also
+    carried by folke's tokyonight.nvim
+    (https://github.com/folke/tokyonight.nvim, Apache-2.0); rhizome's
+    colours by Glenn Thompson.
+  Licence: the palette is MIT, "Copyright (c) 2018-present Enkia"; the
+    full MIT notice is in tokyo-night.theme. The file is part of
+    rhizome, AGPL-3.0-or-later.

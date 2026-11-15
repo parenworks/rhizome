@@ -34,8 +34,8 @@
     (ok "default font size"
         (config-getf '(:theme) :font-size) 14)
     (ok "default launcher background"
-        (config-getf '(:launcher) :background) "#23142d")
-    (multiple-value-bind (r g b) (launcher-color :background)
+        (theme-color :launcher-background) "#23142d")
+    (multiple-value-bind (r g b) (theme-rgb :launcher-background)
       (ok "launcher color parsed"
           (list r g b) '(35 20 45)))
 
@@ -47,7 +47,7 @@
     (multiple-value-bind (r g b) (theme-border-rgb nil)
       (ok "unfocused border default"
           (list r g b) '(64 64 64)))
-    (configure '(:theme (:focused-border "#ff0000")))
+    (configure '(:theme (:elements (:border-focused "#ff0000"))))
     (multiple-value-bind (r g b) (theme-border-rgb t)
       (ok "focused border override"
           (list r g b) '(255 0 0)))
@@ -57,15 +57,15 @@
     (ok "message line height positive"
         (> (message-line-height) 0) t)
 
-    ;; --- module part protocol (gap / underline flags) ---
+    ;; --- module part protocol (gap / pill flags) ---
 
     (ok "dotted part has no flags"
         (bar-part-flags '("1" . "#7aa2f7")) nil)
     (ok "bare part has no flags"
         (bar-part-flags '("2")) nil)
     (ok "flagged part reads its tail"
-        (bar-part-flags '("1" "#7aa2f7" :underline t :gap 8))
-        '(:underline t :gap 8))
+        (bar-part-flags '("1" "#7aa2f7" :pill t :gap 8))
+        '(:pill t :gap 8))
     (ok "part width includes its gap"
         (- (bar-part-width '("ab" nil :gap 7))
            (bar-text-width "ab"))

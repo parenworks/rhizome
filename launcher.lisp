@@ -893,23 +893,6 @@ row. Reuses the bar's icon discovery/scaling (bar.lisp)."
                       (over 1 (row-major-aref idata (+ sidx 1)))
                       (over 2 (row-major-aref idata sidx)))))))))))))
 
-(defun launcher-color (key)
-  "A launcher surface color as (values r g b), from (:launcher KEY)."
-  (parse-hex-color
-    (config-getf '(:launcher) key
-                 :default (case key
-                            (:background "#23142d")
-                            (:accent "#7aa2f7")
-                            (:prompt-color "#8c64aa")
-                            (:query-color "#dcc8f0")
-                            (:cursor-color "#b4a0d2")
-                            (:selection-background "#503278")
-                            (:selected-color "#f0e6ff")
-                            (:entry-color "#aa96c8")
-                            (:border-color "#4a3a66")
-                            (:placeholder-color "#6b5a8a")
-                            (otherwise "#ffffff")))))
-
 (defun launcher-corner-radius ()
   "The launcher's corner radius (px) — the fuzzel look."
   (config-getf '(:launcher) :corner-radius :default 12))
@@ -942,7 +925,7 @@ border is the 1px ring at the rounded rect's edge."
 (defun launcher-paint-background (ptr width height r g b)
   "The fuzzel look: a rounded-corner fill with a 1px hairline
 border, alpha-cut at the corners. Premultiplied ARGB."
-  (multiple-value-bind (brd-r brd-g brd-b) (launcher-color :border-color)
+  (multiple-value-bind (brd-r brd-g brd-b) (theme-rgb :launcher-border)
     (let ((a (launcher-surface-alpha))
           (radius (launcher-corner-radius)))
       (loop for y below height
@@ -958,17 +941,17 @@ border, alpha-cut at the corners. Premultiplied ARGB."
 
 (defun launcher-render-to-shm (width height)
   "Render the launcher UI directly to the shared memory buffer.
-All colors come from the (:launcher ...) config group; text goes
-through the font module (see font.lisp)."
+Colours come from the theme's :launcher-* elements (theme.lisp);
+text goes through the font module (see font.lisp)."
   (let ((ptr *launcher-shm-ptr*))
     (when (or (not ptr) (cffi:null-pointer-p ptr))
       (return-from launcher-render-to-shm))
     (font-ensure-initialized)
-    (multiple-value-bind (br bg bb) (launcher-color :background)
+    (multiple-value-bind (br bg bb) (theme-rgb :launcher-background)
       (launcher-paint-background ptr width height br bg bb))
-      (multiple-value-bind (pr pg pb) (launcher-color :prompt-color)
-        (multiple-value-bind (qr qg qb) (launcher-color :query-color)
-          (multiple-value-bind (cr cg cb) (launcher-color :cursor-color)
+      (multiple-value-bind (pr pg pb) (theme-rgb :launcher-prompt)
+        (multiple-value-bind (qr qg qb) (theme-rgb :launcher-query)
+          (multiple-value-bind (cr cg cb) (theme-rgb :launcher-cursor)
             (let ((prompt-text "Run: ")
                   (query-x (+ *launcher-padding*
                               (font-text-width "Run: "))))
@@ -993,13 +976,13 @@ through the font module (see font.lisp)."
               ;; Placeholder: the dim hint when no query yet
               (when (string= *launcher-query* "")
                 (multiple-value-bind (phr phg phb)
-                    (launcher-color :placeholder-color)
+                    (theme-rgb :launcher-placeholder)
                   (launcher-draw-text-shm
                     ptr width "type to search..."
                     (+ query-x 12) *launcher-padding* phr phg phb)))
               ;; Match count, top-right
               (multiple-value-bind (phr phg phb)
-                  (launcher-color :placeholder-color)
+                  (theme-rgb :launcher-placeholder)
                 (let ((count-text (format nil "~D of ~D"
                                           (length *launcher-entries*)
                                           (length *launcher-app-list*))))
@@ -1010,9 +993,9 @@ through the font module (see font.lisp)."
                     *launcher-padding* phr phg phb)))
               ;; Draw filtered entries (scrolled)
               (multiple-value-bind (selr selg selb)
-                  (launcher-color :selection-background)
-                (multiple-value-bind (str stg stb) (launcher-color :selected-color)
-                  (multiple-value-bind (etr etg etb) (launcher-color :entry-color)
+                  (theme-rgb :launcher-selection)
+                (multiple-value-bind (str stg stb) (theme-rgb :launcher-selected)
+                  (multiple-value-bind (etr etg etb) (theme-rgb :launcher-entry)
                     (let ((y-start (+ *launcher-padding* *launcher-line-height*)))
                       (loop for entry in (nthcdr *launcher-scroll-offset* *launcher-entries*)
                             for i from *launcher-scroll-offset*
@@ -1070,7 +1053,7 @@ through the font module (see font.lisp)."
                             (if match-pos
                               (let ((mlen (length *launcher-query*)))
                                 (multiple-value-bind (acr acg acb)
-                                    (launcher-color :accent)
+                                    (theme-rgb :launcher-match)
                                   ;; before / match / after segments
                                   (launcher-draw-text-shm ptr width
                                     (subseq label 0 match-pos)

@@ -1,0 +1,60 @@
+;;;; tokyo-night.theme: rhizome colour theme, format 1
+;;;;
+;;;; Origin: rhizome's default colours. The bar, prompt, message,
+;;;;   border, and recording colours come from the Tokyo Night palette;
+;;;;   the launcher and menu purples, the unfocused border, and the
+;;;;   shadow base are rhizome's own.
+;;;; Authors: Tokyo Night palette by Enkia (tokyo-night-vscode-theme),
+;;;;   also carried by folke's tokyonight.nvim (Apache-2.0); rhizome's
+;;;;   colours by Glenn Thompson.
+;;;; Licence: the palette is MIT (notice below); this file is part of
+;;;;   rhizome, AGPL-3.0-or-later.
+;;;;
+;;;; The MIT License (MIT)
+;;;;
+;;;; Copyright (c) 2018-present Enkia
+;;;;
+;;;; Permission is hereby granted, free of charge, to any person obtaining
+;;;; a copy of this software and associated documentation files (the
+;;;; "Software"), to deal in the Software without restriction, including
+;;;; without limitation the rights to use, copy, modify, merge, publish,
+;;;; distribute, sublicense, and/or sell copies of the Software, and to
+;;;; permit persons to whom the Software is furnished to do so, subject to
+;;;; the following conditions:
+;;;;
+;;;; The above copyright notice and this permission notice shall be
+;;;; included in all copies or substantial portions of the Software.
+;;;;
+;;;; THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+;;;; EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+;;;; MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+;;;; NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE
+;;;; LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+;;;; OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
+;;;; WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+(:format 1
+ :name "tokyo-night"
+ :roles (:background "#1a1b26"
+         :foreground "#c0caf5"
+         :accent "#7aa2f7"
+         :muted "#565f89"
+         :focus :accent
+         :unfocus "#404040"
+         :hairline "#3b4261"
+         :surface "#23142d"
+         :surface-foreground "#aa96c8"
+         :surface-border "#4a3a66"
+         :selection "#503278"
+         :selection-foreground "#f0e6ff"
+         :match :accent
+         :error "#f7768e"
+         :shadow "#1e1e24")
+ :elements (:launcher-prompt "#8c64aa"
+            :launcher-query "#dcc8f0"
+            :launcher-cursor "#b4a0d2"
+            :launcher-placeholder "#6b5a8a"
+            :menu-background "#1f1633"
+            :menu-border "#4a3a72"
+            :menu-item "#c9b8e8"
+            :menu-hover-background "#4b3a78"))
