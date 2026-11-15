@@ -65,7 +65,7 @@ that reads as an integer becomes that integer; a command listed in
   "Execute one command LINE and return the result as a string.
 A line starting with ( is evaluated as a Lisp form in the RHIZOME
 package; otherwise it is NAME ARGS..., split by parse-command-line and
-looked up in *command-table*.
+looked up with find-command.
 A command's reply is shown on screen only when it is non-empty and the
 command showed no message of its own."
   (let ((line (string-trim " " (remove #\newline line))))
@@ -84,7 +84,7 @@ command showed no message of its own."
          result))
       (t
        (multiple-value-bind (command args) (parse-command-line line)
-         (let ((handler (gethash command *command-table*)))
+         (let ((handler (find-command command)))
            (cond
              (handler
                (let ((serial *message-serial*)
@@ -98,9 +98,7 @@ command showed no message of its own."
                  (show-command-reply result serial *command-reply-seconds*)))
              (t
                (format nil "unknown command: ~A (try: ~{~A~^ ~})"
-                       command (sort (loop for k being the hash-keys of *command-table*
-                                           collect k)
-                                     #'string<))))))))))
+                       command (command-names))))))))))
 
 ;;; --- Unix domain socket via CFFI (no extra dependencies) ---
 

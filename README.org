@@ -500,6 +500,26 @@ list-windows, quit, focus-next/previous, switch-layout) plus arbitrary
 Lisp forms. The bar's workspace numbers use this socket to switch
 workspaces on click.
 
+** Defining commands
+
+=rhizome:define-command= registers a command from any package, such as
+config.lisp or a module. The command runs from =rhizome-cmd=, the
+command palette, and =execute-command=, and C-t h c shows its
+docstring. The handler receives the output and the arguments (strings,
+or integers where a token parses as one); its value is the reply.
+
+#+begin_src lisp
+(rhizome:define-command :greet (output args)
+  "Greet each argument."
+  (declare (ignore output))
+  (format nil "hello~{ ~A~}" args))
+#+end_src
+
+=rhizome-cmd greet world= replies =hello world=. Evaluating the form
+again replaces the command, docstring included. =find-command= returns
+a command's handler, or NIL, and =command-names= lists the registered
+names.
+
 ** SLY integration
 
 The WM starts a slynk server on =127.0.0.1:4005= (configurable via
