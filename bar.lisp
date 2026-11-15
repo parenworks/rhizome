@@ -1481,24 +1481,31 @@ first. Exact-matches the run-bar eval, never the WM (its arg is
   "Maps each output to the height of its non-exclusive area, as river
 last reported it.")
 
-(defun bar-zone-shown-p ()
+(defun bar-zone-shown-p (&optional output)
   "True when river reports an exclusive zone at least as tall as the
-bar on some output, or has reported no area at all."
+bar. With OUTPUT, on THAT output (no report at all for it counts as
+shown — the config fallback); without, on some output."
   (let ((bar-height (config-getf '(:bar) :height :default 28)))
-    (or (zerop (hash-table-count *bar-non-exclusive-heights*))
-        (loop for out being the hash-keys of *bar-non-exclusive-heights*
-                using (hash-value height)
-              thereis (>= (- (output-height out) height) bar-height)))))
+    (if output
+        (let ((height (gethash output *bar-non-exclusive-heights*)))
+          (or (null height)
+              (>= (- (output-height output) height) bar-height)))
+        (or (zerop (hash-table-count *bar-non-exclusive-heights*))
+            (loop for out being the hash-keys of *bar-non-exclusive-heights*
+                    using (hash-value height)
+                  thereis (>= (- (output-height out) height) bar-height))))))
 
-(defun bar-reserved-height ()
-  "Vertical pixels the layout must leave for the bar: margin above +
-height + margin below, so windows tile with the same gap under the
-floating bar as above it. 0 when the bar is disabled, or when river
-reports output areas but no exclusive zone at least as tall as the bar
+(defun bar-reserved-height (&optional output)
+  "Vertical pixels the layout must leave for the bar on OUTPUT (or,
+with no argument, when any output shows it): margin above + height +
+margin below, so windows tile with the same gap under the floating
+bar as above it. 0 when the bar is disabled, or when river reports
+that output's area but no exclusive zone at least as tall as the bar
 (hidden or still starting). The WM reserves this itself in its
-layout math because it positions windows explicitly."
+layout math because it positions windows explicitly — per output,
+so a bar on one output never pads another's layout."
   (if (and (config-getf '(:bar) :enabled :default t)
-           (bar-zone-shown-p))
+           (bar-zone-shown-p output))
       (+ (* 2 (config-getf '(:bar) :margin :default 8))
          (config-getf '(:bar) :height :default 28))
       0))
@@ -1515,11 +1522,11 @@ space and request a manage sequence."
   "Record river's non-exclusive area HEIGHT for OUTPUT, or forget
 OUTPUT when HEIGHT is NIL. Re-tile when the reserved bar space
 changes."
-  (let ((before (bar-reserved-height)))
+  (let ((before (bar-reserved-height output)))
     (if height
         (setf (gethash output *bar-non-exclusive-heights*) height)
         (remhash output *bar-non-exclusive-heights*))
-    (unless (eql before (bar-reserved-height))
+    (unless (eql before (bar-reserved-height output))
       (bar-retile))))
 
 (defun toggle-bar ()

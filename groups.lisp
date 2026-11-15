@@ -39,7 +39,7 @@ in-session hash wins; config-declared defaults come next via
 (defun float-all (output workspace)
   "Float every tiled window on the workspace in a cascade."
   (let* ((base-x (output-x output))
-         (base-y (+ (output-y output) (bar-reserved-height)))
+         (base-y (+ (output-y output) (bar-reserved-height output)))
          (i 0))
     (dolist (win (windows-on-workspace output workspace))
       (unless (window-minimized-p win)
@@ -101,6 +101,6 @@ existing floats instead of tiling it."
     (float-window win
                   :x (+ (output-x output) 60 (* 40 i))
                   :y (+ (output-y output)
-                        (bar-reserved-height)
+                        (bar-reserved-height output)
                         60
                         (* 30 i)))))

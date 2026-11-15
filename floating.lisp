@@ -96,9 +96,9 @@ and maximize ride this)."
 geometry minus the bar's reserved strip at the top. Matches the
 tiling's convention everywhere bar-reserved-height appears."
   (values (output-x out)
-          (+ (output-y out) (bar-reserved-height))
+          (+ (output-y out) (bar-reserved-height out))
           (output-width out)
-          (max 0 (- (output-height out) (bar-reserved-height)))))
+          (max 0 (- (output-height out) (bar-reserved-height out)))))
 
 (defun maximize-window (win)
   "Float WIN to the usable area of its output, saving the

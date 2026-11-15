@@ -175,3 +175,7 @@ stubbed river requests. Run with:
   parsing (escaped colons in SSIDs), scan dedupe by SSID (strongest
   band wins) and signal sort, signal bars, connect/toggle argv.
   All nmcli calls stubbed.
+- `bar-reserved-per-output.lisp` - the layout reserves bar space per
+  output: zone reported on A reserves on A, hidden on B reserves
+  nothing on B, no reports fall back to config, and the no-argument
+  form keeps any-output semantics.

@@ -32,7 +32,7 @@ restore when the ribbon exits).")
 
 (defun scroll-content-height (output)
   "Usable column height: below the bar."
-  (max 0 (- (output-height output) (bar-reserved-height))))
+  (max 0 (- (output-height output) (bar-reserved-height output))))
 
 (defun scroll-total-width (state)
   "Total ribbon width: columns times the column width."
@@ -55,7 +55,7 @@ coordinates: the ribbon scrolls under the viewport."
          (cw (getf state :column-width))
          (sx (getf state :scroll-x))
          (gx (output-x output))
-         (gy (+ (output-y output) (bar-reserved-height)))
+         (gy (+ (output-y output) (bar-reserved-height output)))
          (ch (scroll-content-height output)))
     (loop for win in (getf state :columns)
           for i from 0

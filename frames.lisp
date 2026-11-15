@@ -56,7 +56,7 @@ full-screen frame (the StumpWM default — split from there)."
             (make-frame
               :width (output-width output)
               :height (max 0 (- (output-height output)
-                                (bar-reserved-height)))))))
+                                (bar-reserved-height output)))))))
 
 (defun frame-leaves (frame)
   "All leaf frames of the tree rooted at FRAME, in layout order."
@@ -426,7 +426,7 @@ only, C-t Q). The removed splits' user marks go with them."
                 (frame-y cur) 0
                 (frame-width cur) (output-width output)
                 (frame-height cur) (max 0 (- (output-height output)
-                                              (bar-reserved-height)))
+                                              (bar-reserved-height output)))
                 (frame-parent cur) nil
                 (frame-first-child cur) nil
                 (frame-second-child cur) nil
@@ -578,7 +578,7 @@ dump."
   (let* ((root-rect (dump-rect sexp))
          (content-w (output-width output))
          (content-h (max 0 (- (output-height output)
-                              (bar-reserved-height))))
+                              (bar-reserved-height output))))
          (sx (if (plusp (third root-rect))
                  (/ content-w (third root-rect)) 1))
          (sy (if (plusp (fourth root-rect))
@@ -689,7 +689,7 @@ Falls back to a single frame when RECTS aren't a valid partition."
          (tree (build-tree-from-rects rects))
          (width (output-width output))
          (height (max 0 (- (output-height output)
-                          (bar-reserved-height)))))
+                          (bar-reserved-height output)))))
     ;; Floats are not part of the tiling: take everyone out of the
     ;; old tree, then distribute the tiled windows across the new one
     (dolist (win windows) (frame-remove-window win))
@@ -753,7 +753,7 @@ geometry at creation, so this runs whenever the reservation or the
 output dimensions change."
   (let ((width (output-width output))
         (height (max 0 (- (output-height output)
-                          (bar-reserved-height)))))
+                          (bar-reserved-height output)))))
     (maphash (lambda (key root)
                (when (eq (car key) output)
                  (frame-set-rect root 0 0 width height)))
@@ -932,7 +932,7 @@ render pass can exclude them from its hide logic."
                      (floor (frame-height leaf) 2)))
              (x (+ (frame-x leaf) i (output-x output)))
              (y (+ (frame-y leaf) i (output-y output)
-                    (bar-reserved-height))))
+                    (bar-reserved-height output))))
         (when (and win (not (window-minimized-p win)))
           (make-window-node win)
           ;; The animation engine interpolates from a recorded

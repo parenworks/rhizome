@@ -117,7 +117,7 @@ frame, extras onto the last). The layout belongs to the WORKSPACE
   (let* ((workspace (current-workspace output))
          (width (output-width output))
          (height (max 0 (- (output-height output)
-                           (bar-reserved-height))))
+                           (bar-reserved-height output))))
          (wins (remove-if #'window-minimized-p
                           (windows-on-workspace output workspace))))
     (when (and (> width 0) (> height 0))

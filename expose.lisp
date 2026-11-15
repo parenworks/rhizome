@@ -37,10 +37,10 @@ row-major grid over the output's content area."
          (rows (max 1 (ceiling n cols)))
          (cw (floor (output-width output) cols))
          (ch (floor (max 0 (- (output-height output)
-                               (bar-reserved-height)))
+                               (bar-reserved-height output)))
                     rows))
          (gx (output-x output))
-         (gy (+ (output-y output) (bar-reserved-height))))
+         (gy (+ (output-y output) (bar-reserved-height output))))
     (values
       (loop for win in wins
             for i from 0

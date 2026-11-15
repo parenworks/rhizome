@@ -149,7 +149,7 @@ animation lands, the clip clears."
         ;; In-flight animation: clip to the usable area
         ((and anim (window-output win))
          (let* ((out (window-output win))
-                (uy (bar-reserved-height))
+                (uy (bar-reserved-height out))
                 (uw (or (output-width out) 1920))
                 (uh (max 1 (- (or (output-height out) 1080) uy)))
                 (w (or (window-width win) 100))
