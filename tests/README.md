@@ -179,3 +179,6 @@ stubbed river requests. Run with:
   output: zone reported on A reserves on A, hidden on B reserves
   nothing on B, no reports fall back to config, and the no-argument
   form keeps any-output semantics.
+- `example-config.lisp` - examples/config.lisp loads without
+  signalling, the values it marks as defaults are the defaults, and
+  every `rhizome-cmd` command it names exists.
