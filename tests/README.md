@@ -188,3 +188,9 @@ stubbed river requests. Run with:
   same socket: $XDG_RUNTIME_DIR/rhizome.sock, or /tmp/rhizome-UID.sock
   when XDG_RUNTIME_DIR is unset or empty. The client's path is read
   from its "no socket" message; no socket is opened.
+- `ipc-command-args.lisp` - IPC command lines reach their handlers
+  with each argument parsed once: select-window, pull, move-marked,
+  and resize-split take an integer argument over IPC or a string one
+  from execute-command; wse and putsel take the rest of the line,
+  spaces included; scratchpad with no argument keeps the default
+  scratchpad. Downstream calls stubbed.
