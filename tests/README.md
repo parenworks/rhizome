@@ -179,3 +179,8 @@ stubbed river requests. Run with:
   output: zone reported on A reserves on A, hidden on B reserves
   nothing on B, no reports fall back to config, and the no-argument
   form keeps any-output semantics.
+- `module-sources.lisp` - named sources own what they register: a
+  module's keybindings and window rules survive reload-config (#25),
+  the :config source is replaced wholesale by re-reading the file,
+  effective rules order :config first, and set-window-rules nil
+  empties a source.

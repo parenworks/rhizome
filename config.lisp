@@ -200,6 +200,10 @@ its :enabled switch. Missing keys default to enabled and port 4005."
   (rhizome:configure '(:tiling (:placement (:new-window (:empty :focused)))))
 
 Restarting running components (e.g. the bar) is handled automatically."
+  ;; window rules belong to SOURCES now: the current one owns them
+  (when (getf plist :window-rules)
+    (set-window-rules (getf plist :window-rules))
+    (remf plist :window-rules))
   (setf *config* (merge-plist *config* plist))
   (apply-config)
   *config*)
@@ -293,12 +297,14 @@ query returns the candidates unchanged."
           (format t "~&; Rhizome: error loading config: ~A~%" e))))))
 
 (defun reload-config ()
-  "Reset to defaults, clear the user keymaps, reload the user config
-file, and re-apply. A binding the file no longer makes is gone; the
-default keymaps stay in force."
+  "Reset to defaults, replace the :config source's registrations
+(rules and keybindings) by re-reading the file, and re-apply. A
+binding or rule the file no longer makes is gone; everything a
+MODULE or the REPL registered survives untouched (the source
+model - see sources.lisp). The default keymaps stay in force."
   (setf *config* (default-config))
-  (when (fboundp 'clear-user-keymaps)
-    (funcall 'clear-user-keymaps))
-  (load-user-config)
+  (reset-config-source)
+  (let ((*current-source* :config))
+    (load-user-config))
   (apply-config)
   *config*)

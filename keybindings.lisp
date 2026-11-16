@@ -152,18 +152,26 @@ keywords) in *top-map*. While the defaults are built, writes aimed at
 removes the key from the keymap's own table. BINDING may also be
 :undefined (see undefine-key). Returns BINDING."
   (if (integerp keymap-or-keysym)
-      (keymap-bind (default-layer-target *top-map*)
-                   (make-key keymap-or-keysym spec)
-                   binding)
+      (let ((target (default-layer-target *top-map*)))
+        (unless (and (boundp '*defining-default-bindings*)
+                     *defining-default-bindings*)
+          (note-source-binding target (list keymap-or-keysym spec)))
+        (keymap-bind target
+                     (make-key keymap-or-keysym spec)
+                     binding))
       (destructuring-bind (&key pass-event doc) options
-        (bind-key-sequence (default-layer-target
-                            (or (binding-keymap keymap-or-keysym)
-                                (error "~S is not a keymap" keymap-or-keysym)))
-                           (ensure-key-sequence spec)
-                           (if (and pass-event binding)
-                               (event-binding binding)
-                               binding)
-                           doc))))
+        (let ((target (default-layer-target
+                        (or (binding-keymap keymap-or-keysym)
+                            (error "~S is not a keymap" keymap-or-keysym)))))
+          (unless (and (boundp '*defining-default-bindings*)
+                       *defining-default-bindings*)
+            (note-source-binding target spec))
+          (bind-key-sequence target
+                             (ensure-key-sequence spec)
+                             (if (and pass-event binding)
+                                 (event-binding binding)
+                                 binding)
+                             doc)))))
 
 (defun undefine-key (keymap spec)
   "Bind SPEC in KEYMAP (a keymap or a symbol naming one) to :undefined

@@ -85,8 +85,11 @@ function, an event-binding, or a keymap for multi-key chains. DOC
 describes the binding for describe-key and which-key. While the
 defaults are built, write *default-prefix-map* instead. A NIL ACTION
 removes the user binding."
-  (bind-key-sequence (default-layer-target *prefix-map*)
-                     (ensure-key-sequence key) action doc))
+  (let ((target (default-layer-target *prefix-map*)))
+    (unless (and (boundp '*defining-default-bindings*)
+                 *defining-default-bindings*)
+      (note-source-binding target key))
+    (bind-key-sequence target (ensure-key-sequence key) action doc)))
 
 (defun define-keymap-key (keymap key action &optional doc)
   "Bind KEY (a bare keysym, a key, or a key spec string) in KEYMAP to

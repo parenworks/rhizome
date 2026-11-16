@@ -139,6 +139,14 @@
           '(t nil))
       (set-prefix-key "C-t")
 
+      ;; the bindings the reload test drops are made under the
+      ;; :config source now (as the config file would make them);
+      ;; REPL-made bindings survive reload-config by design
+      (let ((*current-source* :config))
+        (define-key 122 '(:mod4) user-z)
+        (define-key +xkb-key-Return+ '(:mod4) user-return)
+        (define-prefix-key 119 (lambda () (setf ran :user-w)) "user w"))
+
       ;; --- reload-config replaces the user layer ---
       (let ((reloaded (lambda () :reloaded)))
         (setf (symbol-function 'load-user-config)

@@ -77,7 +77,11 @@ config.lisp at startup and live from the REPL."
            ;; ASDF sees both the registry AND quicklisp's dists
            (handler-case
                (progn
-                 (asdf:load-system system)
+                 ;; everything the module registers at its top level
+                 ;; (keybindings, window rules) files under its name
+                 (let ((*current-source*
+                         (intern (string-upcase system) :keyword)))
+                   (asdf:load-system system))
                  (format t "~&; Rhizome: module ~A loaded~%" system)
                  :loaded)
              (error (e)
