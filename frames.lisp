@@ -503,7 +503,7 @@ round-robin (StumpWM's fclear)."
                    :type "lisp"
                    :directory '(:relative "frame-dumps"))
     (merge-pathnames #P".local/share/rhizome/"
-                     (user-homedir-pathname))))
+                     (rhizome-home))))
 
 (defun frame-tree-to-sexp (root)
   "Serialize the frame tree ROOT to a readable sexp (window numbers

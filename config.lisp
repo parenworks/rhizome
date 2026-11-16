@@ -171,8 +171,19 @@ its :enabled switch. Missing keys default to enabled and port 4005."
                                (getf (default-config) :slynk)))
                    '(:swank)
                    '(:slynk))))
-    (values (config-getf group :enabled :config config :default t)
-            (config-getf group :port :config config :default 4005))))
+    (let ((env-port (let ((p (uiop:getenv "RHIZOME_SLYNK_PORT")))
+                      (and p (plusp (length p))
+                           (parse-integer p :junk-allowed t)))))
+      (cond ((null env-port)
+             (values (config-getf group :enabled :config config :default t)
+                     (config-getf group :port :config config :default 4005)))
+            ((zerop env-port)
+             ;; RHIZOME_SLYNK_PORT=0: no REPL (the nested instance)
+             (values nil 0))
+            (t
+             ;; the env var wins: a second rhizome cannot share the
+             ;; config's port
+             (values t env-port))))))
 
 (defun theme-border-rgb (focused-p)
   "Focused/unfocused window border color as (values r g b), from
@@ -233,6 +244,15 @@ user config would otherwise spawn bars — see *bar-process-mode*)."
       (funcall (symbol-function 'font-apply-config)))
     (when (fboundp 'output-apply-config)
       (funcall (symbol-function 'output-apply-config)))))
+
+(defun rhizome-home ()
+  "The base directory for rhizome's per-instance state (snapshot,
+takeover, window-state, bar log): $RHIZOME_STATE_HOME when set - a
+second rhizome against a NESTED river keeps its own state instead
+of clobbering the live session's - else the user's home."
+  (or (let ((dir (uiop:getenv "RHIZOME_STATE_HOME")))
+        (and dir (plusp (length dir)) (pathname dir)))
+      (user-homedir-pathname)))
 
 (defun config-pathname ()
   "Pathname of the user config file."

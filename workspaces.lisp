@@ -342,7 +342,7 @@ windows. DEFVAR: reloading this file must not forget placements.")
 
 (defparameter *window-state-path*
   (merge-pathnames #P".local/share/rhizome/window-state.sexp"
-                   (user-homedir-pathname))
+                   (rhizome-home))
   "Where the remembered window placements live. LET-bindable for
 tests.")
 

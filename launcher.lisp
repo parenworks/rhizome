@@ -155,7 +155,7 @@ De-duplicates by display name (first occurrence wins)."
 
 (defparameter *launcher-history-path*
   (merge-pathnames #P".local/share/rhizome/launcher-history.sexp"
-                   (user-homedir-pathname))
+                   (rhizome-home))
   "Launch counts by display name. LET-bindable for tests.")
 
 (defparameter *launcher-history* (make-hash-table :test #'equal)

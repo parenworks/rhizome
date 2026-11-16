@@ -1441,7 +1441,7 @@ child, or one adopted from a previous WM."
 (defun bar-log-path ()
   "Pathname of the bar process's log file."
   (merge-pathnames #P".cache/rhizome/bar.log"
-                   (user-homedir-pathname)))
+                   (rhizome-home)))
 
 (defun start-bar ()
   "Start the bar as its own process (no-op if one is running or being

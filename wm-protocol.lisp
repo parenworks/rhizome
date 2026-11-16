@@ -57,7 +57,7 @@ may start, stop, or reap bars.")
 (defun snapshot-pathname ()
   "Pathname of the WM snapshot file read by the bar process."
   (merge-pathnames #P".cache/rhizome/snapshot.sexp"
-                   (user-homedir-pathname)))
+                   (rhizome-home)))
 
 (defun bar-write-snapshot (snapshot)
   "Persist the WM snapshot for the bar process (atomic write).
@@ -69,7 +69,7 @@ opened a new river sequence: a render->snapshot->bar->render
 feedback storm)."
   (handler-case
       (let ((tmp (merge-pathnames #P".cache/rhizome/snapshot.sexp.tmp"
-                                  (user-homedir-pathname))))
+                                  (rhizome-home))))
         (ensure-directories-exist tmp)
         (with-open-file (s tmp :direction :output
                            :if-exists :supersede)

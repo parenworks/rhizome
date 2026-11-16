@@ -18,7 +18,7 @@
 
 (defparameter *takeover-state-path*
   (merge-pathnames #P".local/share/rhizome/takeover.sexp"
-                   (user-homedir-pathname))
+                   (rhizome-home))
   "Where the hot-swap session state lives. LET-bindable for tests.")
 
 (defvar *takeover-state* nil
