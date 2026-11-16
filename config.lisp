@@ -182,6 +182,20 @@ its :enabled switch. Missing keys default to enabled and port 4005."
                  (if focused-p :focused-border :unfocused-border)
                  :default (if focused-p "#7aa2f7" "#404040"))))
 
+(defun border-rgba32 (r g b &optional (a #xff))
+  "Return 8-bit channels R G B A (0-255, straight alpha) as four 32-bit
+values for river_window_v1.set_borders: 0 is 0%, #xffffffff is 100%,
+colour channels pre-multiplied by alpha."
+  (flet ((scale (channel)
+           (floor (* channel a #x01010101) #xff)))
+    (values (scale r) (scale g) (scale b) (* a #x01010101))))
+
+(defun theme-border-rgba32 (focused-p)
+  "Focused/unfocused theme border colour, opaque, as the four 32-bit
+set_borders values (values r g b a). See BORDER-RGBA32."
+  (multiple-value-bind (r g b) (theme-border-rgb focused-p)
+    (border-rgba32 r g b)))
+
 (defvar *config* (default-config)
   "The current rhizome configuration.")
 

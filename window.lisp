@@ -639,7 +639,8 @@ Requires that the window's node has been created."
     (rwm:river-node-v1.set-position (window-node win) x y)))
 
 (defun set-window-borders (win edges width r g b a)
-  "Set borders on WIN during a render sequence."
+  "Set borders on WIN during a render sequence. R G B A are 32-bit
+pre-multiplied values (see BORDER-RGBA32), not bytes."
   (rwm:river-window-v1.set-borders (window-proxy win) edges width r g b a))
 
 (defun set-window-clip-box (win x y width height)
