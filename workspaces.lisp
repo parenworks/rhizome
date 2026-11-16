@@ -290,7 +290,7 @@ matched rule, if any."
             (follow (getf rule :follow))
             (float (getf rule :float))
             (fullscreen (getf rule :fullscreen))
-            (output-index (getf rule :output)))
+            (output-spec (getf rule :output)))
         (when float
           ;; GIMP-style: never in the tiling (see floating.lisp)
           (float-window win))
@@ -303,11 +303,20 @@ matched rule, if any."
           (unless (window-fullscreen-p win)
             (setf (window-fullscreen-p win) t)
             (pushnew win *pending-fullscreen-requests*)))
-        (when (and output-index
-                   (nth (1- output-index) (all-outputs-sorted)))
-          ;; Place on a specific output (1-based index)
-          (setf (window-output win)
-                (nth (1- output-index) (all-outputs-sorted))))
+        (when output-spec
+          (let ((target
+                  (etypecase output-spec
+                    (integer
+                     ;; 1-based index into the sorted outputs
+                     (nth (1- output-spec) (all-outputs-sorted)))
+                    (string
+                     ;; the output's wl_output name, e.g. "eDP-2" -
+                     ;; names survive output reordering, indices do not
+                     (find output-spec (all-outputs-sorted)
+                           :key #'output-wl-output-name
+                           :test #'string=)))))
+            (when target
+              (setf (window-output win) target))))
         (when workspace
           (assign-window-workspace win workspace)
           (setf (window-minimized-p win) nil))

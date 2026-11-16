@@ -203,3 +203,6 @@ stubbed river requests. Run with:
   has an output; the output's layout mirror follows only the
   showing workspace; a repeated match keeps the frames; an unknown
   layout changes nothing.
+- `output-rules-by-name.lisp` - a window rule's :output takes the
+  output's wl_output name (survives reordering) alongside the
+  1-based index; unknown names place on nothing.

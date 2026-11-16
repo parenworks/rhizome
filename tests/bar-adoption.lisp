@@ -48,7 +48,11 @@
                           name actual expected)))))
     (setf (symbol-function 'uiop:run-program) #'stub-run-program
           (symbol-function 'uiop:launch-program) #'stub-launch-program
-          (symbol-function 'uiop:process-alive-p) #'stub-alive-p)
+          (symbol-function 'uiop:process-alive-p) #'stub-alive-p
+          ;; the fake pids have no /proc/PID/environ; the
+          ;; display-aware adoption check always passes
+          (symbol-function 'rhizome::bar-process-ours-p)
+          (lambda (pid) (declare (ignore pid)) t))
     (let ((*wm-process-mode* t)
           (*bar-process-mode* nil)
           (*bar-process* nil)
