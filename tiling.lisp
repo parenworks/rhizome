@@ -104,26 +104,31 @@ as placement functions and their placements become the rectangles."
                        (fourth placement) (fifth placement)))
                (funcall (get-layout-function name) windows width height)))))
 
-(defun switch-layout (output layout-name)
-  "Switch OUTPUT's current workspace to LAYOUT-NAME by rebuilding its
-frame tree from the layout's template (windows distributed one per
-frame, extras onto the last). The layout belongs to the WORKSPACE
-— switching no longer clobbers the output's other workspaces."
-  (scroll-exit-if-active output)
-  (setf (workspace-layout output (current-workspace output))
-        layout-name
-        ;; mirror for current readers (bar snapshot, cycle)
-        (output-current-layout output) layout-name)
-  (let* ((workspace (current-workspace output))
-         (width (output-width output))
-         (height (max 0 (- (output-height output)
-                           (bar-reserved-height output))))
-         (wins (remove-if #'window-minimized-p
-                          (windows-on-workspace output workspace))))
+(defun apply-layout-to-workspace (output workspace layout-name)
+  "Give WORKSPACE on OUTPUT the layout LAYOUT-NAME: store it as the
+workspace's layout and rebuild the workspace's frame tree from the
+layout's template (windows distributed one per frame, extras onto the
+last). OUTPUT's layout mirror follows only when WORKSPACE is showing."
+  (setf (workspace-layout output workspace) layout-name)
+  (when (eql workspace (current-workspace output))
+    (setf (output-current-layout output) layout-name))
+  (let ((width (output-width output))
+        (height (max 0 (- (output-height output)
+                          (bar-reserved-height output))))
+        (wins (remove-if #'window-minimized-p
+                         (windows-on-workspace output workspace))))
     (when (and (> width 0) (> height 0))
       (set-workspace-tree output workspace
                           (layout-template-rects layout-name width height wins)
-                          wins)))
+                          wins))))
+
+(defun switch-layout (output layout-name)
+  "Switch OUTPUT's current workspace to LAYOUT-NAME by rebuilding its
+frame tree from the layout's template (windows distributed one per
+frame, extras onto the last). The layout belongs to the workspace;
+the output's other workspaces keep theirs."
+  (scroll-exit-if-active output)
+  (apply-layout-to-workspace output (current-workspace output) layout-name)
   (format t "~&; Rhizome: switched to ~A~%" layout-name)
   (message "~A" layout-name)
   (run-hook :layout-changed output layout-name)
