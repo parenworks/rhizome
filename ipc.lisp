@@ -1,6 +1,7 @@
-;;; IPC for Rhizome — the stumpish equivalent
+;;; IPC for Rhizome: the stumpish equivalent
 ;;;
-;;; A Unix domain socket (default $XDG_RUNTIME_DIR/rhizome.sock) that
+;;; A Unix domain socket ($XDG_RUNTIME_DIR/rhizome.sock, or
+;;; /tmp/rhizome-UID.sock when XDG_RUNTIME_DIR is unset or empty) that
 ;;; accepts one command per line and replies with the result:
 ;;;
 ;;;   rhizome-cmd switch-workspace 3
@@ -92,12 +93,14 @@ command showed no message of its own."
 ;;; --- Unix domain socket via CFFI (no extra dependencies) ---
 
 (defun ipc-socket-path ()
-  "Path of the IPC socket."
-  (or (and (uiop:getenv "XDG_RUNTIME_DIR")
-           (concatenate 'string (uiop:getenv "XDG_RUNTIME_DIR")
-                        "/rhizome.sock"))
-      (format nil "/tmp/rhizome-~A.sock"
-              (cffi:foreign-funcall "getuid" :int))))
+  "Path of the IPC socket: $XDG_RUNTIME_DIR/rhizome.sock, or
+/tmp/rhizome-UID.sock when XDG_RUNTIME_DIR is unset or empty.
+session/rhizome-cmd computes the same path."
+  (let ((runtime-dir (uiop:getenv "XDG_RUNTIME_DIR")))
+    (if (and runtime-dir (plusp (length runtime-dir)))
+        (concatenate 'string runtime-dir "/rhizome.sock")
+        (format nil "/tmp/rhizome-~A.sock"
+                (cffi:foreign-funcall "getuid" :int)))))
 
 (defparameter *ipc-thread* nil
   "The accept-thread for the IPC socket.")

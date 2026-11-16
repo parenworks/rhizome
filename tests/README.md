@@ -184,3 +184,7 @@ stubbed river requests. Run with:
   the :config source is replaced wholesale by re-reading the file,
   effective rules order :config first, and set-window-rules nil
   empties a source.
+- `ipc-socket-path.lisp` - the WM and session/rhizome-cmd name the
+  same socket: $XDG_RUNTIME_DIR/rhizome.sock, or /tmp/rhizome-UID.sock
+  when XDG_RUNTIME_DIR is unset or empty. The client's path is read
+  from its "no socket" message; no socket is opened.
