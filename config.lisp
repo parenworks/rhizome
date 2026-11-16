@@ -251,7 +251,11 @@ takeover, window-state, bar log): $RHIZOME_STATE_HOME when set - a
 second rhizome against a NESTED river keeps its own state instead
 of clobbering the live session's - else the user's home."
   (or (let ((dir (uiop:getenv "RHIZOME_STATE_HOME")))
-        (and dir (plusp (length dir)) (pathname dir)))
+        (and dir (plusp (length dir))
+             ;; ensure-directory-pathname: RHIZOME_STATE_HOME=/tmp/x
+             ;; parses as a FILE named x in /tmp without it, and
+             ;; merge-pathnames then drops it from every state path
+             (uiop:ensure-directory-pathname dir)))
       (user-homedir-pathname)))
 
 (defun config-pathname ()

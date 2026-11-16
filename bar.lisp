@@ -1517,6 +1517,22 @@ adopted instead of launching a fresh one. A WM restart (detach, crash
 recovery) leaves the bar running — the successor adopts it, and the
 ~40-second cold-start black strip (#9) never happens.")
 
+(defun bar-process-ours-p (pid)
+  "Whether the run-bar process PID belongs to THIS rhizome's Wayland
+display - a nested instance (the dual-output harness) must not adopt
+or reap the live session's bar, whose cmdline is identical."
+  (let ((our-display (uiop:getenv "WAYLAND_DISPLAY")))
+    (or (null our-display)
+        (let ((env (ignore-errors
+                     (uiop:read-file-string
+                       (format nil "/proc/~A/environ" pid)))))
+          (and env
+               (member (format nil "WAYLAND_DISPLAY=~A" our-display)
+                       (uiop:split-string env
+                                          :separator
+                                          (list (code-char 0)))
+                       :test #'string=))))))
+
 (defun external-bar-pids ()
   "PIDs of running bar processes this WM did not launch, oldest
 first. Exact-matches the run-bar eval, never the WM (its arg is
@@ -1530,7 +1546,8 @@ first. Exact-matches the run-bar eval, never the WM (its arg is
               for trimmed = (string-trim " " line)
               for pid = (and (plusp (length trimmed))
                              (parse-integer trimmed :junk-allowed t))
-              when pid collect pid))
+              when (and pid (bar-process-ours-p pid))
+                collect pid))
     (error () nil)))
 
 (defun external-pid-alive-p (pid)
