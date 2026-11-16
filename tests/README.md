@@ -194,3 +194,6 @@ stubbed river requests. Run with:
   from execute-command; wse and putsel take the rest of the line,
   spaces included; scratchpad with no argument keeps the default
   scratchpad. Downstream calls stubbed.
+- `example-config.lisp` - examples/config.lisp loads without
+  signalling, the values it marks as defaults are the defaults, and
+  every `rhizome-cmd` command it names exists.

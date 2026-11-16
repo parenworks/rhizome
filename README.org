@@ -628,10 +628,13 @@ focused title) to the bar via an atomic snapshot file,
 Each workspace has its own TYPE and its own LAYOUT:
 
 #+begin_src lisp
-;; Type: :tile (frame trees, the default), :floating — StumpWM's
-;; floating group: every window on it floats, arrivals cascade —
-;; or :scroll (the ribbon). C-t l cycles tile→scroll→floating;
-;; rhizome-cmd set-workspace-type <type> [N]; config:
+;; Type in config: :tile (frame trees, the default) or :floating
+;; (StumpWM's floating group: every window on it floats, arrivals
+;; cascade). The scroll ribbon is a third type, set only live:
+;; C-t l cycles the current workspace through tile, scroll, and
+;; floating. With the rhizome-display module loaded, rhizome-cmd
+;; set-group-type tile|scroll|floating sets it too. A :scroll entry
+;; in :types makes no ribbon.
 (rhizome:configure '(:workspaces (:types (2 :floating 5 :floating))))
 
 ;; Layout: per-workspace now — switching layouts on one workspace

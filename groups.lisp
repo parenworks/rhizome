@@ -21,7 +21,7 @@ and :tile is the absence of both.")
 (defun workspace-type (output workspace)
   "The workspace's group type: :SCROLL, :FLOATING or :TILE. The
 in-session hash wins; config-declared defaults come next via
-(:workspaces (:types (2 :floating 5 :scroll)))."
+(:workspaces (:types (2 :floating)))."
   (cond ((scroll-workspace-p output workspace) :scroll)
         ((gethash (frame-key output workspace) *workspace-types*)
          :floating)

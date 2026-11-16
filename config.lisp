@@ -100,11 +100,11 @@ Returns (values value found-p)."
               ;; their own titlebars.
               )
     :workspaces (:types nil
-                 ;; (2 :floating 5 :scroll) — per-workspace GROUP
-                 ;; TYPES: :tile (frame trees, default), :floating
-                 ;; (StumpWM's floating group), :scroll (the
-                 ;; ribbon). Also set-workspace-type /
-                 ;; cycle-workspace-type (C-t l)
+                 ;; (2 :floating): per-workspace group types,
+                 ;; :tile (frame trees, the default) or :floating
+                 ;; (StumpWM's floating group). The scroll ribbon
+                 ;; is set live, through C-t l, or set-group-type
+                 ;; from the rhizome-display module.
                  :default-layout :master-stack
                  ;; the layout untouched workspaces use;
                  ;; switch-layout stores per-workspace
