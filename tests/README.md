@@ -206,3 +206,6 @@ stubbed river requests. Run with:
 - `output-rules-by-name.lisp` - a window rule's :output takes the
   output's wl_output name (survives reordering) alongside the
   1-based index; unknown names place on nothing.
+- `output-hotplug.lisp` - P4: output removal migrates its windows
+  to a survivor (workspace numbers kept), the dead output's frame
+  trees drop, and removing the last output does not crash.

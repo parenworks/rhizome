@@ -121,11 +121,40 @@ re-sends the presentation mode (apply-presentation-mode diffs it)."
 
     (:removed
      (format t "~&; Rhizome: output removed~%")
+     (handler-case (migrate-output-windows output)
+       (error (e)
+         (format t "~&; Rhizome: window migration failed: ~A~%" e)))
+     ;; Drop the dead output's frame trees: keys are (output . n)
+     (maphash (lambda (key root)
+                (declare (ignore root))
+                (when (eq (car key) output)
+                  (remhash key *frame-trees*)))
+              *frame-trees*)
      (remhash (output-proxy output) *outputs*)
-     (bar-note-non-exclusive-area output nil))
+     (bar-note-non-exclusive-area output nil)
+     (when *wm-proxy*
+       (request-manage-dirty)))
 
     (t
      (format t "~&; Rhizome: unhandled output event ~A~%" event-name))))
+
+(defun migrate-output-windows (output)
+  "P4, the hotplug lifecycle: move every window on a REMOVED output
+to a surviving one. Windows keep their workspace number and
+floating geometry; the manage pass rebuilds the target's frame
+trees with them. With no survivor (the last output went away)
+there is nothing to do but let them go."
+  (let ((survivors (remove output (all-outputs))))
+    (when survivors
+      (let ((target (first survivors))
+            (moved 0))
+        (dolist (win (windows-on-output output))
+          (setf (window-output win) target
+                (window-frame win) nil)
+          (incf moved))
+        (format t "~&; Rhizome: migrated ~A window~:P to ~A~%"
+                moved (or (output-wl-output-name target)
+                          (output-proxy target)))))))
 
 (defun all-outputs ()
   "Return a list of all registered outputs."

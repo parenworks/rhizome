@@ -22,7 +22,7 @@ SUITES    := animations decorations surface window-rules floating frame-pruning 
              takeover tray-menus display-brightness prompt-free-text palette-message pull-hidden \
              server-side-decorations client-fullscreen repl-server-config repl-server-port \
              keymap-layers key-sequences key-grabs key-names shm-buffers modules bar-adoption network-menu bar-reserved-per-output \
-             module-sources output-rules-by-name border-colours \
+             module-sources output-rules-by-name output-hotplug border-colours \
              ipc-socket-path ipc-command-args example-config layout-rule-frames
 
 .PHONY: all build test install docs clean help
