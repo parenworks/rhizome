@@ -228,6 +228,7 @@
    #:*config*
    #:configure
    #:reload-config
+   #:set-window-rules
    #:config-pathname
    #:load-module
    #:module-directory
