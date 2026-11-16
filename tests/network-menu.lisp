@@ -109,6 +109,21 @@
                  (first *stub-argvs*)
                  '("nmcli" "radio" "wifi" "off"))
 
+           ;; --- the password prompt is masked ---
+           (ok "prompt-open accepts :secret"
+               (let ((got nil))
+                 (setf (symbol-function 'rhizome::prompt-open)
+                       (lambda (title &key candidates on-complete initial secret
+                                  &allow-other-keys)
+                         (setf got (list secret))))
+                 (unwind-protect
+                      (rhizome::network-connect-flow
+                        (list :ssid "secnet" :security "WPA2"))
+                   (setf (symbol-function 'rhizome::prompt-open)
+                         (symbol-function 'rhizome::prompt-open)))
+                 got)
+               '(t))
+
            ;; --- active connection name ---
            (setf *stub-out* "Glenn's Z Fold7:802-11-wireless\ntailscale0:tun\n")
            (ok "active connection name"

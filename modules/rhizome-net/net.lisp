@@ -148,6 +148,7 @@ result message arrives via the IPC queue when the connect lands."
         (sec (getf net :security)))
     (if (and sec (plusp (length sec)))
         (prompt-open (format nil "Password for ~A:" ssid)
+                     :secret t
                      :on-complete (lambda (pw) (network-connect ssid pw)))
         (network-connect ssid))))
 

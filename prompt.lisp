@@ -13,6 +13,9 @@
 (defparameter *prompt-active* nil)
 (defparameter *prompt-title* "")
 (defparameter *prompt-query* "")
+(defparameter *prompt-secret* nil
+  "When T, the query renders as dots instead of characters - the
+password prompt. The on-complete still receives the real query.")
 (defparameter *prompt-candidates* nil
   "Full candidate list (strings).")
 (defparameter *prompt-selection* 0
@@ -133,7 +136,11 @@ empty."
               (multiple-value-bind (fr fg fb)
                   (parse-hex-color (config-getf '(:bar) :foreground
                                                :default "#c0caf5"))
-                (bar-draw-text ptr width height *prompt-query*
+                (bar-draw-text ptr width height
+                               (if *prompt-secret*
+                                   (make-string (length *prompt-query*)
+                                                :initial-element #\*)
+                                   *prompt-query*)
                                (+ 8 (bar-text-width *prompt-title*)) 2
                                fr fg fb)
                 ;; Candidate rows below the input line
@@ -172,7 +179,8 @@ empty."
 
 ;;; --- Open / close ---
 
-(defun prompt-open (title &key candidates on-complete (initial ""))
+(defun prompt-open (title &key candidates on-complete (initial "")
+                             (secret nil))
   "Open an interactive prompt titled TITLE, with INITIAL as the query.
 CANDIDATES is a list of strings. With candidates, Enter calls
 ON-COMPLETE with the selected candidate. Without candidates, the prompt
@@ -188,6 +196,7 @@ takes free text and Enter calls ON-COMPLETE with the non-empty query."
     (bar-destroy-shm *prompt-state*))
   (setf *prompt-title* title
         *prompt-query* initial
+        *prompt-secret* secret
         *prompt-candidates* candidates
         *prompt-selection* 0
         *prompt-on-complete* on-complete
@@ -227,6 +236,7 @@ takes free text and Enter calls ON-COMPLETE with the non-empty query."
   (unless *prompt-active*
     (return-from prompt-close))
   (setf *prompt-active* nil
+        *prompt-secret* nil
         *prompt-expiry* 0)
   (let ((state *prompt-state*))
     (handler-case
