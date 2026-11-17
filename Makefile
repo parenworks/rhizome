@@ -15,6 +15,7 @@ SBCL      ?= sbcl
 TYPST     ?= typst
 HOME_DIR  ?= $(HOME)
 SUITES    := animations decorations surface window-rules floating frame-pruning \
+             unfloat-placement \
              placement-policy split-focus focus-on-close \
              focus-after-capture layer-focus workspace-focus \
              workspace-modes theming bar-guard bar-hide session-icons quickwins \

@@ -218,3 +218,104 @@ workspace, or an error, leaves FRAME empty."
                (eql (window-workspace win) workspace))
       (frame-remove-window win)
       (frame-push-window win frame))))
+
+;;; --- A float returning to the tiling ---
+;;;
+;;; A re-tiled float is not a new window: it sits where it was put.
+;;; It enters an empty frame near that spot; a workspace with no
+;;; empty frame splits its largest frame instead of the focused one.
+
+(defun frame-point-distance (frame px py)
+  "Squared distance from the output-relative point PX PY to FRAME's
+rectangle; 0 when the point lies inside it."
+  (flet ((gap (p lo size)
+           (cond ((< p lo) (- lo p))
+                 ((>= p (+ lo size)) (- p (+ lo size -1)))
+                 (t 0))))
+    (let ((dx (gap px (frame-x frame) (frame-width frame)))
+          (dy (gap py (frame-y frame) (frame-height frame))))
+      (+ (* dx dx) (* dy dy)))))
+
+(defun retile-centre (win)
+  "The output-relative centre of floating WIN as two values, or NIL
+when neither its committed size nor its float size is known."
+  (let ((output (window-output win))
+        (w (if (plusp (window-width win))
+               (window-width win)
+               (window-float-width win)))
+        (h (if (plusp (window-height win))
+               (window-height win)
+               (window-float-height win))))
+    (when (and w h (plusp w) (plusp h))
+      (values (- (+ (or (window-float-x win) (window-x win) 0)
+                    (floor w 2))
+                 (output-x output))
+              (- (+ (or (window-float-y win) (window-y win) 0)
+                    (floor h 2))
+                 (output-y output)
+                 (bar-reserved-height))))))
+
+(defun nearest-frame (frames cx cy)
+  "The frame of FRAMES nearest the point CX CY, the earliest of equally
+near frames; the first of FRAMES when CX is NIL."
+  (if (null cx)
+      (first frames)
+      (let ((best nil)
+            (best-distance nil))
+        (dolist (frame frames best)
+          (let ((d (frame-point-distance frame cx cy)))
+            (when (or (null best-distance) (< d best-distance))
+              (setf best frame
+                    best-distance d)))))))
+
+(defun retile-target-frame (win)
+  "The leaf frame floating WIN enters on return to the tiling, as two
+values: the frame and T when it must be split first, or NIL.
+Candidates are the leaves of WIN's workspace on WIN's output, in this
+order:
+1. The empty leaf under the float's centre.
+2. The empty leaf nearest the centre.
+3. With no empty leaf, the largest leaf by area, to split when
+   (:tiling :auto-split) is on and the leaf is large enough.
+Among equal candidates the one nearest the centre wins, then the
+first in tree order. Without a known centre the first in tree order
+wins. NIL when WIN has no output, its workspace scrolls or floats
+every window, or no leaf qualifies."
+  (let ((output (window-output win))
+        (workspace (window-workspace win)))
+    (when (and output workspace
+               (not (scroll-workspace-p output workspace))
+               (not (floating-workspace-p output workspace)))
+      (multiple-value-bind (cx cy) (retile-centre win)
+        (let* ((leaves (frame-leaves (frame-tree-for output workspace)))
+               (empty (remove-if #'frame-windows leaves)))
+          (if empty
+              (nearest-frame empty cx cy)
+              (let* ((area (lambda (f) (* (frame-width f) (frame-height f))))
+                     (largest (reduce #'max leaves :key area))
+                     (frame (nearest-frame
+                             (remove largest leaves :key area :test-not #'=)
+                             cx cy)))
+                (when (and frame
+                           (config-getf '(:tiling) :auto-split :default t)
+                           (frame-splittable-p frame))
+                  (values frame t)))))))))
+
+(defun place-retiled-window (win)
+  "Put WIN, a float returning to the tiling, in the frame
+retile-target-frame picks, splitting it first when that frame is
+occupied, and make WIN's frame current. Returns WIN's frame, or NIL
+to leave WIN frameless for the manage pass, which places it as a new
+window."
+  (multiple-value-bind (frame split) (retile-target-frame win)
+    (when frame
+      (let ((output (window-output win))
+            (workspace (window-workspace win)))
+        (frame-remove-window win)
+        (if split
+            (split-frame-for-window win frame output workspace)
+            (progn
+              (frame-push-window win frame)
+              (setf (gethash (frame-key output workspace) *current-frames*)
+                    frame)))
+        (window-frame win)))))
