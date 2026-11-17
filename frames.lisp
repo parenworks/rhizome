@@ -507,15 +507,19 @@ round-robin (StumpWM's fclear)."
 
 (defun frame-tree-to-sexp (root)
   "Serialize the frame tree ROOT to a readable sexp (window numbers
-per frame, the visible window first)."
+per frame, the visible window first). A user split ends in :user t;
+sexp-to-frame-tree rebuilds it as a user split, whose empty frames
+survive :auto pruning."
   (labels ((walk (frame)
              (let ((rect (list :rect (frame-x frame) (frame-y frame)
                                    (frame-width frame)
                                    (frame-height frame))))
                (if (frame-first-child frame)
-                   (list :split (frame-split-direction frame) rect
-                         (walk (frame-first-child frame))
-                         (walk (frame-second-child frame)))
+                   (list* :split (frame-split-direction frame) rect
+                          (walk (frame-first-child frame))
+                          (walk (frame-second-child frame))
+                          (when (frame-user-split frame)
+                            (list :user t)))
                    (list* :frame rect
                           (loop for w in (frame-windows frame)
                                 collect (window-number w)))))))
@@ -530,7 +534,8 @@ per frame, the visible window first)."
 (defun sexp-to-frame-tree (sexp sx sy)
   "Rebuild a frame tree from a dump sexp, scaling x/width by SX and
 y/height by SY. The dump's number lists are ignored here; callers
-assign windows after the tree is built."
+assign windows after the tree is built. A split marked :user t
+rebuilds as a user split; an unmarked one does not."
   (let* ((rect (dump-rect sexp))
          (frame (make-frame :x (round (* (first rect) sx))
                             :y (round (* (second rect) sy))
@@ -541,6 +546,8 @@ assign windows after the tree is built."
                (first (sexp-to-frame-tree (fourth sexp) sx sy))
                (second (sexp-to-frame-tree (fifth sexp) sx sy)))
           (setf (frame-split-direction frame) direction
+                (frame-user-split frame) (and (getf (nthcdr 5 sexp) :user)
+                                              t)
                 (frame-first-child frame) first
                 (frame-second-child frame) second
                 (frame-parent first) frame

@@ -119,7 +119,13 @@
             (ok "unknown numbers vanish from frames"
                 (translate-tree-numbers
                   '(:frame (:rect 0 0 100 100) 1 42) number-map)
-                '(:frame (:rect 0 0 100 100) 7)))))
+                '(:frame (:rect 0 0 100 100) 7))
+            (ok "translation keeps the user mark of a split"
+                (nthcdr 5 (translate-tree-numbers
+                            (append tree '(:user t)) number-map))
+                '(:user t))
+            (ok "translation adds no mark to an unmarked split"
+                (nthcdr 5 translated) nil))))
 
       ;; --- settle detection ---
       (setf *takeover-manage-passes* 0
@@ -134,6 +140,81 @@
       (ok "consume clears the state and deletes the file"
           (list *takeover-state* (probe-file *takeover-state-path*))
           '(nil nil)))
+
+    ;; --- user splits across a takeover ---
+    (let ((*takeover-state-path*
+            #P"/tmp/rhizome-test-takeover-usersplit.sexp")
+          (*workspace-count* 4))
+      (labels ((head (proxy)
+                 (let ((out (make-instance 'rhizome-output :proxy proxy
+                                           :width 1920 :height 1080)))
+                   (setf (output-wl-output-name out) "DVI-D-1"
+                         (gethash proxy *outputs*) out
+                         (gethash out *output-workspace*) 1)
+                   out))
+               (fresh-wm ()
+                 (reset)
+                 (setf *outputs* (make-hash-table)
+                       *frame-trees* (make-hash-table :test 'equal)
+                       *current-frames* (make-hash-table :test 'equal)
+                       *seats* (make-hash-table)))
+               (new-window (proxy id number)
+                 (let ((win (make-instance 'rhizome-window :proxy proxy)))
+                   (setf (gethash proxy *windows*) win
+                         (window-identifier win) id
+                         (gethash win *window-number-map*) number)
+                   win)))
+        ;; A user split with one empty frame survives the hot swap:
+        ;; the restored split keeps its mark, so pruning leaves the
+        ;; empty frame and kitty keeps half the width
+        (fresh-wm)
+        (let* ((dvi (head :us-old-dvi))
+               (kitty (new-window :us-old-kitty "kitty-id" 2))
+               (root (frame-tree-for dvi 1)))
+          (setf (window-output kitty) dvi
+                (gethash kitty *window-workspace*) 1)
+          (split-frame root :horizontal 1/2)
+          (setf (frame-user-split root) t)
+          (frame-push-window kitty (frame-first-child root))
+          (ignore-errors (delete-file *takeover-state-path*))
+          (let ((*standard-output* (make-broadcast-stream)))
+            (write-takeover-state)))
+        (fresh-wm)
+        (let* ((dvi (head :us-new-dvi))
+               (kitty (new-window :us-new-kitty "kitty-id" 5)))
+          (let ((*standard-output* (make-broadcast-stream)))
+            (load-takeover-state)
+            (restore-takeover-placement kitty)
+            (apply-takeover-trees))
+          (prune-empty-frames dvi 1)
+          (ok "a user split keeps its empty frame across a takeover"
+              (mapcar (lambda (leaf) (length (frame-windows leaf)))
+                      (frame-leaves (frame-tree-for dvi 1)))
+              '(1 0))
+          (ok "the window in a restored user split keeps half the width"
+              (frame-width (window-frame kitty)) 960))
+        (ignore-errors (delete-file *takeover-state-path*))
+
+        ;; A takeover file from a build that wrote no user mark keeps
+        ;; the unmarked behaviour: the empty frame prunes
+        (fresh-wm)
+        (let* ((dvi (head :um-dvi))
+               (kitty (new-window :um-kitty "kitty-id" 3)))
+          (setf *takeover-state*
+                (list :windows '(("kitty-id" :workspace 1 :number 2))
+                      :trees '((("DVI-D-1" . 1)
+                                . (:split :horizontal (:rect 0 0 1920 1080)
+                                   (:frame (:rect 0 0 960 1080) 2)
+                                   (:frame (:rect 960 0 960 1080))))))
+                (window-output kitty) dvi
+                (gethash kitty *window-workspace*) 1)
+          (let ((*standard-output* (make-broadcast-stream)))
+            (apply-takeover-trees))
+          (prune-empty-frames dvi 1)
+          (ok "an unmarked takeover tree prunes its empty frame"
+              (list (length (frame-leaves (frame-tree-for dvi 1)))
+                    (frame-width (window-frame kitty)))
+              '(1 1920)))))
 
     (format t "~&=== ~D passed, ~D failed ===~%" pass fail)
     (uiop:quit (if (zerop fail) 0 1))))
