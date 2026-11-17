@@ -209,3 +209,8 @@ stubbed river requests. Run with:
 - `output-hotplug.lisp` - P4: output removal migrates its windows
   to a survivor (workspace numbers kept), the dead output's frame
   trees drop, and removing the last output does not crash.
+- `window-rules-reload.lisp` - window rules across real reloads of a
+  throwaway config file and module: each reload leaves one copy of a
+  source's rules, a rule removed from the file is gone, a changed rule
+  is replaced, the config file's rules match first, and sources keep
+  the order in which they first set rules.

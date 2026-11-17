@@ -802,8 +802,17 @@ hooks, and window rules — everything the config itself can use. It
 should not redefine core functions; a missing seam is an issue
 first, a patch second. State a module keeps across live reloads
 belongs in =defvar=s, not =defparameter=s (the live-reload rule
-the WM itself follows). A complete, commented one-file example
-lives in =examples/modules/rhizome-hello/=, and the network
+the WM itself follows). Window rules a module sets while
+=load-module= loads it, with =set-window-rules= or through
+=configure=, belong to the module: they stay in force across
+=reload-config=, and setting them again replaces the module's set.
+Pass =:source= with the module's name, for example
+=(rhizome:set-window-rules rules :source :my-placement)=, when the
+module may also be reloaded outside =load-module= (=asdf:load-system=
+or a compile from the editor): without it, that reload files the
+rules under =:repl= beside the old set. Rules that a dependency sets
+when =load-module= loads it for the first time belong to the module
+that pulled it in. A complete, commented one-file example lives in =examples/modules/rhizome-hello/=, and the network
 configurator ships as a real module under =modules/rhizome-net/=
 (symlink or copy it into the module directory and add
 =(rhizome:load-module "rhizome-net")= to your config).
@@ -1071,6 +1080,26 @@ persist across WM restarts and relogins
 (~/.local/share/rhizome/window-state.sexp=), restored before rules
 run so explicit rules still win. Disable with
 =(configure '(:window-state (:enabled nil)))=.
+
+Each source of rules owns one complete set. Rules the config file
+sets, through =:window-rules= or with =set-window-rules=, belong to
+the =:config= source; =set-window-rules= with =:source= sets the
+rules of a named source:
+
+#+begin_src lisp
+(rhizome:set-window-rules '((:match "slack" :workspace 7)) :source :chat)
+#+end_src
+
+Setting a source again replaces its whole set: a rule left out is
+gone, and a changed rule is replaced rather than added. Without
+=:source=, a call made while =load-module= loads a module sets the
+set named by the module, for example =:rhizome-hello=, and a call
+from the REPL sets the =:repl= set. =reload-config= replaces the
+=:config= set and keeps every other source's set.
+=(rhizome:set-window-rules nil :source :chat)= empties a source's
+set. The =:config= rules match first, then each source in the order
+it first set rules. A changed set takes effect at the next rule
+match; it is not re-run over windows that are already open.
 
 Maximize is float-based too: a client's =maximize_requested=
 (terminal full-grid, browser buttons) is honored as a float covering
