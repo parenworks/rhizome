@@ -620,7 +620,7 @@ current split's dividing line until Enter commits or Escape aborts."
 (defun iresize-handle-key (keysym)
   "Handle one keysym inside iresize."
   (case keysym
-    (65393 (exit-iresize-mode))
+    (65293 (exit-iresize-mode))      ; Return (#xff0d)
     (65361 (iresize-adjust -30))     ; Left
     (65363 (iresize-adjust 30))      ; Right
     (65362 (iresize-adjust -30))     ; Up
