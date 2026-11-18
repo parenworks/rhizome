@@ -99,13 +99,10 @@ already showing, replace it. Newlines start new lines."
         (when (and ptr (not (cffi:null-pointer-p ptr)))
           (let ((width (gethash :width state))
                 (height (gethash :height state)))
-            (multiple-value-bind (br bg bb)
-                (parse-hex-color (config-getf '(:bar) :background
-                                             :default "#1a1b26"))
-              (rhizome-rounded-clear ptr width height br bg bb))
-            (multiple-value-bind (ar ag ab)
-                (parse-hex-color (config-getf '(:bar) :accent
-                                             :default "#7aa2f7"))
+            (multiple-value-bind (br bg bb) (theme-rgb :message-background)
+              (rhizome-rounded-clear ptr width height br bg bb
+                                     :border :message-border))
+            (multiple-value-bind (ar ag ab) (theme-rgb :message-text)
               (loop for line in (message-lines text)
                     for i from 0
                     do (bar-draw-text ptr width height line
@@ -181,12 +178,12 @@ screen. Return REPLY."
                (aref months (1- month))
                day hour min))))
 
-(defun rhizome-rounded-clear (ptr width height r g b)
+(defun rhizome-rounded-clear (ptr width height r g b
+                              &key (border :prompt-border))
   "The shared surface treatment for message window and prompts:
-rounded corners with a hairline border, in the bar's colors,
-routed through paint-rounded-surface (surface.lisp)."
-  (multiple-value-bind (ar ag ab)
-      (parse-hex-color (config-getf '(:bar) :accent :default "#7aa2f7"))
+rounded corners with a hairline border in the colour of the theme
+element BORDER, routed through paint-rounded-surface (surface.lisp)."
+  (multiple-value-bind (ar ag ab) (theme-rgb border)
     (paint-rounded-surface ptr width height r g b
                            :alpha (bar-surface-alpha)
                            :radius (config-getf '(:bar) :corner-radius

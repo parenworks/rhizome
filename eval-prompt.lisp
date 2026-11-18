@@ -98,24 +98,16 @@ Errors are caught and shown instead of killing the WM."
         (when (and ptr (not (cffi:null-pointer-p ptr)))
           (let ((width (gethash :width state))
                 (height (gethash :height state)))
-            (multiple-value-bind (br bg bb)
-                (parse-hex-color (config-getf '(:bar) :background
-                                             :default "#1a1b26"))
+            (multiple-value-bind (br bg bb) (theme-rgb :eval-background)
               (bar-clear ptr width height br bg bb))
             (let ((y (floor (- height 16) 2)))
-              (multiple-value-bind (ar ag ab)
-                  (parse-hex-color (config-getf '(:bar) :accent
-                                               :default "#7aa2f7"))
+              (multiple-value-bind (ar ag ab) (theme-rgb :eval-label)
                 (bar-draw-text ptr width height "Eval: " 8 y ar ag ab))
-              (multiple-value-bind (fr fg fb)
-                  (parse-hex-color (config-getf '(:bar) :foreground
-                                               :default "#c0caf5"))
+              (multiple-value-bind (fr fg fb) (theme-rgb :eval-query)
                 (bar-draw-text ptr width height *eval-prompt-query*
                                (+ 8 40) y fr fg fb))
               (when *eval-prompt-result-visible*
-                (multiple-value-bind (ar ag ab)
-                    (parse-hex-color (config-getf '(:bar) :accent
-                                                 :default "#7aa2f7"))
+                (multiple-value-bind (ar ag ab) (theme-rgb :eval-result)
                   (bar-draw-text ptr width height *eval-prompt-result*
                                  (+ 8 48 (bar-text-width *eval-prompt-query*))
                                  y ar ag ab))))

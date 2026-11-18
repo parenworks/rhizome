@@ -617,8 +617,8 @@ Nine StumpWM-style workspaces per output. Windows open on the current
 workspace; =MOD+1..9= switches workspaces, =MOD+Shift+1..9= moves the focused
 window (and follows it). Windows on other workspaces are hidden and reappear
 on return. The current workspace is shown in the bar's =:workspaces=
-module with the active number underlined in the accent color,
-occupied workspaces in the foreground color, empty ones muted, and
+module with the active number on an accent pill,
+occupied workspaces in the foreground colour, empty ones muted, and
 configurable breathing room between numbers
 ((:bar :workspaces :gap 8), default 8px). The WM exports its
 state (layout, window count, workspace, per-workspace occupancy,
@@ -664,12 +664,12 @@ exclusive zone, the WM reserves the bar's space itself in its layout math.
 (rhizome:reload-config)                             ; reset + reload user file
 #+end_src
 
-Bar modules: =:workspaces= (numbers — active underlined in accent,
+Bar modules: =:workspaces= (numbers: active on an accent pill,
 occupied in foreground, empty muted, with per-number gaps),
 =:layout= (current layout), =:windows= (window count), =:focused=
 (focused window title), =:recording= (a red =REC= marker while any
 screen capture session is active — river v5 =capture_sessions=,
-colors via =:bar :recording-color=), =:clock= (strftime-like
+coloured by the =:bar-recording= element), =:clock= (strftime-like
 format), =:battery= (/sys), =:volume= (wpctl), =:network=
 (nmcli). Each rate-limited
 module takes an =:interval= (seconds). The bar's own
@@ -724,16 +724,17 @@ Features:
 - Filters out =NoDisplay=, =Hidden=, and non-Application entries
 - Strips Exec field codes (=%f=, =%u=, =%F=, etc.) and wraps Terminal=true apps in Alacritty
 - TrueType text through the theming engine (font.lisp; 8x16 bitmap fallback without freetype)
-- Colors entirely from the =:launcher= config group (see Theming below)
+- Colours from the theme's =:launcher-*= elements (see Theming below)
 - Substring search filtering with live redraw
 - Scrollable list with client-side key repeat (hold down arrow to scroll)
 - Keyboard: type to filter, Up/Down to navigate, Enter to launch, Escape to close, Backspace to delete
 - Reuses shm buffer across redraws for fast rendering (no per-frame mmap/munmap)
 
-** Theming (fonts and colors)
+** Theming (fonts and colours)
 
-All drawn surfaces — bar, message window, prompts, launcher, and
-window borders — are themed through the config system. Fonts render
+All drawn surfaces (bar, message window, prompts, launcher, menus,
+window borders, and float shadows) take their colours from a theme
+and their font from the =:theme= config group. Fonts render
 with real TrueType via libfreetype (resolved through fontconfig, so
 plain family names work and a missing family falls back to the
 system's best match); when freetype or fontconfig is unavailable
@@ -743,33 +744,124 @@ original metrics.
 #+begin_src lisp
 (rhizome:configure
   '(:theme (:font-family "JetBrains Mono"   ; any fc-match name
-            :font-size 14
-            :focused-border "#7aa2f7"
-            :unfocused-border "#404040")))
-(rhizome:configure
-  '(:launcher (:background "#23142d"
-               :prompt-color "#8c64aa"
-               :query-color "#dcc8f0"
-               :cursor-color "#b4a0d2"
-               :selection-background "#503278"
-               :selected-color "#f0e6ff"
-               :entry-color "#aa96c8")))
+            :font-size 14)))
 #+end_src
 
-The bar's own colors live under =:bar= (=:background=, =:foreground=,
-=:accent=, =:muted= — already supported by the module renderer's
-per-part hex colors). The workspace module's spacing is
-(:bar :workspaces :gap 8) (default 8px). Changing =:theme= font keys
-re-resolves the font in the WM process live; the bar restarts (as
-with any bar affecting change) and picks the new font up at startup.
-Text widths are per-glyph advances now, so the bar centers the clock
-exactly and the launcher cursor hugs the typed query.
+*** Roles, elements, and themes
+
+Every colour belongs to an /element/, such as =:bar-background=,
+=:launcher-match=, or =:border-focused=. Each element derives from a
+/role/, such as =:background=, =:accent=, or =:focus=, or from another
+element, so changing a role changes every element built on it. A
+/theme/ gives each role a colour and may give individual elements
+their own.
+
+| Role                    | Colours                                         |
+|-------------------------+-------------------------------------------------|
+| =:background=           | bar, prompt, and message surfaces               |
+| =:foreground=           | text on the background                          |
+| =:accent=               | the highlight colour                            |
+| =:muted=                | secondary text on the background                |
+| =:focus=                | the focused window's border and decorations     |
+| =:unfocus=              | unfocused window borders                        |
+| =:hairline=             | the bar's outline                               |
+| =:surface=              | launcher and menu backgrounds                   |
+| =:surface-foreground=   | text on the surface                             |
+| =:surface-border=       | launcher and menu outlines                      |
+| =:selection=            | the selected launcher row, the hovered menu row |
+| =:selection-foreground= | text on the selection                           |
+| =:match=                | typed text found inside a launcher entry        |
+| =:error=                | urgent states, such as the recording marker     |
+| =:shadow=               | the base colour of a floating window's shadow   |
+
+=*theme-elements*= in =theme.lisp= lists the elements and what each
+derives from.
+
+Themes are files named =NAME.theme=. rhizome looks for them in
+=~/.config/rhizome/themes/= first, then in the =themes/= directory it
+ships with. The default theme is =tokyo-night=. A theme file holds
+one plist in format 1, read as data and never evaluated:
+
+#+begin_src lisp
+(:format 1
+ :name "tokyo-night"
+ :roles (:background "#1a1b26"
+         :accent "#7aa2f7"
+         :focus :accent          ; a role may name another role
+         ...)
+ :elements (:launcher-prompt "#8c64aa"
+            ...))
+#+end_src
+
+A value is ="#rrggbb"= or the keyword of another role or element. A
+role that a theme leaves out takes its value from =tokyo-night=. Each
+theme file starts with a header naming its origin, authors, and
+licence; =themes/CREDITS= collects them.
+
+Select a theme by name, or adjust one in the config:
+
+#+begin_src lisp
+(rhizome:configure '(:theme "tokyo-night"))  ; same as (:theme (:name "tokyo-night"))
+(rhizome:configure
+  '(:theme (:roles (:accent "#ff9e64")        ; every accent element
+            :elements (:bar-workspace-empty "#3b4261"
+                       :launcher-match :error))))  ; another role's colour
+#+end_src
+
+=(:theme "name")= keeps the font settings. A theme written as a Lisp
+form in the config also works: put its =:roles= and =:elements= under
+=:theme=. For each element the first of these that gives a colour
+wins: the config's =:elements=, a deprecated colour key (below), the
+theme's =:elements=, the element's own source, the config's
+=:roles=, and the theme's =:roles=. Colours resolve each time a
+surface draws.
+
+*** Deprecated colour keys
+
+The colour keys from before themes still work for one release. Each
+one prints a warning naming the element that replaces it:
+
+| Old key                             | Element                  |
+|-------------------------------------+--------------------------|
+| =(:theme :focused-border)=          | =:border-focused=        |
+| =(:theme :unfocused-border)=        | =:border-unfocused=      |
+| =(:bar :background)=                | =:bar-background=        |
+| =(:bar :foreground)=                | =:bar-foreground=        |
+| =(:bar :accent)=                    | =:bar-accent=            |
+| =(:bar :muted)=                     | =:bar-muted=             |
+| =(:bar :border-color)=              | =:bar-border=            |
+| =(:bar :recording-color)=           | =:bar-recording=         |
+| =(:launcher :background)=           | =:launcher-background=   |
+| =(:launcher :accent)=               | =:launcher-match=        |
+| =(:launcher :prompt-color)=         | =:launcher-prompt=       |
+| =(:launcher :query-color)=          | =:launcher-query=        |
+| =(:launcher :cursor-color)=         | =:launcher-cursor=       |
+| =(:launcher :selection-background)= | =:launcher-selection=    |
+| =(:launcher :selected-color)=       | =:launcher-selected=     |
+| =(:launcher :entry-color)=          | =:launcher-entry=        |
+| =(:launcher :border-color)=         | =:launcher-border=       |
+| =(:launcher :placeholder-color)=    | =:launcher-placeholder=  |
+| =(:menus :background)=              | =:menu-background=       |
+| =(:menus :item-color)=              | =:menu-item=             |
+| =(:menus :hover-background)=        | =:menu-hover-background= |
+| =(:menus :hover-color)=             | =:menu-hover-foreground= |
+| =(:menus :border-color)=            | =:menu-border=           |
+
+=(:menus :accent)= and =(:menus :disabled)= never had an effect; each
+prints a warning asking you to remove it.
+
+*** Fonts and bar parts
+
+The workspace module's spacing is (:bar :workspaces :gap 8) (default
+8px). Changing =:theme= font keys re-resolves the font in the WM
+process live; the bar restarts (as with any bar affecting change) and
+picks the new font up at startup. Text widths are per-glyph advances,
+so the bar centres the clock exactly and the launcher cursor hugs the
+typed query.
 
 Module parts can carry render flags: =:gap N= (extra pixels after
-the part) and =:underline t= (a 2px line in the part's color under
-the text) — the mechanism behind the active-workspace underline.
-The launcher's selected row carries a 3px accent edge
-((:launcher :accent ...)). A complete, commented configuration
+the part) and =:pill t= (a rounded accent fill behind the text, the
+active-workspace marker). A complete, commented configuration
 covering every group lives in =examples/config.lisp=.
 
 ** Modules
@@ -841,7 +933,7 @@ tracked in the [[Protocol coverage audit][protocol audit]].
 
 A desktop-style context menu at the pointer: Minimize/Restore,
 Float/Tile, Maximize, Fullscreen, Close, and Move-to-workspace
-entries. Hover highlights with the accent edge; click selects;
+entries. Hover fills the row with a pill; click selects;
 Escape or moving the pointer off the menu dismisses it; arrows +
 Enter work through the menu's keyboard grab. CSD apps asking for
 their window menu (xdg-shell show_window_menu — GTK's menu
@@ -850,13 +942,13 @@ sequence-queued command paths, so menu actions are
 protocol-safe by construction.
 
 #+begin_src lisp
-(rhizome:configure
-  '(:menus (:background "#1f1633"
-            :item-color "#c9b8e8"
-            :hover-background "#4b3a78"
-            :hover-color "#f0e6ff"
-            :accent "#7aa2f7"
-            :opacity 0.95)))
+(rhizome:configure '(:menus (:opacity 0.95)))
+(rhizome:configure                     ; the colours come from the theme
+  '(:theme (:elements (:menu-background "#1f1633"
+                       :menu-item "#c9b8e8"
+                       :menu-hover-background "#4b3a78"
+                       :menu-hover-foreground "#f0e6ff"
+                       :menu-border "#4a3a72"))))
 #+end_src
 
 ** Titlebars (server-side decorations)
@@ -1171,8 +1263,8 @@ rhizome/
   - [X] TrueType text through the theming engine (bitmap fallback
         without freetype) and each app's icon left of its name
   - [X] Direct-to-shm rendering (reuses buffer, no per-frame mmap/munmap)
-  - [X] Themable colors, translucent ARGB surface, accent edge on the
-        selected row (:launcher config group)
+  - [X] Themable colours, translucent ARGB surface, a pill on the
+        selected row (the theme's launcher elements)
   - [X] Substring search filtering with live redraw
   - [X] Scrollable list with client-side key repeat
   - [X] Keyboard input: type to filter, Up/Down navigate, Enter launches, Escape closes

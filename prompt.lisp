@@ -120,22 +120,16 @@ empty."
         (when (and ptr (not (cffi:null-pointer-p ptr)))
           (let ((width (gethash :width state))
                 (height (gethash :height state)))
-            (multiple-value-bind (br bg bb)
-                (parse-hex-color (config-getf '(:bar) :background
-                                             :default "#1a1b26"))
+            (multiple-value-bind (br bg bb) (theme-rgb :prompt-background)
               (rhizome-rounded-clear ptr width height br bg bb))
             (let ((y (floor (- height (font-line-height)) 2))
                   (row-height (font-line-height))
                   (row-count 0))
               ;; Title and query on the input line
-              (multiple-value-bind (ar ag ab)
-                  (parse-hex-color (config-getf '(:bar) :accent
-                                               :default "#7aa2f7"))
+              (multiple-value-bind (ar ag ab) (theme-rgb :prompt-title)
                 (bar-draw-text ptr width height *prompt-title*
                                8 2 ar ag ab))
-              (multiple-value-bind (fr fg fb)
-                  (parse-hex-color (config-getf '(:bar) :foreground
-                                               :default "#c0caf5"))
+              (multiple-value-bind (fr fg fb) (theme-rgb :prompt-query)
                 (bar-draw-text ptr width height
                                (if *prompt-secret*
                                    (make-string (length *prompt-query*)
@@ -152,15 +146,16 @@ empty."
                     (when (= row-count *prompt-selection*)
                       ;; Highlight the selected row
                       (multiple-value-bind (ar ag ab)
-                          (parse-hex-color (config-getf '(:bar) :accent
-                                                       :default "#7aa2f7"))
+                          (theme-rgb :prompt-selection)
                         (loop for dx below (- width 16)
                               do (bar-set-pixel ptr width height (+ 8 dx)
                                                 (+ row-height row-y)
                                                 ar ag ab))))
-                    (bar-draw-text ptr width height candidate
-                                   8 (+ row-height row-y)
-                                   fr fg fb)
+                    (multiple-value-bind (cr cg cb)
+                        (theme-rgb :prompt-candidate)
+                      (bar-draw-text ptr width height candidate
+                                     8 (+ row-height row-y)
+                                     cr cg cb))
                     (incf row-count)))))
             ;; Attach, damage, commit
             (wl:wl-surface.attach (gethash :surface state)
@@ -252,12 +247,12 @@ takes free text and Enter calls ON-COMPLETE with the non-empty query."
           *prompt-on-complete* nil))
   (reassert-seat-focus))
 
-(defun rhizome-rounded-clear (ptr width height r g b)
+(defun rhizome-rounded-clear (ptr width height r g b
+                              &key (border :prompt-border))
   "The shared surface treatment for message window and prompts:
-rounded corners with a hairline border, in the bar's colors,
-routed through paint-rounded-surface (surface.lisp)."
-  (multiple-value-bind (ar ag ab)
-      (parse-hex-color (config-getf '(:bar) :accent :default "#7aa2f7"))
+rounded corners with a hairline border in the colour of the theme
+element BORDER, routed through paint-rounded-surface (surface.lisp)."
+  (multiple-value-bind (ar ag ab) (theme-rgb border)
     (paint-rounded-surface ptr width height r g b
                            :alpha (bar-surface-alpha)
                            :radius (config-getf '(:bar) :corner-radius
