@@ -54,9 +54,7 @@ focus it."
 (defun command-palette ()
   "Run a command from the command table by name."
   (let ((commands
-          (sort (loop for k being the hash-keys of *command-table*
-                      collect (string-downcase k))
-                #'string<)))
+          (mapcar #'string-downcase (command-names))))
     (prompt-open "Command:"
                  :candidates commands
                  :on-complete

@@ -18,18 +18,35 @@
   "Maps command keywords to their docstrings (describe-command).")
 
 (defmacro define-command (name (output args) &body body)
-  "Define a user command handler. A leading docstring is captured for
-describe-command."
-  `(progn
-     (setf (gethash ,name *command-table*)
-           (lambda (,output ,args)
-             ,@body))
-     (when (and (first ',body) (stringp (first ',body)))
-       (setf (gethash ,name *command-docs*) (first ',body)))))
+  "Register a handler under NAME (a keyword) for execute-command, the
+IPC dispatcher, and the command palette. The handler takes OUTPUT and
+ARGS, a list of the arguments as strings or integers, and its value is
+the command's reply. A leading docstring in BODY is the text
+describe-command shows. Redefining NAME replaces the handler and the
+docstring."
+  (let ((doc (and (stringp (first body)) (rest body) (first body))))
+    `(progn
+       (setf (gethash ,name *command-table*)
+             (lambda (,output ,args)
+               ,@body))
+       ,(if doc
+            `(setf (gethash ,name *command-docs*) ,doc)
+            `(remhash ,name *command-docs*))
+       ,name)))
+
+(defun find-command (name)
+  "Return the handler registered under NAME (a keyword), or NIL."
+  (values (gethash name *command-table*)))
+
+(defun command-names ()
+  "Return the registered command names (keywords), sorted by name."
+  (sort (loop for k being the hash-keys of *command-table* collect k)
+        #'string<))
 
 (defun execute-command (output command args)
-  "Execute a user command on OUTPUT."
-  (let ((handler (gethash command *command-table*)))
+  "Run the handler registered under COMMAND (a keyword) with OUTPUT and
+ARGS and return its value. An unknown COMMAND is logged and returns NIL."
+  (let ((handler (find-command command)))
     (if handler
         (funcall handler output args)
         (format t "~&; Rhizome: unknown command ~A~%" command))))
@@ -50,9 +67,7 @@ Lisp callers of execute-command may pass strings."
   "Prompt for a command name and show its documentation."
   (prompt-open "Describe command"
               :candidates
-              (sort (loop for k being the hash-keys of *command-table*
-                          collect (string-downcase (string k)))
-                    #'string<)
+              (mapcar #'string-downcase (command-names))
               :on-complete
               (lambda (name)
                 (let* ((k (find-symbol (string-upcase name) :keyword))

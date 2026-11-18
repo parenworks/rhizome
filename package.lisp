@@ -10,6 +10,11 @@
    ;; Layout commands
    #:define-layout
    #:switch-layout
+   ;; Command table
+   #:define-command
+   #:execute-command
+   #:find-command
+   #:command-names
    ;; Window operations
    #:focus-window
    #:close-window
