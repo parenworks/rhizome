@@ -506,6 +506,36 @@
                              (eq (root out) b) (frame-windows b)))
             (list t t (list b1 a1))))
 
+      ;; --- A NIL output, as a key binding passes it ---
+
+      (let* ((out (mk-out :gf-cmd-nil))
+             (r (root out))
+             (b (split-frame r :horizontal 1/2))
+             (a (frame-first-child r))
+             (a1 (mk-win :gf-cmn-a1 out)) (b1 (mk-win :gf-cmn-b1 out))
+             (*outputs* (make-hash-table)))
+        (setf (gethash :gf-cmd-nil *outputs*) out)
+        (fill-frame a a1)
+        (fill-frame b b1)
+        (focus a1)
+        (ok "grow-frame with a NIL output: refused, tree unchanged, why"
+            (lambda () (refused-unchanged
+                        out (lambda ()
+                              (execute-command nil :grow-frame '("left")))
+                        "no frame there"))
+            '(nil t t))
+        (ok "grow-frame-to-edge with a NIL output: refused, tree unchanged, why"
+            (lambda () (refused-unchanged
+                        out (lambda ()
+                              (execute-command nil :grow-frame-to-edge
+                                               '("left")))
+                        "already at the screen edge"))
+            '(nil t t))
+        (ok "grow-frame with a NIL output grows the focused output's frame"
+            (lambda () (list (execute-command nil :grow-frame '("right"))
+                             (eq (root out) a) (frame-windows a)))
+            (list t t (list a1 b1))))
+
       ;; --- Every refusal fits the message box ---
       ;;
       ;; A 1280px output shows about 98 characters. Each refusal, with
