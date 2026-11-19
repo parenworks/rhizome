@@ -1371,6 +1371,9 @@ tick opens or closes the bar's surface to follow the WM snapshot."
                      (loop while (and *bar-running*
                                       (wl:wl-display-listen display))
                            do (safe-dispatch display))
+                     (when (display-connection-lost-p display)
+                       (format t "~&; Rhizome: bar: compositor connection lost~%")
+                       (return))
                      (sleep (config-getf '(:bar) :interval :default 0.15)))
             (dolist (ostate (loop for o being the hash-values
                                      of *bar-output-states* collect o))
