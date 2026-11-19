@@ -32,7 +32,7 @@
 a locker is installed (sudo pacman -S swaylock)."
   (message "locking")
   (ignore-errors
-    (uiop:launch-program
+    (launch-user-program
       (list "bash" "-c"
             (format nil "~{~A~^ ~}" (lock-command)))))
   t)
@@ -45,7 +45,7 @@ of inactivity. Called at WM startup; config changes need a restart."
                (null *idle-locker-process*))
       (setf *idle-locker-process*
             (ignore-errors
-              (uiop:launch-program
+              (launch-user-program
                 (list "swayidle" "-w"
                       "timeout" (format nil "~A" secs)
                       (format nil "~{~A~^ ~}" (lock-command))))))

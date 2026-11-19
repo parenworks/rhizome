@@ -1109,7 +1109,7 @@ hitboxes and pointer position."
 (defun bar-run-command (command)
   "Run a shell COMMAND asynchronously."
   (handler-case
-      (uiop:launch-program (list "bash" "-c" command))
+      (launch-user-program (list "bash" "-c" command))
     (error (e)
       (format t "~&; Rhizome: bar: command failed: ~A~%" e))))
 
