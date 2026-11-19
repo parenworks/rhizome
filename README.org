@@ -217,6 +217,13 @@ parts that talk to the session bus:
    matter what you select), plus the native-Wayland forcing set
    (=GDK_BACKEND=, =QT_QPA_PLATFORM=, =MOZ_ENABLE_WAYLAND=,
    =ELECTRON_OZONE_PLATFORM_HINT=, =OZONE_PLATFORM=).
+   For variables of your own, create
+   =${XDG_CONFIG_HOME:-~/.config}/rhizome/session-env=. When the file
+   is readable, rhizome-session sources it after the defaults above
+   and before river starts, so a value set there wins. It is a shell
+   file of =export= lines, for example =export XCURSOR_SIZE=32= to
+   replace the default cursor size of 24. Without the file nothing
+   changes.
 
 2. *Environment import* (~/.config/river/init, guarded on
    =XDG_CURRENT_DESKTOP=river=): =systemctl --user
