@@ -105,7 +105,7 @@ its windows queue behind the shown window."
   (let ((direction (command-direction-argument (first args))))
     (if direction
         (grow-current-frame output (current-workspace output) direction)
-        (progn (message "grow-frame: give a direction: left, right, up or down")
+        (progn (message "grow-frame: direction must be left, right, up or down")
                nil))))
 
 (define-command :grow-frame-to-edge (output args)
@@ -116,7 +116,7 @@ queue behind the shown window."
     (if direction
         (grow-current-frame-to-edge output (current-workspace output)
                                     direction)
-        (progn (message "grow-frame-to-edge: give a direction: left, right, ~
+        (progn (message "grow-frame-to-edge: direction must be left, right, ~
                          up or down")
                nil))))
 

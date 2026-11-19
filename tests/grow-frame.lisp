@@ -273,7 +273,7 @@
         (ok "two frames sharing parts of the edge: refused, tree unchanged, why"
             (lambda () (refused-unchanged
                         out (lambda () (grow-current-frame out 1 :right))
-                        "2 frames meet that edge"))
+                        "2 frames share that edge"))
             '(nil t t)))
 
       ;; --- Refusal: the single neighbour runs past the edge ---
@@ -291,7 +291,7 @@
         (ok "a neighbour taller than the edge: refused, tree unchanged, why"
             (lambda () (refused-unchanged
                         out (lambda () (grow-current-frame out 1 :right))
-                        "taller than this one"))
+                        "taller than this frame"))
             '(nil t t)))
 
       (let* ((out (mk-out :gf-wider))
@@ -307,7 +307,7 @@
         (ok "a neighbour wider than the edge: refused, tree unchanged, why"
             (lambda () (refused-unchanged
                         out (lambda () (grow-current-frame out 1 :down))
-                        "wider than this one"))
+                        "wider than this frame"))
             '(nil t t)))
 
       ;; --- Refusal: no neighbour at the screen edge ---
@@ -360,7 +360,7 @@
           (ok "a grow that would leave a pinwheel: refused, tree unchanged, why"
               (lambda () (refused-unchanged
                           out (lambda () (grow-current-frame out 1 :right))
-                          "would not form a split tree"))
+                          "not a split tree"))
               '(nil t t))))
 
       ;; --- grow-frame-to-edge over several frames ---
@@ -450,7 +450,7 @@
             (lambda () (refused-unchanged
                         out (lambda ()
                               (grow-current-frame-to-edge out 1 :right))
-                        "extends past this frame's top or bottom"))
+                        "overhangs the top or bottom"))
             '(nil t t)))
 
       (let* ((out (mk-out :gf-edge-at))
@@ -464,7 +464,7 @@
             (lambda () (refused-unchanged
                         out (lambda ()
                               (grow-current-frame-to-edge out 1 :right))
-                        "already reaches the screen edge"))
+                        "already at the screen edge"))
             '(nil t t)))
 
       ;; --- The commands ---
@@ -481,12 +481,12 @@
             (lambda () (refused-unchanged
                         out (lambda ()
                               (execute-command out :grow-frame '("sideways")))
-                        "give a direction"))
+                        "direction must be"))
             '(nil t t))
         (ok "grow-frame with no direction: refused, tree unchanged, why"
             (lambda () (refused-unchanged
                         out (lambda () (execute-command out :grow-frame '()))
-                        "give a direction"))
+                        "direction must be"))
             '(nil t t))
         (ok "the grow-frame command takes a direction word"
             (lambda () (list (execute-command out :grow-frame '("right"))
@@ -505,6 +505,75 @@
             (lambda () (list (execute-command out :grow-frame-to-edge '("UP"))
                              (eq (root out) b) (frame-windows b)))
             (list t t (list b1 a1))))
+
+      ;; --- Every refusal fits the message box ---
+      ;;
+      ;; A 1280px output shows about 98 characters. Each refusal, with
+      ;; the longest direction word and a two-digit count, stays within
+      ;; 75.
+
+      (let ((shown '()))
+        (flet ((refusal (thunk)
+                 (setf last-message nil)
+                 (funcall thunk)
+                 (push last-message shown))
+               (rects-output (proxy rects focus-rect)
+                 ;; An output tiled as RECTS, every leaf holding a
+                 ;; window, the leaf at FOCUS-RECT focused
+                 (let* ((out (mk-out proxy))
+                        (tree (build-tree-from-rects rects)))
+                   (set-root out tree)
+                   (dolist (leaf (frame-leaves tree))
+                     (fill-frame leaf (mk-win (gensym "GF-LEN-") out)))
+                   (focus (first (frame-windows
+                                  (find focus-rect (frame-leaves tree)
+                                        :key #'rect :test #'equal))))
+                   out)))
+          ;; No frame there
+          (let ((out (rects-output :gf-len-none '((0 0 1920 1080))
+                                   '(0 0 1920 1080))))
+            (refusal (lambda () (grow-current-frame out 1 :right))))
+          ;; Ten frames meet the edge
+          (let ((out (rects-output
+                      :gf-len-ten
+                      (cons '(0 0 960 1080)
+                            (loop for i below 10
+                                  collect (list 960 (* i 108) 960 108)))
+                      '(0 0 960 1080))))
+            (refusal (lambda () (grow-current-frame out 1 :right))))
+          ;; The neighbour is taller; a frame in the way overhangs
+          (let ((out (rects-output
+                      :gf-len-taller
+                      '((0 0 960 540) (0 540 960 540) (960 0 960 1080))
+                      '(0 0 960 540))))
+            (refusal (lambda () (grow-current-frame out 1 :right)))
+            (refusal (lambda ()
+                       (grow-current-frame-to-edge out 1 :right))))
+          ;; Already at the screen edge
+          (let ((out (rects-output :gf-len-edge
+                                   '((0 0 960 1080) (960 0 960 1080))
+                                   '(960 0 960 1080))))
+            (refusal (lambda ()
+                       (grow-current-frame-to-edge out 1 :right)))
+            ;; The commands without a direction
+            (refusal (lambda ()
+                       (execute-command out :grow-frame '("sideways"))))
+            (refusal (lambda ()
+                       (execute-command out :grow-frame-to-edge
+                                        '("sideways")))))
+          ;; The result is no split tree
+          (let ((out (rects-output
+                      :gf-len-pinwheel
+                      '((0 0 600 300) (600 0 300 600) (300 600 300 300)
+                        (600 600 300 300) (0 300 300 600) (300 300 300 300))
+                      '(300 600 300 300))))
+            (refusal (lambda () (grow-current-frame out 1 :right)))))
+        (ok "every refusal message is at most 75 characters"
+            (lambda () (list (length shown)
+                             (count nil shown)
+                             (remove-if (lambda (m) (<= (length m) 75))
+                                        (remove nil shown))))
+            '(8 0 nil)))
 
       (ok "both commands are documented for describe-command"
           (lambda () (list (stringp (gethash :grow-frame *command-docs*))

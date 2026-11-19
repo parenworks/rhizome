@@ -360,7 +360,7 @@ when the remaining frames form no split tree."
          (subtree (build-subtree-from-leaves items
                                              (frame-internal-nodes lca))))
     (unless subtree
-      (message "cannot grow: the frames left would not form a split tree")
+      (message "cannot grow: the result is not a split tree")
       (return-from absorb-frames nil))
     ;; The absorbed frames' windows queue behind FRAME's own
     (let ((moved (loop for leaf in absorbed append (frame-windows leaf))))
@@ -438,13 +438,12 @@ line up with the edge, or when the result would form no split tree."
          (message "cannot grow ~A: no frame there" side)
          nil)
         ((rest touching)
-         (message "cannot grow ~A: ~D frames meet that edge, so no single ~
-                   frame lines up with it" side (length touching))
+         (message "cannot grow ~A: ~D frames share that edge"
+                  side (length touching))
          nil)
         ((not (equal (multiple-value-list (frame-span (first touching) cross))
                      (multiple-value-list (frame-span frame cross))))
-         (message "cannot grow ~A: the frame there is ~A than this one, so ~
-                   the edges do not line up"
+         (message "cannot grow ~A: neighbour is ~A than this frame"
                   side (if (eq axis :x) "taller" "wider"))
          nil)
         (t
@@ -471,15 +470,14 @@ frame's sides, or when the result would form no split tree."
       (multiple-value-bind (clo chi) (frame-span frame cross)
         (cond
           ((null in-way)
-           (message "cannot grow ~A: this frame already reaches the screen ~
-                     edge" side)
+           (message "cannot grow ~A: already at the screen edge" side)
            nil)
           ((find-if (lambda (leaf)
                       (multiple-value-bind (nclo nchi) (frame-span leaf cross)
                         (or (< nclo clo) (> nchi chi))))
                     in-way)
-           (message "cannot grow ~A to the edge: a frame in the way extends ~
-                     past this frame's ~A, so it cannot be absorbed whole"
+           (message "cannot grow ~A to edge: a frame in the way overhangs ~
+                     the ~A"
                     side (if (eq axis :x) "top or bottom" "sides"))
            nil)
           (t
