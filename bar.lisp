@@ -1443,6 +1443,16 @@ child, or one adopted from a previous WM."
   (merge-pathnames #P".cache/rhizome/bar.log"
                    (rhizome-home)))
 
+(defun bar-launch-argv ()
+  "The argv that starts the bar process. Name the running core with
+--core: without it, the SBCL runtime loads ./sbcl.core from the
+working directory in preference to its installed core."
+  (list "sbcl"
+        "--core" (sb-ext:native-namestring sb-ext:*core-pathname*)
+        "--non-interactive"
+        "--eval" "(ql:quickload :rhizome)"
+        "--eval" "(rhizome:run-bar)"))
+
 (defun start-bar ()
   "Start the bar as its own process (no-op if one is running or being
 launched). The WM process only, and it first reaps any orphan bars
@@ -1480,10 +1490,7 @@ left behind by past incidents (they would stack on screen)."
            (setf *bar-launched-settings* (bar-settings))
            (setf *bar-process*
                  (uiop:launch-program
-                   (list "sbcl"
-                         "--non-interactive"
-                         "--eval" "(ql:quickload :rhizome)"
-                         "--eval" "(rhizome:run-bar)")
+                   (bar-launch-argv)
                    :output (bar-log-path)
                    :error-output :output))
            (format t "~&; Rhizome: bar started~%"))

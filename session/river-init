@@ -19,6 +19,7 @@ if [ "$XDG_CURRENT_DESKTOP" = "river" ]; then
   # along; OMARCHY_PATH is one example (Omarchy's sleep-lock
   # checks it). Imported only when set — a no-op elsewhere.
   EXTRA_ENV=""
+  # shellcheck disable=SC2043  # a list of one today; more names can join it
   for v in OMARCHY_PATH; do
     eval "test -n \"\${$v:-}\"" && EXTRA_ENV="$EXTRA_ENV $v"
   done
@@ -55,12 +56,32 @@ find "$HOME/.cache/common-lisp" -name '*.fasl' -size 0 -delete 2>/dev/null
 # hot-swap — `rhizome-cmd detach` hands the session to a fresh
 # process; windows survive, river keeps their last-managed state)
 # and after a crash (same recovery: the desktop keeps rendering,
-# a fresh WM takes over via the takeover state file). The socket
-# check stands the loop down when river itself is gone; the sleep
-# bounds the spin if the build is broken.
+# a fresh WM takes over via the takeover state file). The loop stops
+# when river exits: river is this script's parent, and a crashed or
+# exited river can leave its socket file behind, so the socket alone
+# is not a liveness test. The sleep bounds the spin if the build is
+# broken.
+#
+# sbcl keeps $HOME, the directory river runs this script in, so the
+# programs the WM launches start there. With SBCL_HOME unset and no
+# core named, the runtime loads ./sbcl.core in preference to its own,
+# and a saved image in $HOME carries a stale ASDF source registry;
+# --core names the installed core so a stray one is never picked up.
+# The core is the one under the sbcl install prefix
+# (<prefix>/lib/sbcl/sbcl.core); when none is there, sbcl chooses.
+SBCL_BIN=$(command -v sbcl)
+SBCL_CORE="${SBCL_BIN%/bin/sbcl}/lib/sbcl/sbcl.core"
+if [ -r "$SBCL_CORE" ]; then
+  set -- --core "$SBCL_CORE"
+else
+  set --
+fi
+river_pid=$PPID
 (
-  while [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; do
-    sbcl --non-interactive \
+  cd "$HOME" || exit 1
+  while kill -0 "$river_pid" 2>/dev/null &&
+        [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]; do
+    sbcl "$@" --non-interactive \
          --eval '(ql:quickload :rhizome)' --eval '(rhizome:run)' \
       >> "$HOME/.cache/rhizome/rhizome.log" 2>&1
     sleep 1
