@@ -908,6 +908,16 @@ frames holding windows, one visible at a time:
 - =C-t= arrows move focus between frames; =C-t n= / =C-t p= cycle
   the windows inside the current frame; =rhizome-cmd resize-split
   30= nudges a dividing line.
+- =rhizome-cmd grow-frame right= grows the current frame into the
+  frame beside it (=left=, =right=, =up= or =down=). That frame must
+  share the current frame's whole edge. That frame closes, and its
+  windows queue behind the window the current frame shows.
+  =rhizome-cmd grow-frame-to-edge right= grows the current frame to
+  the screen edge, absorbing every frame in the way. When the edges
+  do not line up (several frames meet the edge, the neighbour is
+  taller or wider, or a frame in the way runs past the current
+  frame's sides), the command shows why and changes nothing. Neither
+  command has a default key.
 - Frames you split stay when they go empty, so you can split and then
   move a window in, or move the last window out, and the frame waits
   for the next one; =C-t R= removes a split and =C-t Q= collapses to

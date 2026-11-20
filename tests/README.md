@@ -47,6 +47,13 @@ stubbed river requests. Run with:
   the original half, with or without a focused window, so a second
   split divides that half again; the placement policy still fills the
   new half.
+- `grow-frame.lisp` - grow-frame and grow-frame-to-edge: a frame grows
+  into the neighbour that shares its whole edge, sibling or not, or to
+  the screen edge across every frame in the way; absorbed windows queue
+  behind the shown window and none is lost. A split neighbour, a
+  taller or wider neighbour, the screen edge, a frame in the way that
+  runs past the frame's sides, and a result no split tree can hold are
+  each refused with a reason and an unchanged tree.
 - `parity.lisp` — Alt+drag pointer bindings (drag floats tiled
   windows), the C-t h help system, describe-key, move-window-to-frame,
   and `:output` window rules.

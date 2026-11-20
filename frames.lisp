@@ -234,6 +234,267 @@ usable). No-op at the root."
                  (frame-height second) (- y2 line)))))
       (request-manage-dirty))))
 
+;;; --- Growing a frame into its neighbours ---
+;;;
+;;; grow-current-frame absorbs the one frame that shares the current
+;;; frame's whole edge on one side; grow-current-frame-to-edge absorbs
+;;; every frame between that edge and the screen edge. The absorbed
+;;; frames' windows queue behind the shown window. Only the subtree
+;;; under the lowest split holding every frame involved is rebuilt:
+;;; a new split whose rectangle matches an old one takes its
+;;; dividing line and user mark when that line is still valid.
+
+(defun frame-direction-axes (direction)
+  "For DIRECTION, return (values AXIS CROSS SIGN): the axis the frame
+grows along (:x or :y), the axis across it, and +1 toward larger
+coordinates or -1 toward smaller ones."
+  (ecase direction
+    (:right (values :x :y 1))
+    (:left  (values :x :y -1))
+    (:down  (values :y :x 1))
+    (:up    (values :y :x -1))))
+
+(defun frame-span (frame axis)
+  "FRAME's extent along AXIS (:x or :y) as (values LOW HIGH)."
+  (ecase axis
+    (:x (values (frame-x frame) (+ (frame-x frame) (frame-width frame))))
+    (:y (values (frame-y frame) (+ (frame-y frame) (frame-height frame))))))
+
+(defun frame-rect-list (frame)
+  "FRAME's rectangle as (x y width height)."
+  (list (frame-x frame) (frame-y frame)
+        (frame-width frame) (frame-height frame)))
+
+(defun frame-internal-nodes (frame)
+  "The split (non-leaf) frames of the tree under FRAME."
+  (when (frame-first-child frame)
+    (append (list frame)
+            (frame-internal-nodes (frame-first-child frame))
+            (frame-internal-nodes (frame-second-child frame)))))
+
+(defun frame-cut-valid-p (rects direction pos)
+  "T when the line at POS (x for :horizontal, y for :vertical) crosses
+none of RECTS."
+  (every (lambda (r)
+           (destructuring-bind (x y w h) r
+             (ecase direction
+               (:horizontal (or (<= (+ x w) pos) (>= x pos)))
+               (:vertical   (or (<= (+ y h) pos) (>= y pos))))))
+         rects))
+
+(defun build-subtree-from-leaves (items old-nodes)
+  "Build a split tree over ITEMS, a list of (LEAF X Y W H), without
+modifying any LEAF. Returns the new root (a LEAF itself when ITEMS
+holds one), or NIL when the rectangles form no split tree. A node
+whose rectangle matches one of OLD-NODES reuses that node's dividing
+line and user mark when the line is still valid; any other new split
+is marked as a user split when one of OLD-NODES was."
+  (let ((marked (some #'frame-user-split old-nodes))
+        (leaf-of (make-hash-table :test 'eq)))
+    (labels ((bounds (rects)
+               (let ((x1 (reduce #'min rects :key #'first))
+                     (y1 (reduce #'min rects :key #'second))
+                     (x2 (reduce #'max rects
+                                 :key (lambda (r) (+ (first r) (third r)))))
+                     (y2 (reduce #'max rects
+                                 :key (lambda (r) (+ (second r) (fourth r))))))
+                 (list x1 y1 (- x2 x1) (- y2 y1))))
+             (old-cut (bnd rects)
+               ;; (DIRECTION POS MARK) of the old split at BND, if valid
+               (let ((old (find bnd old-nodes
+                                :key #'frame-rect-list :test #'equal)))
+                 (when old
+                   (let* ((dir (frame-split-direction old))
+                          (second (frame-second-child old))
+                          (pos (if (eq dir :horizontal)
+                                   (frame-x second)
+                                   (frame-y second))))
+                     (when (frame-cut-valid-p rects dir pos)
+                       (list dir pos (frame-user-split old)))))))
+             (split-at (rects dir pos)
+               (let ((key (if (eq dir :horizontal) #'first #'second)))
+                 (values (remove-if (lambda (r) (>= (funcall key r) pos)) rects)
+                         (remove-if (lambda (r) (< (funcall key r) pos)) rects))))
+             (build (rects)
+               (if (null (rest rects))
+                   (gethash (first rects) leaf-of)
+                   (let* ((bnd (bounds rects))
+                          (cut (or (old-cut bnd rects)
+                                   (let ((found (frame-find-cut rects)))
+                                     (and found
+                                          (list (first found) (second found)
+                                                marked))))))
+                     (when cut
+                       (destructuring-bind (dir pos mark) cut
+                         (multiple-value-bind (a b) (split-at rects dir pos)
+                           (let* ((fa (build a))
+                                  (fb (and fa (build b))))
+                             (when (and fa fb)
+                               (destructuring-bind (x y w h) bnd
+                                 (make-frame :x x :y y :width w :height h
+                                             :split-direction dir
+                                             :user-split mark
+                                             :first-child fa
+                                             :second-child fb)))))))))))
+      (build (mapcar (lambda (item)
+                       (let ((r (copy-list (rest item))))
+                         (setf (gethash r leaf-of) (first item))
+                         r))
+                     items)))))
+
+(defun absorb-frames (output workspace frame absorbed new-rect)
+  "Grow FRAME to NEW-RECT (x y w h), removing the ABSORBED leaves and
+queueing their windows, in order, behind FRAME's own. Rebuilds only
+the subtree under the lowest split holding FRAME and every absorbed
+leaf. Returns T, or shows a message and returns NIL, changing nothing,
+when the remaining frames form no split tree."
+  (let* ((lca (loop for node = (frame-parent frame) then (frame-parent node)
+                    while node
+                    when (subsetp absorbed (frame-leaves node))
+                      return node))
+         (items (loop for leaf in (frame-leaves lca)
+                      unless (member leaf absorbed)
+                        collect (cons leaf (if (eq leaf frame)
+                                               new-rect
+                                               (frame-rect-list leaf)))))
+         (subtree (build-subtree-from-leaves items
+                                             (frame-internal-nodes lca))))
+    (unless subtree
+      (message "cannot grow: the result is not a split tree")
+      (return-from absorb-frames nil))
+    ;; The absorbed frames' windows queue behind FRAME's own
+    (let ((moved (loop for leaf in absorbed append (frame-windows leaf))))
+      (dolist (leaf absorbed)
+        (setf (frame-windows leaf) nil
+              (frame-parent leaf) nil))
+      (setf (frame-windows frame) (append (frame-windows frame) moved))
+      (dolist (win moved)
+        (setf (window-frame win) frame)))
+    (destructuring-bind (x y w h) new-rect
+      (setf (frame-x frame) x (frame-y frame) y
+            (frame-width frame) w (frame-height frame) h))
+    ;; The rebuilt subtree takes the old one's slot
+    (labels ((link (node)
+               (when (frame-first-child node)
+                 (setf (frame-parent (frame-first-child node)) node
+                       (frame-parent (frame-second-child node)) node)
+                 (link (frame-first-child node))
+                 (link (frame-second-child node)))))
+      (link subtree))
+    (let ((grand (frame-parent lca)))
+      (setf (frame-parent subtree) grand)
+      (cond (grand
+             (if (eq (frame-first-child grand) lca)
+                 (setf (frame-first-child grand) subtree)
+                 (setf (frame-second-child grand) subtree)))
+            (t
+             (setf (gethash (frame-key output workspace) *frame-trees*)
+                   subtree))))
+    (setf (gethash (frame-key output workspace) *current-frames*) frame)
+    (request-manage-dirty)
+    t))
+
+(defun frames-beyond-edge (frame leaves direction &key touching)
+  "The LEAVES other than FRAME that lie past FRAME's edge in DIRECTION
+and overlap it across that axis. With TOUCHING, only those whose
+facing edge lies on FRAME's edge."
+  (multiple-value-bind (axis cross sign) (frame-direction-axes direction)
+    (multiple-value-bind (lo hi) (frame-span frame axis)
+      (multiple-value-bind (clo chi) (frame-span frame cross)
+        (let ((edge (if (plusp sign) hi lo)))
+          (remove-if-not
+           (lambda (leaf)
+             (and (not (eq leaf frame))
+                  (multiple-value-bind (nlo nhi) (frame-span leaf axis)
+                    (let ((facing (if (plusp sign) nlo nhi)))
+                      (if touching
+                          (= facing edge)
+                          (if (plusp sign) (>= facing edge) (<= facing edge)))))
+                  (multiple-value-bind (nclo nchi) (frame-span leaf cross)
+                    (> (min chi nchi) (max clo nclo)))))
+           leaves))))))
+
+(defun frame-rect-along (frame axis lo hi)
+  "FRAME's rectangle as (x y w h) with its AXIS extent set to LO..HI."
+  (if (eq axis :x)
+      (list lo (frame-y frame) (- hi lo) (frame-height frame))
+      (list (frame-x frame) lo (frame-width frame) (- hi lo))))
+
+(defun grow-current-frame (output workspace direction)
+  "Grow the current frame into the frame beside it in DIRECTION (:left
+:right :up :down). The neighbour must share the current frame's whole
+edge on that side; it is removed and its windows queue behind the
+shown window. Returns T. Shows a message and returns NIL, changing
+nothing, when no frame lies that way, when the frames there do not
+line up with the edge, or when the result would form no split tree."
+  (let* ((frame (current-frame-for output workspace))
+         (touching (frames-beyond-edge
+                    frame (frame-leaves (frame-tree-for output workspace))
+                    direction :touching t))
+         (side (string-downcase (symbol-name direction))))
+    (multiple-value-bind (axis cross) (frame-direction-axes direction)
+      (cond
+        ((null touching)
+         (message "cannot grow ~A: no frame there" side)
+         nil)
+        ((rest touching)
+         (message "cannot grow ~A: ~D frames share that edge"
+                  side (length touching))
+         nil)
+        ((not (equal (multiple-value-list (frame-span (first touching) cross))
+                     (multiple-value-list (frame-span frame cross))))
+         (message "cannot grow ~A: neighbour is ~A than this frame"
+                  side (if (eq axis :x) "taller" "wider"))
+         nil)
+        (t
+         (let ((target (first touching)))
+           (multiple-value-bind (lo hi) (frame-span frame axis)
+             (multiple-value-bind (nlo nhi) (frame-span target axis)
+               (absorb-frames output workspace frame (list target)
+                              (frame-rect-along frame axis
+                                                (min lo nlo)
+                                                (max hi nhi)))))))))))
+
+(defun grow-current-frame-to-edge (output workspace direction)
+  "Grow the current frame to the screen edge in DIRECTION (:left :right
+:up :down), absorbing every frame in the way; their windows queue
+behind the shown window, nearest frame first. Returns T. Shows a
+message and returns NIL, changing nothing, when the frame already
+reaches that edge, when a frame in the way extends past the current
+frame's sides, or when the result would form no split tree."
+  (let* ((frame (current-frame-for output workspace))
+         (root (frame-tree-for output workspace))
+         (in-way (frames-beyond-edge frame (frame-leaves root) direction))
+         (side (string-downcase (symbol-name direction))))
+    (multiple-value-bind (axis cross sign) (frame-direction-axes direction)
+      (multiple-value-bind (clo chi) (frame-span frame cross)
+        (cond
+          ((null in-way)
+           (message "cannot grow ~A: already at the screen edge" side)
+           nil)
+          ((find-if (lambda (leaf)
+                      (multiple-value-bind (nclo nchi) (frame-span leaf cross)
+                        (or (< nclo clo) (> nchi chi))))
+                    in-way)
+           (message "cannot grow ~A to edge: a frame in the way overhangs ~
+                     the ~A"
+                    side (if (eq axis :x) "top or bottom" "sides"))
+           nil)
+          (t
+           (multiple-value-bind (lo hi) (frame-span frame axis)
+             (multiple-value-bind (rlo rhi) (frame-span root axis)
+               (absorb-frames
+                output workspace frame
+                ;; Nearest frame first, ties in layout order
+                (stable-sort (copy-list in-way) #'<
+                      :key (lambda (leaf)
+                             (multiple-value-bind (nlo nhi)
+                                 (frame-span leaf axis)
+                               (if (plusp sign) nlo (- nhi)))))
+                (if (plusp sign)
+                    (frame-rect-along frame axis lo rhi)
+                    (frame-rect-along frame axis rlo hi)))))))))))
+
 ;;; --- Focus ---
 
 (defun frame-at-direction (frame direction leaves)
