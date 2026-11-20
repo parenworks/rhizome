@@ -466,7 +466,7 @@ window management updates."
           (uiop:run-program '("pkill" "-x" "swayidle") :ignore-error-status t)
           (handler-case
               (progn
-                (uiop:launch-program args)
+                (launch-user-program args)
                 (format t "~&; Rhizome: idle manager started (lock after ~As)~%" lock-after))
             (error ()
               (format t "~&; Rhizome: swayidle not found — install it for idle management~%")))))))

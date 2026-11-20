@@ -482,7 +482,7 @@ With :region t, select the area with slurp first."
                           path-str path-str)
                   (format nil "grim ~S && wl-copy < ~S" path-str path-str))))
     (ensure-directories-exist dir)
-    (uiop:launch-program (list "bash" "-c" cmd))
+    (launch-user-program (list "bash" "-c" cmd))
     (format t "~&; Rhizome: screenshot ~A-> ~A~%"
             (if region "region " "") path-str)))
 

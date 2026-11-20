@@ -78,7 +78,7 @@ focus it."
                :on-complete
                (lambda (command)
                  (message "running: ~A" command)
-                 (uiop:launch-program (list "bash" "-c" command)))))
+                 (launch-user-program (list "bash" "-c" command)))))
 
 (defun select-from-menu (title items &key on-select)
   "Pop a type-to-filter selection menu and act on the choice —
