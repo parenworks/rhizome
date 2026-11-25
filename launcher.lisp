@@ -1272,9 +1272,10 @@ surface, created BEFORE the launcher (stacks below it in the same
   (let ((entries (mapcar #'third *launcher-app-list*)))
     (bt:make-thread
       (lambda ()
-        (dolist (spec entries)
-          (handler-case (load-icon spec)
-            (error () nil)))
+        (let ((size (launcher-icon-size)))
+          (dolist (spec entries)
+            (handler-case (load-icon spec :size size)
+              (error () nil))))
         ;; icons landed: redraw with them (the IPC queue runs on
         ;; the main thread - redraw-safe)
         (ipc-enqueue
