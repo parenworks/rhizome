@@ -38,6 +38,10 @@
           (lambda (&rest args)
             (declare (ignore args))
             nil))
+    ;; start-bar truncates its log before spawning; a test run must
+    ;; never truncate the running bar's log in the real home directory
+    (setf (symbol-function 'bar-log-path)
+          (lambda () #p"/tmp/rhizome-test-bar.log"))
     (setf *bar-process* nil
           *bar-process-mode* nil
           *wm-process-mode* t
@@ -109,6 +113,7 @@
     (ok "WM mode: applying works again"
         spawned 1))
 
+  (ignore-errors (delete-file #p"/tmp/rhizome-test-bar.log"))
   (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
   (unless (zerop fail) (uiop:quit 1)))
 
