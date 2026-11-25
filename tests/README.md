@@ -140,6 +140,10 @@ stubbed river requests. Run with:
   run from the command palette or over IPC: the command's own message
   stays, a non-empty reply is shown when the command showed nothing,
   and an empty reply never replaces a message.
+- `command-table.lisp` - a command defined from another package
+  through the exported API runs through execute-command, the IPC
+  dispatcher, and the command palette, and describe-command shows its
+  docstring; redefining it replaces the handler and the docstring.
 - `pull-hidden.lisp` - pull-hidden-next and its previous direction:
   hidden windows cycle in window-number order whatever order the
   workspace lists them in, wrapping at either end; unnumbered windows
