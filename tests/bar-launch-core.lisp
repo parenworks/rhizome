@@ -79,10 +79,13 @@ probe's STRAY= value as a string, or NIL when it printed none."
                (and (member "(rhizome:run-bar)" argv :test #'equal) t)
                t)
            ;; Control: a bare sbcl in that directory loads the planted
-           ;; core, so the check below can fail
-           (ok "bare sbcl in the directory loads the planted core"
-               (probe-stray (list "sbcl") directory)
-               "T")
+           ;; core, so the check below can fail. Environment-
+           ;; dependent: an SBCL with SBCL_HOME set (or one built not
+           ;; to read ./sbcl.core) ignores planted cores - the
+           ;; vulnerability is absent and the check below passes
+           ;; trivially. Informational, not enforced.
+           (format t "~&NOTE: bare sbcl ~:[ignores~;loads~] planted cores here~%"
+                   (probe-stray (list "sbcl") directory))
            (ok "the bar argv's runtime part ignores the planted core"
                (and argv (probe-stray (subseq argv 0 3) directory))
                "NIL"))
