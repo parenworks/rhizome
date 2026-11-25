@@ -310,10 +310,13 @@ matched rule, if any."
                      ;; 1-based index into the sorted outputs
                      (nth (1- output-spec) (all-outputs-sorted)))
                     (string
-                     ;; the output's wl_output name, e.g. "eDP-2" -
-                     ;; names survive output reordering, indices do not
+                     ;; the output's CONNECTOR name, e.g. "eDP-2" -
+                     ;; resolved through the output-management heads;
+                     ;; the raw wl_output name is a registry number
+                     ;; (#32). Connector names survive output
+                     ;; reordering and replug; indices do not
                      (find output-spec (all-outputs-sorted)
-                           :key #'output-wl-output-name
+                           :key #'output-connector-name
                            :test #'string=)))))
             (when target
               (setf (window-output win) target))))

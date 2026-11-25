@@ -92,6 +92,21 @@ the result back to the hash."
     (setf (getf state key) value)
     (setf (gethash mode *display-modes*) state)))
 
+(defun output-connector-name (output)
+  "The connector name (e.g. \"eDP-2\") of the output-management head
+at OUTPUT's position - the identity that survives unplug/replug and
+river restarts. The raw wl_output name is a registry global number,
+unstable across replug and meaningless to a human (#32). Falls back
+to the raw name when no head matches."
+  (or (loop for state in (display-heads)
+            for pos = (getf state :position)
+            when (and pos
+                      (= (car pos) (output-x output))
+                      (= (cdr pos) (output-y output)))
+              return (getf state :name))
+      (let ((raw (output-wl-output-name output)))
+        (and raw (princ-to-string raw)))))
+
 (defun display-heads ()
   "All tracked heads as state plists, ordered by name."
   (sort (loop for state being the hash-values of *display-heads*
