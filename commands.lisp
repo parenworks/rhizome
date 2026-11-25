@@ -63,6 +63,13 @@ Lisp callers of execute-command may pass strings."
     (integer arg)
     (string (parse-integer arg :junk-allowed t))))
 
+(defun command-direction-argument (arg)
+  "ARG (a string or symbol, any case) as one of :left :right :up
+:down, or NIL."
+  (when (typep arg '(or string symbol))
+    (find (string-upcase (string arg)) '(:left :right :up :down)
+          :test #'string=)))
+
 (defun describe-command-prompt ()
   "Prompt for a command name and show its documentation."
   (prompt-open "Describe command"
@@ -105,6 +112,30 @@ Lisp callers of execute-command may pass strings."
                         (or (and args
                                  (command-integer-argument (first args)))
                             30)))
+
+(define-command :grow-frame (output args)
+  "Grow the current frame into the frame beside it. Usage: grow-frame
+left|right|up|down. The neighbour must share the frame's whole edge;
+its windows queue behind the shown window."
+  (let ((direction (command-direction-argument (first args)))
+        (output (or output (first (all-outputs)))))
+    (if direction
+        (grow-current-frame output (current-workspace output) direction)
+        (progn (message "grow-frame: direction must be left, right, up or down")
+               nil))))
+
+(define-command :grow-frame-to-edge (output args)
+  "Grow the current frame to the screen edge, absorbing every frame in
+the way. Usage: grow-frame-to-edge left|right|up|down. Their windows
+queue behind the shown window."
+  (let ((direction (command-direction-argument (first args)))
+        (output (or output (first (all-outputs)))))
+    (if direction
+        (grow-current-frame-to-edge output (current-workspace output)
+                                    direction)
+        (progn (message "grow-frame-to-edge: direction must be left, right, ~
+                         up or down")
+               nil))))
 
 (define-command :focus-left (output args)
   "Move frame focus left."

@@ -16,7 +16,7 @@ TYPST     ?= typst
 HOME_DIR  ?= $(HOME)
 SUITES    := animations decorations surface window-rules window-rules-reload floating frame-pruning \
              unfloat-placement \
-             placement-policy split-focus focus-on-close \
+             placement-policy split-focus grow-frame focus-on-close \
              focus-after-capture layer-focus workspace-focus \
              workspace-modes theming bar-guard bar-hide session-icons quickwins \
              groups interactivity workspace-restore workspace-switch-away \
