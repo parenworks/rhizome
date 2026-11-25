@@ -856,7 +856,12 @@ scaled by the launcher's surface alpha down in the font module."
 the premultiplied launcher surface, vertically centered on the
 row. Reuses the bar's icon discovery/scaling (bar.lisp)."
   (let* ((size (launcher-icon-size))
-         (icon (load-icon spec :size size)))
+         ;; PEEK ONLY: a cold-cache load-icon decodes a PNG in pure
+         ;; Lisp (pngload) - ~250ms per icon, ~5s of main-thread
+         ;; blocking on the first open (the launcher lag). The
+         ;; background warmer fills the cache; icons appear once
+         ;; loaded, the render never waits for them
+         (icon (gethash (cons spec size) *bar-icon-cache*)))
     (when icon
       (destructuring-bind (iw ih idata) icon
         (declare (ignore iw))
@@ -1260,6 +1265,24 @@ surface, created BEFORE the launcher (stacks below it in the same
   ;; variety ...) appear on the next launcher open, no restart
   (launcher-refresh-app-list)
   (launcher-history-load)
+  ;; Warm the icon cache off-thread: the render above peeks (never
+  ;; loads), so the first open draws text-only and the icons fill in
+  ;; on the next redraw once warm. Fresh entries (new installs) warm
+  ;; the same way.
+  (let ((entries (mapcar #'third *launcher-app-list*)))
+    (bt:make-thread
+      (lambda ()
+        (dolist (spec entries)
+          (handler-case (load-icon spec)
+            (error () nil)))
+        ;; icons landed: redraw with them (the IPC queue runs on
+        ;; the main thread - redraw-safe)
+        (ipc-enqueue
+          (lambda ()
+            (when *launcher-active*
+              (launcher-render-to-shm (gethash :width rhizome::*launcher-state* 700) (gethash :height rhizome::*launcher-state* 400)))))))
+    (format t "~&; Rhizome: launcher icon warm started (~A entries)~%"
+            (length entries)))
   (setf *launcher-query* ""
         *launcher-selection* 0
         *launcher-scroll-offset* 0
