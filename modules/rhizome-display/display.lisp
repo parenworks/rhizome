@@ -63,7 +63,7 @@ The brightnessctl exit status is ignored."
       (progn (uiop:run-program '("pkill" "-x" "hyprsunset")
                                :ignore-error-status t)
              (message "night light off"))
-      (progn (uiop:launch-program '("hyprsunset" "-t" "4000"))
+      (progn (launch-user-program '("hyprsunset" "-t" "4000"))
              (message "night light on (4000K)"))))
 
 (defun display-output-menu (state)

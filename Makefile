@@ -24,7 +24,7 @@ SUITES    := animations decorations surface window-rules floating frame-pruning 
              keymap-layers key-sequences key-grabs key-names shm-buffers modules bar-adoption network-menu bar-reserved-per-output \
              module-sources output-rules-by-name output-hotplug border-colours \
              ipc-socket-path ipc-command-args example-config layout-rule-frames \
-             compositor-loss
+             compositor-loss launch-directory
 
 .PHONY: all build test install docs clean help
 

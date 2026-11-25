@@ -1345,7 +1345,7 @@ Returns T if the key was consumed, NIL if not."
          ;; Frecency: this app goes to the top next time
          (handler-case (launcher-record-launch (car entry))
            (error () nil))
-         (uiop:launch-program (list "bash" "-c" (second entry))))
+         (launch-user-program (list "bash" "-c" (second entry))))
        (hide-launcher))
      (launcher-redraw)
      t)
