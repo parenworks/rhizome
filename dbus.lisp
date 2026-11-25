@@ -368,8 +368,11 @@ Returns (values value new-offset)."
       ((:int32 :uint32 :unix-fd) (values (u32v) offset))
       ((:int16 :uint16) (values (u16) offset))
       ((:int64 :uint64)
-       (let ((lo (u32v)) (hi (u32v)))
-         (values (+ lo (ash hi 32)) offset)))
+       (aligned 8)
+       (let ((n (loop for i from 0 below 8
+                      sum (ash (aref bytes (+ offset i)) (* 8 i)))))
+         (incf offset 8)
+         (values n offset)))
       (:double
        (aligned 8)
        (let ((bits (loop for i from 7 downto 0
@@ -388,7 +391,6 @@ Returns (values value new-offset)."
               (elem-align (type-alignment (second type)))
               (pad (mod (- elem-align (mod offset elem-align))
                         elem-align)))
-         (decf len pad)
          (incf offset pad)
          (let ((end (+ offset len))
                (elems nil))
