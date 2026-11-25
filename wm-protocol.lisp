@@ -467,7 +467,11 @@ internals (%WL-DISPLAY-SOCKET and the wire %FD)."
   (setf *wm-process-mode* t)
 
   ;; Load user configuration (~/.config/rhizome/config.lisp)
-  (load-user-config)
+  ;; The startup load is the :config source, matching reload-config
+  ;; (an unbound source files the config's rules under :repl,
+  ;; duplicating them on the first reload)
+  (let ((*current-source* :config))
+    (load-user-config))
   ;; Resolve the configured TrueType font for the in-process surfaces
   ;; (launcher, message window, prompts); falls back to the bitmap
   ;; font when freetype/fontconfig is unavailable.

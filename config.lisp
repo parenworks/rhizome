@@ -332,8 +332,12 @@ query returns the candidates unchanged."
         (nconc (nreverse direct) (nreverse fuzzy)))))
 
 (defun load-user-config ()
-  "Load the user's config file if it exists."
-  (let ((path (config-pathname)))
+  "Load the user's config file if it exists. The load IS the
+:config source - whatever registers inside (rules, keybindings)
+files under :config, whether from the startup load, a
+reload-config, or a direct call."
+  (let ((*current-source* :config)
+        (path (config-pathname)))
     (when (probe-file path)
       (format t "~&; Rhizome: loading config from ~A~%" path)
       (handler-case
