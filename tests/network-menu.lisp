@@ -7,8 +7,9 @@
 
 ;; The network menu is a MODULE now: load it from the repo's
 ;; modules/ directory (the same way a user loads it from
-;; ~/.config/rhizome/modules/)
-(let ((*module-directory*
+;; ~/.config/rhizome/modules/), from CL-USER as a config file loads it
+(let ((*package* (find-package :cl-user))
+      (*module-directory*
         (make-pathname
           :directory (append (pathname-directory
                                (asdf:system-source-directory :rhizome))

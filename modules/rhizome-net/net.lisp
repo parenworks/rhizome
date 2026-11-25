@@ -12,6 +12,8 @@
 
 ;;; --- Network management (the network configurator, like display-menu) ---
 
+(in-package #:rhizome)
+
 (defun network-nmcli-fields (line)
   "Split one nmcli -t (terse) line on unescaped colons, unescaping
 nmcli's escapes (\\: a colon, \\\\ a backslash — SSIDs may contain
