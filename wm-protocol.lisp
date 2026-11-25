@@ -404,6 +404,40 @@ window management updates."
 
 ;;; --- Main event loop --
 
+(defun socket-fd-at-eof-p (fd)
+  "Return true when a peek at socket FD, without blocking, reads
+end-of-file or fails with an error other than EAGAIN or EINTR.
+Consume no input. Call recv through sb-alien with the Linux values of
+MSG_PEEK and MSG_DONTWAIT."
+  (sb-alien:with-alien ((octet (sb-alien:array (sb-alien:unsigned 8) 1)))
+    (let ((n (sb-alien:alien-funcall
+              (sb-alien:extern-alien
+               "recv" (function sb-alien:long sb-alien:int
+                                sb-alien:system-area-pointer
+                                sb-alien:unsigned-long sb-alien:int))
+              fd (sb-alien:alien-sap octet) 1
+              ;; MSG_PEEK | MSG_DONTWAIT
+              (logior #x02 #x40))))
+      (cond ((zerop n) t)
+            ((plusp n) nil)
+            (t (not (member (sb-alien:get-errno)
+                            (list sb-unix:eagain sb-unix:eintr))))))))
+
+(defun display-connection-lost-p (display)
+  "Return true when DISPLAY's connection is gone: DISPLAY is
+disconnected, or no input is buffered and its socket reads end-of-file
+or a socket error. Return NIL while input is buffered, so call it after
+dispatching pending events. Read the socket fd through wayflan
+internals (%WL-DISPLAY-SOCKET and the wire %FD)."
+  (or (not (typep display 'wl:wl-display))
+      (handler-case
+          (and (not (wl:wl-display-listen display))
+               (let ((fd (slot-value
+                          (xyz.shunter.wayflan.client::%wl-display-socket display)
+                          'xyz.shunter.wayflan.wire::%fd)))
+                 (or (null fd) (socket-fd-at-eof-p fd))))
+        (wl:wl-socket-error () t))))
+
 (defun run ()
   "Start the rhizome window manager. Connects to the running river compositor."
   (setf *running* t
@@ -548,6 +582,10 @@ window management updates."
                    (wl:wl-display-dispatch-event display))
                (error (e)
                  (format t "~&; Rhizome: error in event dispatch: ~A~%" e)))
+             ;; River gone: stop, or the loop sleeps on a dead socket
+             (when (display-connection-lost-p display)
+               (format t "~&; Rhizome: compositor connection lost~%")
+               (return))
              (ipc-drain)
              (message-drain)
              (prompt-drain)
