@@ -45,9 +45,15 @@ always first).")
 set. The effective rules (:config first, then registration order)
 take effect at the next rule match - rules are not re-run over
 windows that are already open."
+  ;; registration by ORDER-LIST membership, not rules presence: a
+  ;; source set to NIL stays registered (setting it again must not
+  ;; re-register - its rules would match twice)
   (unless (or (eq source :config)
-              (gethash source *window-rule-sources*))
-    (push source *window-rule-source-order*))
+              (member source *window-rule-source-order*))
+    ;; APPEND: first-registration order, as documented - push made
+    ;; newest sources match first
+    (setf *window-rule-source-order*
+          (append *window-rule-source-order* (list source))))
   (setf (gethash source *window-rule-sources*) rules)
   (setf (getf *config* :window-rules) (effective-window-rules))
   rules)

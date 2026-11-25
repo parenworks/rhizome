@@ -258,6 +258,13 @@ of clobbering the live session's - else the user's home."
              (uiop:ensure-directory-pathname dir)))
       (user-homedir-pathname)))
 
+;;; *current-source* is defined (with its documentation) in
+;;; sources.lisp, which loads after this file. Declared special
+;;; here so reload-config's (let ((*current-source* :config)) ...)
+;;; binds the dynamic variable, not a lexical one - a config
+;;; file's rules landed under :repl for exactly that reason.
+(defvar *current-source*)
+
 (defun config-pathname ()
   "Pathname of the user config file."
   (merge-pathnames #P".config/rhizome/config.lisp"
