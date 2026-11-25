@@ -37,6 +37,11 @@ stubbed river requests. Run with:
   window split open still close with it; `(:frames (:prune-empty :never))`
   keeps every empty frame and `:always` prunes user splits too; removing a
   split or collapsing to one frame leaves nothing marked.
+- `unfloat-placement.lisp` - where a float lands when it returns to the
+  tiling, on its own output: the empty frame under its centre, else the
+  empty frame nearest its centre, else a new half of the largest frame.
+  Ties go to the frame nearest the centre, then to tree order; a float
+  with no known size takes the first frame in tree order.
 - `placement-policy.lisp` - frame placement policy: by default a split
   fills its new half with the most recently focused hidden window and a
   new window enters the focused frame; `:new-frame :empty`, the

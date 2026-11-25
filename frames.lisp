@@ -788,6 +788,32 @@ Placeholder: redefined by groups.lisp."
 (declaim (ftype (function (t t) t) floating-workspace-p)
          (ftype (function (t t t) t) float-adopt-window))
 
+(defun frame-splittable-p (frame)
+  "T when FRAME is at least twice *frame-min-size* in both dimensions."
+  (and (>= (frame-width frame) (* 2 *frame-min-size*))
+       (>= (frame-height frame) (* 2 *frame-min-size*))))
+
+(defun split-frame-for-window (win frame output workspace)
+  "Split leaf FRAME in half along its longer axis and push WIN into
+the new second half, which becomes the current frame of WORKSPACE on
+OUTPUT. FRAME's windows move to the first half. Returns the second
+half."
+  (let ((second (split-frame frame
+                             (if (>= (frame-width frame)
+                                     (frame-height frame))
+                                 :horizontal
+                                 :vertical)
+                             1/2))
+        (first (frame-first-child frame)))
+    (dolist (w (frame-windows frame))
+      (setf (window-frame w) first))
+    (setf (frame-windows first) (frame-windows frame)
+          (frame-windows frame) nil)
+    (frame-push-window win second)
+    (setf (gethash (frame-key output workspace) *current-frames*)
+          second)
+    second))
+
 (defun frame-adopt-window (win output workspace)
   "Adopt a frameless WIN into the tiling, in the frame the placement
 policy picks (see placement-frame-for-new-window). Dynamic tiling by
@@ -797,26 +823,10 @@ back into strict StumpWM (one window per frame, hidden behind)."
   (let ((frame (placement-frame-for-new-window win output workspace)))
     (if (and (config-getf '(:tiling) :auto-split :default t)
              (frame-windows frame)
-             (>= (frame-width frame) (* 2 *frame-min-size*))
-             (>= (frame-height frame) (* 2 *frame-min-size*)))
-        ;; Split along the longer axis so frames stay usable; the
-        ;; existing windows move to the first child (split-frame
-        ;; leaves them on the now-internal node otherwise), and the
-        ;; new window takes the fresh half with the current pointer
-        (let ((second (split-frame frame
-                                   (if (>= (frame-width frame)
-                                           (frame-height frame))
-                                       :horizontal
-                                       :vertical)
-                                   1/2))
-              (first (frame-first-child frame)))
-          (dolist (win (frame-windows frame))
-            (setf (window-frame win) first))
-          (setf (frame-windows first) (frame-windows frame)
-                (frame-windows frame) nil)
-          (frame-push-window win second)
-          (setf (gethash (frame-key output workspace) *current-frames*)
-                second))
+             (frame-splittable-p frame))
+        ;; Split along the longer axis so frames stay usable; the new
+        ;; window takes the fresh half with the current pointer
+        (split-frame-for-window win frame output workspace)
         (frame-push-window win frame))))
 
 (defun frames-preserve-empty-p ()
