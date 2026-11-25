@@ -197,24 +197,22 @@ x-threading for every module after it — the bar vanishes (the
 snapshot's :recording flag). Add :recording to a bar segment to
 use it."
   (if (getf (bar-snapshot) :recording)
-      (let ((color (config-getf '(:bar) :recording-color
-                                :default "#f7768e")))
-        (list (list* "REC " color)))
+      (list (list* "REC " (theme-color :bar-recording)))
       ""))
 
 (defun bar-module-workspaces ()
-  "Workspace numbers with breathing room: the active workspace in
-the accent color, underlined; occupied workspaces in the
-foreground color; empty ones muted. Occupancy comes from the WM
+  "Workspace numbers with breathing room, coloured by the
+:bar-workspace-current (on a pill), :bar-workspace-occupied, and
+:bar-workspace-empty elements. Occupancy comes from the WM
 snapshot's :occupied list (workspace numbers with visible
 windows)."
   (let* ((snapshot (bar-snapshot))
          (current (getf snapshot :workspace 1))
          (count (getf snapshot :workspace-count 9))
          (occupied (getf snapshot :occupied))
-         (accent (config-getf '(:bar) :accent :default "#7aa2f7"))
-         (fg (config-getf '(:bar) :foreground :default "#c0caf5"))
-         (muted (config-getf '(:bar) :muted :default "#565f89"))
+         (accent (theme-color :bar-workspace-current))
+         (fg (theme-color :bar-workspace-occupied))
+         (muted (theme-color :bar-workspace-empty))
          (gap (config-getf '(:bar :workspaces) :gap :default 8)))
     (loop for i from 1 to count
           collect (list* (format nil "~A" i)
@@ -310,10 +308,10 @@ last space. A single-segment format stays one part."
          (space (position #\Space fmt :from-end t)))
     (if space
         (list (list (bar-format-clock (subseq fmt 0 space))
-                    (config-getf '(:bar) :muted :default "#565f89")
+                    (theme-color :bar-clock-date)
                     :gap 10)
               (list (bar-format-clock (subseq fmt (1+ space)))
-                    (config-getf '(:bar) :accent :default "#7aa2f7")))
+                    (theme-color :bar-clock-time)))
         (bar-format-clock fmt))))
 
 (defun bar-format-clock (format)
@@ -373,8 +371,8 @@ strftime subset: %H %M %S %d %m %y %Y %a %A %b %B."
   "Render one module to a list of parts. A part is
 (text color . plist): color NIL means the segment's base color,
 and the plist tail carries render flags — :gap N adds N pixels of
-breathing room after the part, :underline T draws the part's color
-as a 2px line under the text (the active-workspace marker).
+breathing room after the part, :pill T blends the part's colour
+into a rounded fill behind the text (the active-workspace marker).
 Unknown or failing modules render empty. EMPTY STRINGS are
 dropped: bar-cached substitutes \"\" when a thunk errors, and
 empty text renders nothing."
@@ -760,8 +758,8 @@ bolt when CHARGING."
 
 (defun bar-draw-module (ptr width height x y parts base-r base-g base-b module)
   "Draw one module's PARTS starting at X, using the base color for
-parts without an explicit color. Parts may carry :gap and
-:underline flags (see bar-module-parts). Records a click hitbox
+parts without an explicit color. Parts may carry :gap and :pill
+flags (see bar-module-parts). Records a click hitbox
 for MODULE. Returns the x after the module plus gap."
   (let ((start x))
     (dolist (part parts)
@@ -810,16 +808,6 @@ for MODULE. Returns the x after the module plus gap."
                                (>= px0 0))
                       (blend-pixel ptr width height pxx py
                                    r g b :alpha 70)))))))
-          ;; The classic marker: a 2px line in the part's color,
-          ;; flush under the text box.
-          (when (getf flags :underline)
-            (loop for uy below 2
-                  for py = (+ y (font-line-height) uy)
-                  while (< py height) do
-              (loop for uxx below tw
-                    for px = (+ x uxx)
-                    while (< px width) do
-                (bar-set-pixel ptr width height px py r g b))))
           (incf x (+ tw (or (getf flags :gap 0) 0))))))
     (let ((end x))
       (when (and module (> end start))
@@ -848,17 +836,11 @@ after it."
                           (config-getf '(:bar) :padding :default 6)))))
     (when (or (null ptr) (cffi:null-pointer-p ptr))
       (return-from %bar-render))
-    (multiple-value-bind (br bg bb) (parse-hex-color
-                                       (config-getf '(:bar) :background
-                                                    :default "#1a1b26"))
-      (multiple-value-bind (fr fg fb) (parse-hex-color
-                                        (config-getf '(:bar) :foreground
-                                                     :default "#c0caf5"))
+    (multiple-value-bind (br bg bb) (theme-rgb :bar-background)
+      (multiple-value-bind (fr fg fb) (theme-rgb :bar-foreground)
         (let ((margin (config-getf '(:bar) :margin :default 8)))
           (if (plusp (config-getf '(:bar) :corner-radius :default 10))
-              (multiple-value-bind (rdr rdg rdb)
-                  (parse-hex-color (config-getf '(:bar) :border-color
-                                                :default "#3b4261"))
+              (multiple-value-bind (rdr rdg rdb) (theme-rgb :bar-border)
                 (paint-rounded-surface ptr width height br bg bb
                                         :alpha (bar-surface-alpha)
                                         :radius (config-getf '(:bar)
@@ -891,9 +873,7 @@ after it."
           ;; Hover: a subtle rounded accent fill under the pointer
           (when (and *bar-pointer-x*
                      (>= *bar-pointer-x* 0) (< *bar-pointer-x* width))
-            (multiple-value-bind (ar ag ab)
-                (parse-hex-color (config-getf '(:bar) :accent
-                                              :default "#7aa2f7"))
+            (multiple-value-bind (ar ag ab) (theme-rgb :bar-hover)
               (dolist (hb *bar-hitboxes*)
                 (when (and (<= (second hb) *bar-pointer-x*)
                            (< *bar-pointer-x* (third hb)))

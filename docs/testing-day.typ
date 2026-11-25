@@ -366,14 +366,15 @@ Exercise expose, splits, and workspace switches while the video plays.
   launcher MOD+D) must re-render with the larger font immediately;
   `toggle-bar` twice must restart the bar with the new font.
   Set `:theme :font-family "nonexistentxyz"` — fontconfig must fall
-  back to a system font, never a crash or blank bar. Override
-  `:launcher :background` and `:theme :focused-border` and confirm
-  both surfaces picked them up on the next redraw.
+  back to a system font, never a crash or blank bar. Override the
+  `:launcher-background` and `:border-focused` elements under
+  `(:theme (:elements ...))` and confirm both surfaces picked them
+  up on the next redraw.
 - *Workspace indicator:* with windows on workspaces 1 and 2 only,
   the bar must show 1 and 2 in the foreground color, 3-9 muted,
-  and the active workspace underlined in accent with visible gaps
-  between numbers. Switch workspaces (MOD+N and MOD+J/K chains) —
-  the underline must follow within one bar poll (0.15s), the
+  and the active workspace on an accent pill with visible gaps
+  between numbers. Switch workspaces (MOD+N and MOD+J/K chains):
+  the pill must follow within one bar poll (0.15s), the
   occupancy colors must track window opens/closes/moves, and
   minimizing the only window on a workspace must mute it.
 - *Bar desync soak (the v5 cap):* after a bar restart, run
@@ -459,8 +460,8 @@ Exercise expose, splits, and workspace switches while the video plays.
 - *Pointer window menus:* MOD+Middle-click on several windows (one
   tiled, one floating) — a context menu opens AT the pointer with
   Minimize, Float/Tile, Maximize, Fullscreen, Close, and
-  Move-to-workspace entries. Hover must highlight a row (accent
-  edge); click must run the action (verify Minimize hides and
+  Move-to-workspace entries. Hover must highlight a row (a
+  pill); click must run the action (verify Minimize hides and
   Restore returns it, Move-to-workspace relocates and the WM
   survives); Escape must dismiss; moving the pointer off the menu
   must dismiss it. Arrows + Enter select via keyboard. The close

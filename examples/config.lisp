@@ -20,24 +20,31 @@
 ;;; bitmap font with identical metrics.
 
 (configure '(:theme (:font-family "monospace"   ; default
-                    :font-size 14              ; default
-                    :focused-border "#7aa2f7"  ; Tokyo Night blue
-                    :unfocused-border "#404040")))
+                    :font-size 14)))           ; default
+
+;;; Colours come from a theme: themes/NAME.theme in
+;;; ~/.config/rhizome/themes/ or in rhizome's own themes/ directory.
+;;; A role colours every element built on it; an element override
+;;; colours one surface. See "Theming" in README.org for the roles,
+;;; and *theme-elements* in theme.lisp for the elements.
+
+(configure '(:theme "tokyo-night"))             ; default
+#-(and) (configure
+  '(:theme (:roles (:accent "#7aa2f7"          ; borders, bar, prompts
+                    :unfocus "#404040")
+            :elements (:bar-workspace-empty "#565f89"
+                       :launcher-match :accent))))
 
 ;;; --- Bar ------------------------------------------------------------
 ;;;
-;;; Modules: :workspaces (active underlined in accent, occupied in
-;;; the foreground color, empty muted), :layout, :windows, :focused,
+;;; Modules: :workspaces (active on an accent pill, occupied in
+;;; the foreground colour, empty muted), :layout, :windows, :focused,
 ;;; :clock, :battery, :volume, :network, :tray, and (:icons (...))
 ;;; blocks with PNG app icons and click actions.
 
 (configure '(:bar (:opacity 0.9                 ; translucent surfaces
                   :height 20                 ; px; match :font-size + headroom
                   :padding 6                  ; px at the segment edges
-                  :background "#1a1b26"
-                  :foreground "#c0caf5"
-                  :accent "#7aa2f7"
-                  :muted "#565f89"
                   :modules (:left (:workspaces :layout :windows)
                            :center (:clock)
                            :right (:tray :network :volume :battery)))))
@@ -117,12 +124,7 @@
 ;;; MOD+Middle-click on any window opens the context menu at the
 ;;; pointer (hover to highlight, click to select, Escape closes).
 
-(configure '(:menus (:background "#1f1633"   ; defaults
-                     :item-color "#c9b8e8"
-                     :hover-background "#4b3a78"
-                     :hover-color "#f0e6ff"
-                     :accent "#7aa2f7"
-                     :opacity 0.95)))
+(configure '(:menus (:opacity 0.95)))          ; default; colours: :menu-*
 
 ;;; --- Titlebars ----------------------------------------------------
 ;;;
@@ -149,8 +151,8 @@
 ;;; portal capture session is active (river v5). Opt in by adding
 ;;; :recording to a bar segment:
 #-(and) (configure
-  '(:bar (:modules (:right (:recording :tray :network :volume :battery))
-          :recording-color "#f7768e")))
+  '(:bar (:modules (:right (:recording :tray :network :volume :battery)))
+    :theme (:elements (:bar-recording "#f7768e"))))
 
 (configure '(:modules (:clock (:format "%a %d %b %H:%M")  ; default
               :battery (:interval 5)
@@ -171,21 +173,21 @@
 
 ;;; --- App launcher (MOD+D) --------------------------------------------
 ;;;
-;;; Every surface color is configurable; the selected row also gets
-;;; a 3px accent edge (the launcher's underline). Entries render
-;;; their .desktop icons; surfaces are translucent (premultiplied
-;;; ARGB).
+;;; Every surface colour is a theme element; the selected row sits on
+;;; a pill. Entries render their .desktop icons; surfaces are
+;;; translucent (premultiplied ARGB).
 
-(configure '(:launcher (:background "#23142d"    ; deep purple
-                       :opacity 0.9
-                       :icon-size 20
-                       :accent "#7aa2f7"          ; selected-row edge
-                       :prompt-color "#8c64aa"    ; "Run: " label
-                       :query-color "#dcc8f0"     ; typed text
-                       :cursor-color "#b4a0d2"
-                       :selection-background "#503278"
-                       :selected-color "#f0e6ff"
-                       :entry-color "#aa96c8")))
+(configure '(:launcher (:opacity 0.9
+                       :icon-size 20)))
+#-(and) (configure
+  '(:theme (:elements (:launcher-background "#23142d"  ; deep purple
+                       :launcher-match "#7aa2f7"       ; typed text in entries
+                       :launcher-prompt "#8c64aa"      ; "Run: " label
+                       :launcher-query "#dcc8f0"       ; typed text
+                       :launcher-cursor "#b4a0d2"
+                       :launcher-selection "#503278"
+                       :launcher-selected "#f0e6ff"
+                       :launcher-entry "#aa96c8"))))
 
 ;;; --- Window rules ----------------------------------------------------
 ;;;

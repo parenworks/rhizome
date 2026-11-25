@@ -160,11 +160,13 @@ scaled by the alpha, so c* ≤ a always holds."
              (top radius) (bottom (+ radius win-h))
              (alpha-0 (* 255 (if (getf state :focused)
                                  focus-alpha base-alpha)))
-             ;; Straight shadow color: dark grey, tinted halfway
-             ;; toward the accent
-             (cr (+ 30 (* (- r 30) 0.5)))
-             (cg (+ 30 (* (- g 30) 0.5)))
-             (cb (+ 36 (* (- b 36) 0.5))))
+             ;; Straight shadow colour: the shadow base, tinted
+             ;; halfway toward (r g b)
+             (cr 0) (cg 0) (cb 0))
+        (multiple-value-bind (sr sg sb) (theme-rgb :decoration-shadow)
+          (setf cr (+ sr (* (- r sr) 0.5))
+                cg (+ sg (* (- g sg) 0.5))
+                cb (+ sb (* (- b sb) 0.5))))
         (loop for py below height
               do (let* ((dy (max 0
                                  (cond ((< py top) (- top py))
@@ -251,11 +253,8 @@ render-only, and the commit lands before this render sequence's
 render_finish. Returns NIL."
   (let ((radius (decoration-radius)))
     (when (plusp radius)
-      (let* ((cfg (decoration-config))
-             (ar 122) (ag 162) (ab 247))
-        (multiple-value-bind (r g b)
-            (handler-case (theme-border-rgb t)
-              (error () (values ar ag ab)))
+      (let ((cfg (decoration-config)))
+        (multiple-value-bind (r g b) (theme-rgb :decoration-tint)
           (loop for win being the hash-values of *windows*
                 if (and (window-floating-p win)
                         (not (window-minimized-p win))

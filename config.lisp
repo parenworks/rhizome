@@ -77,10 +77,6 @@ Returns (values value found-p)."
           :interval 0.15
           :padding 6
           :opacity 0.9
-          :background "#1a1b26"
-          :foreground "#c0caf5"
-          :accent "#7aa2f7"
-          :muted "#565f89"
           :modules (:left (:workspaces :layout :windows)
                     :center (:clock)
                     :right (:tray :network :volume :battery)))
@@ -139,20 +135,13 @@ Returns (values value found-p)."
     ;; pointer jumps bother you. xcursor theme/size default to the
     ;; XCURSOR_THEME/XCURSOR_SIZE the session exports.
     :pointer (:warp-on-switch t)
-    :theme (:font-family "monospace"
-            :font-size 14
-            :focused-border "#7aa2f7"
-            :unfocused-border "#404040")
-    :launcher (:background "#23142d"
-               :opacity 0.9
-               :icon-size 20
-               :accent "#7aa2f7"
-               :prompt-color "#8c64aa"
-               :query-color "#dcc8f0"
-               :cursor-color "#b4a0d2"
-               :selection-background "#503278"
-               :selected-color "#f0e6ff"
-               :entry-color "#aa96c8")
+    ;; :name selects themes/NAME.theme; :roles and :elements adjust
+    ;; it (see theme.lisp)
+    :theme (:name "tokyo-night"
+            :font-family "monospace"
+            :font-size 14)
+    :launcher (:opacity 0.9
+               :icon-size 20)
     :ipc (:enabled t)
     ;; Slynk REPL server on 127.0.0.1 (M-x sly-connect). A :swank
     ;; group in user config is still read when :slynk is left at
@@ -185,14 +174,6 @@ its :enabled switch. Missing keys default to enabled and port 4005."
              ;; config's port
              (values t env-port))))))
 
-(defun theme-border-rgb (focused-p)
-  "Focused/unfocused window border color as (values r g b), from
-(:theme :focused-border/:unfocused-border)."
-  (parse-hex-color
-    (config-getf '(:theme)
-                 (if focused-p :focused-border :unfocused-border)
-                 :default (if focused-p "#7aa2f7" "#404040"))))
-
 (defun border-rgba32 (r g b &optional (a #xff))
   "Return 8-bit channels R G B A (0-255, straight alpha) as four 32-bit
 values for river_window_v1.set_borders: 0 is 0%, #xffffffff is 100%,
@@ -201,16 +182,21 @@ colour channels pre-multiplied by alpha."
            (floor (* channel a #x01010101) #xff)))
     (values (scale r) (scale g) (scale b) (* a #x01010101))))
 
-(defun theme-border-rgba32 (focused-p)
-  "Focused/unfocused theme border colour, opaque, as the four 32-bit
-set_borders values (values r g b a). See BORDER-RGBA32."
-  (multiple-value-bind (r g b) (theme-border-rgb focused-p)
-    (border-rgba32 r g b)))
-
 (defvar *config* (default-config)
   "The current rhizome configuration.")
 
 ;;; --- Public config API ---
+
+(defun normalize-theme-selection (plist)
+  "PLIST with a (:theme \"NAME\") entry rewritten as
+(:theme (:name \"NAME\")), so a theme chosen by name merges into the
+:theme group instead of replacing it."
+  (let ((theme (getf plist :theme)))
+    (if (stringp theme)
+        (let ((copy (copy-list plist)))
+          (setf (getf copy :theme) (list :name theme))
+          copy)
+        plist)))
 
 (defun configure (plist)
   "Merge PLIST into *config* and apply it. For example:
@@ -223,13 +209,21 @@ set_borders values (values r g b a). See BORDER-RGBA32."
   (rhizome:configure '(:frames (:prune-empty :never)))  ; keep every empty frame
   ;; new windows fill an empty frame first (see placement.lisp)
   (rhizome:configure '(:tiling (:placement (:new-window (:empty :focused)))))
+  (rhizome:configure '(:theme \"tokyo-night\"))  ; a theme by name
+
+A theme name given as (:theme \"NAME\") sets (:theme :name) and keeps
+the rest of the :theme group. Each deprecated colour key in PLIST
+warns once (see theme.lisp).
 
 Restarting running components (e.g. the bar) is handled automatically."
-  ;; window rules belong to SOURCES now: the current one owns them
-  (when (getf plist :window-rules)
-    (set-window-rules (getf plist :window-rules))
-    (remf plist :window-rules))
-  (setf *config* (merge-plist *config* plist))
+  (let ((plist (normalize-theme-selection plist)))
+    (when (fboundp 'warn-deprecated-colour-keys)
+      (funcall (symbol-function 'warn-deprecated-colour-keys) plist))
+    ;; window rules belong to SOURCES now: the current one owns them
+    (when (getf plist :window-rules)
+      (set-window-rules (getf plist :window-rules))
+      (remf plist :window-rules))
+    (setf *config* (merge-plist *config* plist)))
   (apply-config)
   *config*)
 
@@ -346,13 +340,16 @@ reload-config, or a direct call."
           (format t "~&; Rhizome: error loading config: ~A~%" e))))))
 
 (defun reload-config ()
-  "Reset to defaults, replace the :config source's registrations
-(rules and keybindings) by re-reading the file, and re-apply. A
+  "Reset to defaults, forget loaded themes so theme files are read
+again, replace the :config source's registrations (rules and
+keybindings) by re-reading the file, and re-apply. A
 binding or rule the file no longer makes is gone; everything a
 MODULE or the REPL registered survives untouched (the source
 model - see sources.lisp). The default keymaps stay in force."
   (setf *config* (default-config))
   (reset-config-source)
+  (when (fboundp 'clear-theme-cache)
+    (funcall 'clear-theme-cache))
   (let ((*current-source* :config))
     (load-user-config))
   (apply-config)
