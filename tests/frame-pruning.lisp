@@ -222,6 +222,53 @@
             (reverse counts)
             '(1 2 1)))
 
+      ;; --- K: a frame dump keeps the user split and its empty frame ---
+
+      (let* ((out (mk-out :fp-k-out))
+             (w (root-win :fp-k1 out))
+             (file #P"/tmp/rhizome-test-frame-pruning-dump.lisp"))
+        (assign-window-number w)
+        (setf (window-focused-p w) t)
+        (split-current-frame out 1 :horizontal)
+        (dump-frame out 1 file)
+        (frame-only out 1)
+        (restore-frame out 1 file)
+        (apply-layout-for-output out)
+        (ok "a restored frame dump keeps the empty frame of a user split"
+            (nleaves out) 2)
+        (ok "the window in a restored user split keeps half the width"
+            (let ((frame (window-frame w)))
+              (and frame (frame-width frame)))
+            960)
+        (setf (window-focused-p w) nil)
+        (ignore-errors (delete-file file)))
+
+      ;; --- L: a dump without the user mark prunes its empty frame ---
+
+      (let* ((out (mk-out :fp-l-out))
+             (w (root-win :fp-l1 out)))
+        (assign-window-number w)
+        (restore-workspace-from-sexp
+          out 1 (list :split :horizontal '(:rect 0 0 1920 1080)
+                      (list :frame '(:rect 0 0 960 1080) (window-number w))
+                      '(:frame (:rect 960 0 960 1080))))
+        (apply-layout-for-output out)
+        (ok "an unmarked dump prunes its empty frame"
+            (list (nleaves out) (frame-width (window-frame w)))
+            '(1 1920)))
+
+      ;; --- M: a layout template tree stays unmarked and prunes ---
+
+      (let* ((out (mk-out :fp-m-out))
+             (w (mk-win :fp-m1 out)))
+        (set-workspace-tree out 1 '((0 0 960 1080) (960 0 960 1080))
+                            (list w))
+        (let ((before (nleaves out)))
+          (prune-empty-frames out 1)
+          (ok "a template tree prunes its empty frame"
+              (list before (nleaves out))
+              '(2 1))))
+
       ;; --- Configuration default and exports ---
 
       (ok "the default prune policy is :auto"

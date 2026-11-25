@@ -206,7 +206,8 @@ return)."
   "Rewrite a dump sexp's window numbers through NUMBER-MAP
 (old-number → new-number). Windows the map doesn't know (closed
 during the gap) are dropped from their frames; restore skips
-them anyway, but dropping keeps the trees honest."
+them anyway, but dropping keeps the trees honest. A split's trailing
+options, such as the :user mark, carry through unchanged."
   (flet ((map-nums (nums)
            (loop for n in nums
                  for new = (gethash n number-map)
@@ -214,9 +215,10 @@ them anyway, but dropping keeps the trees honest."
     (if (eq (first sexp) :frame)
         (list* :frame (second sexp)
                (map-nums (cddr sexp)))
-        (list :split (second sexp) (third sexp)
-              (translate-tree-numbers (fourth sexp) number-map)
-              (translate-tree-numbers (fifth sexp) number-map)))))
+        (list* :split (second sexp) (third sexp)
+               (translate-tree-numbers (fourth sexp) number-map)
+               (translate-tree-numbers (fifth sexp) number-map)
+               (nthcdr 5 sexp)))))
 
 (defun apply-takeover-trees ()
   "The settled moment: rebuild every workspace's frame tree and
