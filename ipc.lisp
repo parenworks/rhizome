@@ -66,13 +66,14 @@ that reads as an integer becomes that integer; a command listed in
 A line starting with ( is evaluated as a Lisp form in the RHIZOME
 package; otherwise it is NAME ARGS..., split by parse-command-line and
 looked up with find-command.
-A command's reply is shown on screen only when it is non-empty and the
-command showed no message of its own."
+The reply to a form or a command is shown on screen only when it is
+non-empty and the form or command showed no message of its own."
   (let ((line (string-trim " " (remove #\newline line))))
     (cond
       ((zerop (length line)) "")
       ((char= (char line 0) #\()
-       (let ((result
+       (let ((serial *message-serial*)
+             (result
                (handler-case
                    (let ((*package* (find-package "RHIZOME")))
                      (format nil "~{~A~^ ~}"
@@ -80,8 +81,7 @@ command showed no message of its own."
                                (eval (read-from-string line)))))
                  (error (e)
                    (format nil "error: ~A" e)))))
-         (show-message result 1)
-         result))
+         (show-command-reply result serial 1)))
       (t
        (multiple-value-bind (command args) (parse-command-line line)
          (let ((handler (find-command command)))
