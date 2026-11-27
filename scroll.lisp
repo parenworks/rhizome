@@ -204,29 +204,39 @@ focus did not follow it to another output."
 (defun scroll-render-decisions (output workspace wins)
   "Render-sequence decisions for the ribbon: place every column's
 window at its scrolled rectangle, focused column highlighted.
-Returns the rendered windows so the render pass can exclude them
-from its hide logic."
+A column wholly outside OUTPUT's usable area is left out, so the
+render pass hides it; a column partly outside is clipped to that
+area, so no column draws on a neighbouring output. Returns the
+rendered windows so the render pass can exclude them from its
+hide logic."
   (declare (ignore wins))
   (let ((rendered nil))
-    (dolist (p (scroll-layout-columns output workspace))
-      (destructuring-bind (win x y w h) p
-        (when (and win
-                   (gethash (window-proxy win) *windows*)
-                   (not (window-minimized-p win))
-                   (not (window-floating-p win)))
-          (make-window-node win)
-          (multiple-value-bind (ax ay) (animation-apply win x y)
-            (set-window-position win ax ay))
-          (setf (window-x win) x
-                (window-y win) y)
-          (multiple-value-bind (r g b a)
-              (theme-border-rgba32 (window-focused-p win))
-            (set-window-borders win '(:top :bottom :left :right)
-                                (if (window-focused-p win) 2 1)
-                                r g b a))
-          (when (window-hidden-p win)
-            (show-window win))
-          (push win rendered))))
+    (multiple-value-bind (ux uy uw uh) (output-usable-area output)
+      (dolist (p (scroll-layout-columns output workspace))
+        (destructuring-bind (win x y w h) p
+          (when (and win
+                     (gethash (window-proxy win) *windows*)
+                     (not (window-minimized-p win))
+                     (not (window-floating-p win))
+                     (< x (+ ux uw)) (> (+ x w) ux)
+                     (< y (+ uy uh)) (> (+ y h) uy))
+            (make-window-node win)
+            (multiple-value-bind (ax ay)
+                (animation-apply win x y
+                                 (unless (and (>= x ux) (<= (+ x w) (+ ux uw))
+                                              (>= y uy) (<= (+ y h) (+ uy uh)))
+                                   (list ux uy uw uh)))
+              (set-window-position win ax ay))
+            (setf (window-x win) x
+                  (window-y win) y)
+            (multiple-value-bind (r g b a)
+                (theme-border-rgba32 (window-focused-p win))
+              (set-window-borders win '(:top :bottom :left :right)
+                                  (if (window-focused-p win) 2 1)
+                                  r g b a))
+            (when (window-hidden-p win)
+              (show-window win))
+            (push win rendered)))))
     (nreverse rendered)))
 
 (defun scroll-focus (output workspace delta)

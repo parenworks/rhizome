@@ -135,36 +135,49 @@ one request per cycle is the contract."
 can be cleared (0 0 0 0) once the animation lands. Cleared on
 window close via the :window-closed hook.")
 
-(defun animation-apply (win x y)
+(defun window-clip-box-for (win ax ay rx ry rw rh)
+  "The clip box, as a list (x y width height) in WIN-local
+coordinates, covering the part of WIN, drawn at (AX AY), that lies
+inside the screen rectangle RX RY RW RH. A window size not yet known
+(NIL or 0) clips at the rectangle's edge. Width and height are at
+least 1: a 0 dimension disables clipping on river."
+  (flet ((extent (size far-edge)
+           (if (and size (plusp size)) (min size far-edge) far-edge)))
+    (let* ((cx (max 0 (- rx ax)))
+           (cy (max 0 (- ry ay)))
+           (cw (max 1 (- (extent (window-width win) (- (+ rx rw) ax)) cx)))
+           (ch (max 1 (- (extent (window-height win) (- (+ ry rh) ay)) cy))))
+      (list cx cy cw ch))))
+
+(defun animation-apply (win x y &optional clip-rect)
   "Render-pass entry: the position WIN should draw at this frame
-for layout target (X Y) — animation-position's math, plus clip
+for layout target (X Y), using animation-position's math, plus clip
 box management (set_clip_box is render-sequence-legal; this runs
 only from render paths). While ANY animation glides the window,
 it is clipped to its output's usable area (below the bar), so
-intermediate positions never overdraw the bar. When the
-animation lands, the clip clears."
+intermediate positions draw over neither the bar nor a neighbouring
+output. CLIP-RECT, a list (x y width height) in screen coordinates,
+clips the window to that rectangle whether or not it animates, and
+takes precedence over the glide clip when both apply. With neither,
+any clip set earlier clears. A clip box goes on the wire only when
+it changes."
   (multiple-value-bind (ax ay) (animation-position win x y)
-    (let ((anim (gethash win *animations*)))
+    (let* ((anim (gethash win *animations*))
+           (out (window-output win))
+           (rect (cond (clip-rect)
+                       ((and anim out)
+                        (let ((uy (bar-reserved-height out)))
+                          (list (or (output-x out) 0)
+                                (+ (or (output-y out) 0) uy)
+                                (or (output-width out) 1920)
+                                (max 1 (- (or (output-height out) 1080)
+                                          uy))))))))
       (cond
-        ;; In-flight animation: clip to the usable area
-        ((and anim (window-output win))
-         (let* ((out (window-output win))
-                (uy (bar-reserved-height out))
-                (uw (or (output-width out) 1920))
-                (uh (max 1 (- (or (output-height out) 1080) uy)))
-                (w (or (window-width win) 100))
-                (h (or (window-height win) 80))
-                ;; usable rect (screen coords): (0, uy, uw, uh)
-                ;; intersect with the window at (ax, ay), in
-                ;; window-LOCAL coordinates
-                (cx (max 0 (- ax)))
-                (cy (max 0 (- uy ay)))
-                (cw (max 1 (min (- w cx) (- (+ uw 0) ax) w)))
-                (ch (max 1 (min (- h cy) (- (+ uy uh) ay) h))))
-           ;; (a 0 dimension would DISABLE clipping — never send 0)
-           (set-window-clip-box win cx cy cw ch)
-           (setf (gethash win *clipped-windows*) t)))
-        ;; No animation, but a clip was set: clear it
+        (rect
+         (let ((box (apply #'window-clip-box-for win ax ay rect)))
+           (unless (equal box (gethash win *clipped-windows*))
+             (apply #'set-window-clip-box win box)
+             (setf (gethash win *clipped-windows*) box))))
         ((gethash win *clipped-windows*)
          (remhash win *clipped-windows*)
          (set-window-clip-box win 0 0 0 0))))
