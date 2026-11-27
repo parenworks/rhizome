@@ -344,7 +344,128 @@
                           (length (frame-windows (window-frame stray)))
                           (window-hidden-p occupant)
                           (window-hidden-p mover))
-                    '(3 1 nil nil))))))))
+                    '(3 1 nil nil))))))
+
+        ;; --- Scroll ribbons on two outputs ---
+        ;; HDMI shows workspace 7 and DVI workspace 8. Each becomes a
+        ;; ribbon through the scroll-toggle command on its current
+        ;; output. Manage passes bind *arrival-output* as
+        ;; on-manage-sequence does.
+
+        (setf *scroll-states* (make-hash-table :test 'equal))
+        (let ((r1 (new-window :r1-proxy "foot"))
+              (r2 (new-window :r2-proxy "foot"))
+              (r3 (new-window :r3-proxy "foot"))
+              (l1 (new-window :l1-proxy "foot"))
+              (l2 (new-window :l2-proxy "foot")))
+          (switch-workspace 7 hdmi)
+          (switch-workspace 8 dvi)
+          (dolist (win (list r1 r2 r3))
+            (setf (window-output win) hdmi)
+            (assign-window-workspace win 7))
+          (dolist (win (list l1 l2))
+            (setf (window-output win) dvi)
+            (assign-window-workspace win 8))
+          (flet ((arrival-pass ()
+                   (let ((*arrival-output* (current-output)))
+                     (manage-pass)))
+                 (columns-of (out ws)
+                   (getf (scroll-state out ws) :columns))
+                 (same-set-p (a b)
+                   (null (set-exclusive-or a b :test #'eq))))
+            (arrival-pass)
+
+            (try "scroll-toggle enters a ribbon on the current output only"
+                 (lambda ()
+                   (focus-window r1 seat)
+                   (ipc-dispatch-line "scroll-toggle")
+                   (list (scroll-workspace-p hdmi 7)
+                         (scroll-workspace-p dvi 8)
+                         (same-set-p (columns-of hdmi 7)
+                                     (list r1 r2 r3))))
+                 '(t nil t))
+            (try "scroll-viewport-right scrolls the current output's ribbon"
+                 (lambda ()
+                   (ipc-dispatch-line "scroll-viewport-right")
+                   (getf (scroll-state hdmi 7) :scroll-x))
+                 960)
+            (try "scroll-toggle on the other output leaves the first ribbon as it was"
+                 (lambda ()
+                   (let ((before (copy-list (scroll-state hdmi 7))))
+                     (focus-window l1 seat)
+                     (ipc-dispatch-line "scroll-toggle")
+                     (list (scroll-workspace-p dvi 8)
+                           (same-set-p (columns-of dvi 8) (list l1 l2))
+                           (equal (scroll-state hdmi 7) before))))
+                 '(t t t))
+
+            ;; A new window on the current output's ribbon
+            (let ((fresh (new-window :fresh-proxy "foot")))
+              (arrival-pass)
+              (let ((cols (columns-of dvi 8)))
+                (ok "a new window joins the current output's ribbon after the focused column"
+                    (list (eq (window-output fresh) dvi)
+                          (window-workspace fresh)
+                          (window-frame fresh)
+                          (and (position fresh cols)
+                               (- (position fresh cols)
+                                  (position l1 cols))))
+                    '(t 8 nil 1)))
+              (ok "a new window stays out of the other output's ribbon"
+                  (member fresh (columns-of hdmi 7))
+                  nil)
+              (ok "a manage pass leaves focus on the current output's window"
+                  (list (eq (focused-window) l1) (eq (current-output) dvi))
+                  '(t t))
+
+              ;; Column focus and the viewport on the current output
+              (let ((before (copy-list (scroll-state hdmi 7)))
+                    (cols (columns-of dvi 8)))
+                (try "scroll-focus-right walks the current output's ribbon"
+                     (lambda ()
+                       (focus-window (first cols) seat)
+                       (ipc-dispatch-line "scroll-focus-right")
+                       (ipc-dispatch-line "scroll-focus-right")
+                       (list (eq (focused-window) (third cols))
+                             (getf (scroll-state dvi 8) :scroll-x)))
+                     '(t 960))
+                (try "scroll-viewport-left scrolls the current output's viewport"
+                     (lambda ()
+                       (ipc-dispatch-line "scroll-viewport-left")
+                       (getf (scroll-state dvi 8) :scroll-x))
+                     0)
+                (try "scroll-focus-left focuses the previous column"
+                     (lambda ()
+                       (ipc-dispatch-line "scroll-focus-left")
+                       (eq (focused-window) (second cols)))
+                     t)
+                (ok "ribbon commands leave the other output's ribbon state alone"
+                    (equal (scroll-state hdmi 7) before)
+                    t)
+                (ok "ribbon commands leave no focus on the other output's columns"
+                    (notany #'window-focused-p (columns-of hdmi 7))
+                    t))
+
+              ;; Moving a window from one ribbon onto another
+              (try "a window moved onto a ribbon output takes no frame there"
+                   (lambda ()
+                     (focus-window l2 seat)
+                     (move-window-output-left)
+                     (list (eq (window-output l2) hdmi)
+                           (window-workspace l2)
+                           (window-frame l2)))
+                   '(t 7 nil))
+              (arrival-pass)
+              (ok "the moved window joins the target ribbon as a column"
+                  (list (and (member l2 (columns-of hdmi 7)) t)
+                        (window-frame l2))
+                  '(t nil))
+              (ok "the moved window leaves the source ribbon's columns"
+                  (member l2 (columns-of dvi 8))
+                  nil)
+              (ok "focus stays on the moved window after the manage pass"
+                  (list (eq (focused-window) l2) (eq (current-output) hdmi))
+                  '(t t)))))))
 
     (format t "~&=== ~A passed, ~A failed ===~%" pass fail)
     (unless (zerop fail) (uiop:quit 1))))
