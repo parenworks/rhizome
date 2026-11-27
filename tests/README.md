@@ -145,6 +145,10 @@ stubbed river requests. Run with:
   clears focus), moving a window across outputs (frame left behind
   and pruned, adoption on the target, float offsets), and IPC
   commands acting on the current output.
+- `ribbon-clip.lisp` - a ribbon on the second of two outputs: a
+  column wholly outside its output is hidden, a column across an
+  edge is clipped to the output's usable area, and the clip clears
+  once the column is back on screen.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
 - `display-brightness.lisp` - display menu brightness argv: signed
