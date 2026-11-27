@@ -149,11 +149,14 @@ one-shot layout templates keep working)."
 (defun scroll-manage-decisions (output workspace wins)
   "Manage-sequence decisions for the ribbon: prune columns whose
 windows died, minimized, floated or moved, and adopt frameless
-arrivals as new columns right after the focused one."
+arrivals as new columns right after the focused one. Focus moves to
+a column only when the pruned window held this ribbon's focus and
+focus did not follow it to another output."
   (let ((state (scroll-state output workspace)))
     (when state
       (let* ((columns (getf state :columns))
-             (focused-pos (position-if #'window-focused-p columns)))
+             (focused-pos (position-if #'window-focused-p columns))
+             (focused-win (and focused-pos (nth focused-pos columns))))
         (setf (getf state :columns)
               (remove-if (lambda (win)
                            (or (null (gethash (window-proxy win) *windows*))
@@ -184,41 +187,56 @@ arrivals as new columns right after the focused one."
             (mark-window-tiled win)
             (propose-window-dimensions win cw ch)))
         (let ((columns (getf state :columns)))
-          (when columns
-            ;; Focus recovery: when the focused column closed, its
-            ;; slot (or the last one) takes focus
-            (unless (find-if #'window-focused-p columns)
-              (let ((pos (min (or focused-pos 0) (1- (length columns)))))
-                (dolist (seat (all-seats))
-                  (focus-window (nth pos columns) seat))))))
+          (when (and columns
+                     focused-win
+                     (not (member focused-win columns :test #'eq))
+                     ;; A window moved to another output keeps focus
+                     (not (and (gethash (window-proxy focused-win) *windows*)
+                               (window-focused-p focused-win)
+                               (not (eq (window-output focused-win)
+                                        output)))))
+            ;; The focused column's slot (or the last one) takes focus
+            (let ((pos (min focused-pos (1- (length columns)))))
+              (dolist (seat (all-seats))
+                (focus-window (nth pos columns) seat)))))
         (scroll-ensure-focused-visible output workspace)))))
 
 (defun scroll-render-decisions (output workspace wins)
   "Render-sequence decisions for the ribbon: place every column's
 window at its scrolled rectangle, focused column highlighted.
-Returns the rendered windows so the render pass can exclude them
-from its hide logic."
+A column wholly outside OUTPUT's usable area is left out, so the
+render pass hides it; a column partly outside is clipped to that
+area, so no column draws on a neighbouring output. Returns the
+rendered windows so the render pass can exclude them from its
+hide logic."
   (declare (ignore wins))
   (let ((rendered nil))
-    (dolist (p (scroll-layout-columns output workspace))
-      (destructuring-bind (win x y w h) p
-        (when (and win
-                   (gethash (window-proxy win) *windows*)
-                   (not (window-minimized-p win))
-                   (not (window-floating-p win)))
-          (make-window-node win)
-          (multiple-value-bind (ax ay) (animation-apply win x y)
-            (set-window-position win ax ay))
-          (setf (window-x win) x
-                (window-y win) y)
-          (multiple-value-bind (r g b a)
-              (theme-border-rgba32 (window-focused-p win))
-            (set-window-borders win '(:top :bottom :left :right)
-                                (if (window-focused-p win) 2 1)
-                                r g b a))
-          (when (window-hidden-p win)
-            (show-window win))
-          (push win rendered))))
+    (multiple-value-bind (ux uy uw uh) (output-usable-area output)
+      (dolist (p (scroll-layout-columns output workspace))
+        (destructuring-bind (win x y w h) p
+          (when (and win
+                     (gethash (window-proxy win) *windows*)
+                     (not (window-minimized-p win))
+                     (not (window-floating-p win))
+                     (< x (+ ux uw)) (> (+ x w) ux)
+                     (< y (+ uy uh)) (> (+ y h) uy))
+            (make-window-node win)
+            (multiple-value-bind (ax ay)
+                (animation-apply win x y
+                                 (unless (and (>= x ux) (<= (+ x w) (+ ux uw))
+                                              (>= y uy) (<= (+ y h) (+ uy uh)))
+                                   (list ux uy uw uh)))
+              (set-window-position win ax ay))
+            (setf (window-x win) x
+                  (window-y win) y)
+            (multiple-value-bind (r g b a)
+                (theme-border-rgba32 (window-focused-p win))
+              (set-window-borders win '(:top :bottom :left :right)
+                                  (if (window-focused-p win) 2 1)
+                                  r g b a))
+            (when (window-hidden-p win)
+              (show-window win))
+            (push win rendered)))))
     (nreverse rendered)))
 
 (defun scroll-focus (output workspace delta)
@@ -250,22 +268,22 @@ MOD+period); focus stays where it was."
 
 ;;; --- IPC/binding wrappers (resolve the current output) ---
 
-(defun scroll-focus-left (&optional (output (first (all-outputs))))
+(defun scroll-focus-left (&optional (output (current-output)))
   "Focus the column to the left; the viewport follows."
   (when output
     (scroll-focus output (current-workspace output) -1)))
 
-(defun scroll-focus-right (&optional (output (first (all-outputs))))
+(defun scroll-focus-right (&optional (output (current-output)))
   "Focus the column to the right; the viewport follows."
   (when output
     (scroll-focus output (current-workspace output) 1)))
 
-(defun scroll-viewport-left (&optional (output (first (all-outputs))))
+(defun scroll-viewport-left (&optional (output (current-output)))
   "Scroll the ribbon viewport left (half a screen)."
   (when output
     (scroll-viewport output (current-workspace output) -1)))
 
-(defun scroll-viewport-right (&optional (output (first (all-outputs))))
+(defun scroll-viewport-right (&optional (output (current-output)))
   "Scroll the ribbon viewport right (half a screen)."
   (when output
     (scroll-viewport output (current-workspace output) 1)))

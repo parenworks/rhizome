@@ -30,6 +30,18 @@
    #:output-current-layout
    #:output-width
    #:output-height
+   ;; Multiple outputs
+   #:current-output
+   #:focus-output
+   #:focus-next-output
+   #:focus-previous-output
+   #:focus-output-left
+   #:focus-output-right
+   #:move-window-to-output
+   #:move-window-next-output
+   #:move-window-previous-output
+   #:move-window-output-left
+   #:move-window-output-right
    ;; Seat operations
    #:all-seats
    #:clear-focus
