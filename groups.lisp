@@ -76,7 +76,7 @@ the ribbon, :floating un-ribbons into a cascade of floats."
      (request-manage-dirty))
     (t (message "group type must be :tile, :scroll or :floating"))))
 
-(defun cycle-workspace-type (&optional (output (first (all-outputs))))
+(defun cycle-workspace-type (&optional (output (current-output)))
   "Cycle the current workspace's group type:
 tile -> scroll -> floating -> tile (C-t l)."
   (let ((workspace (current-workspace output)))

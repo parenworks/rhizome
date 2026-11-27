@@ -87,7 +87,7 @@ overflow number beyond 10 when they're all taken."
   "Forget WIN's number (window closed)."
   (remhash win *window-number-map*))
 
-(defun find-window-by-number (n &optional (output (first (all-outputs)))
+(defun find-window-by-number (n &optional (output (current-output))
                                       (workspace (current-workspace output)))
   "The window with number N on OUTPUT's WORKSPACE, if any."
   (find-if (lambda (win)
@@ -96,7 +96,7 @@ overflow number beyond 10 when they're all taken."
                   (eql (window-workspace win) workspace)))
            (all-windows)))
 
-(defun renumber-windows (&optional (output (first (all-outputs)))
+(defun renumber-windows (&optional (output (current-output))
                              (workspace (current-workspace output)))
   "Renumber the workspace's windows from 1 in number order
 (StumpWM's renumber)."
@@ -107,7 +107,7 @@ overflow number beyond 10 when they're all taken."
           for n from 1
           do (setf (gethash win *window-number-map*) n))))
 
-(defun repack-window-numbers (&optional (output (first (all-outputs)))
+(defun repack-window-numbers (&optional (output (current-output))
                                (workspace (current-workspace output)))
   "Fill gaps in the workspace's window numbers, keeping relative
 order (StumpWM's repack-window-numbers)."
@@ -116,7 +116,7 @@ order (StumpWM's repack-window-numbers)."
 (defun select-window-by-number (n)
   "Focus the window with number N on the current workspace, moving
 frame focus there with it (StumpWM's select-window-by-number)."
-  (let* ((out (first (all-outputs)))
+  (let* ((out (current-output))
          (ws (current-workspace out))
          (win (find-window-by-number n out ws)))
     (cond ((null win)
@@ -411,6 +411,19 @@ focus. focus_window is a window-management-state request: river 0.5
 TERMINATES the client for sending it outside a manage sequence,
 and switch-workspace (a keybinding path) is always outside one.")
 
+(defvar *focus-generation* 0
+  "Count of keyboard focus changes. focus-window, queue-clear-focus,
+and clear-focus each add one; reassert-seat-focus resends unchanged
+focus and adds none. focus-output and move-window-to-output change
+the current output through focus-window or queue-clear-focus, so the
+count also moves when the current output does. Two equal readings
+mean no focus change in between.")
+
+(defun note-focus-change ()
+  "Count a keyboard focus change in *focus-generation*. Returns the
+new count."
+  (incf *focus-generation*))
+
 (defun queue-focus-request (win seat)
   "Queue a focus request for WIN on SEAT for the next manage sequence.
 One request per seat: the newest replaces any queued for SEAT. A NIL
@@ -436,12 +449,24 @@ borders/bars react at once. WIN becomes its workspace's entry in
       (unless (eq w win)
         (setf (window-focused-p w) nil)))
     (queue-focus-request win seat)
+    (note-focus-change)
     (setf (window-focused-p win) t
           (seat-focused-window seat) win
           (gethash (cons (window-output win) (window-workspace win))
                    *workspace-last-focus*)
           win)
     (run-hook :focus-changed win)))
+
+(defun queue-clear-focus (seat)
+  "Take keyboard focus away from every window on SEAT. Like
+focus-window, the river request (clear_focus) is queued for the
+next manage sequence; the internal slots update at once."
+  (when (seat-proxy seat)
+    (dolist (w (all-windows))
+      (setf (window-focused-p w) nil))
+    (queue-focus-request nil seat)
+    (note-focus-change)
+    (setf (seat-focused-window seat) nil)))
 
 (defvar *pending-pointer-warps* nil
   "Queued pointer warps ((:warp X Y)), flushed in the manage pass —

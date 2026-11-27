@@ -253,7 +253,8 @@ dimensions of floats on the current workspace."
     (dolist (win (all-windows))
       (unless (or (window-minimized-p win)
                    (not (window-floating-p win)))
-        (cond ((null (window-output win))
+        (cond ((and (null (window-output win))
+                    (window-arrives-on-p win output))
                ;; Adopt: same as the tiling path stamping placements
                (setf (window-output win) output)
                (assign-window-workspace win workspace)
@@ -319,11 +320,13 @@ Floating windows only: dragging the tiling is a no-op."
 (defun window-at-pointer (seat)
   "The window under the pointer: the focused window if the pointer is
 inside it, else the topmost float, else any window containing the
-point."
+point. Hidden windows do not count, such as another workspace's or
+one stacked behind a frame's visible window."
   (let ((px (seat-pointer-x seat)) (py (seat-pointer-y seat)))
     (flet ((inside-p (win)
              (and (gethash (window-proxy win) *windows*)
                   (not (window-minimized-p win))
+                  (not (window-hidden-p win))
                   (>= px (window-x win))
                   (< px (+ (window-x win) (window-width win)))
                   (>= py (window-y win))
@@ -339,18 +342,22 @@ point."
 window floats it first — then an interactive move/resize op starts
 (the river pointer-op protocol; see float-op-manage-pass). Right-drag
 resizes from the classic bottom-right corner. Middle-click opens
-the window context menu (menus.lisp) instead of an op."
+the window context menu (menus.lisp) instead of an op. MOD+Left with
+no window under the pointer focuses the output under it (heads.lisp)."
   (if (eq type :menu)
       (menu-open-pointer-trigger seat)
       (let ((win (window-at-pointer seat)))
-        (when win
-          (dolist (s (all-seats))
-            (focus-window win s))
-          (unless (window-floating-p win)
-            (float-window win))
-          (float-op-request win seat type
-                            (if (eq type :resize) '(:bottom :right) nil))
-          (request-manage-dirty)))))
+        (cond
+          (win
+           (dolist (s (all-seats))
+             (focus-window win s))
+           (unless (window-floating-p win)
+             (float-window win))
+           (float-op-request win seat type
+                             (if (eq type :resize) '(:bottom :right) nil))
+           (request-manage-dirty))
+          ((eq type :move)
+           (focus-output-at-pointer seat))))))
 
 (defun float-op-manage-pass ()
   "Advance interactive float ops during a manage sequence: start
