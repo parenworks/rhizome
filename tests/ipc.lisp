@@ -30,6 +30,20 @@ drains the command queue — mirroring the WM's poll loop."
     ;; Dispatch: eval form
     (ok "dispatch eval form" (ipc-dispatch-line "(+ 1 2)") "3")
 
+    ;; A form's reply is shown only when it is non-empty and the form
+    ;; showed no message of its own
+    (setf *last-message* nil)
+    (ipc-dispatch-line "(progn (show-message \"from the form\") 7)")
+    (ok "form that shows a message keeps it"
+        *last-message* "from the form")
+    (let ((serial *message-serial*))
+      (ipc-dispatch-line "(values)")
+      (ok "form with an empty reply shows no message"
+          *message-serial* serial))
+    (setf *last-message* nil)
+    (ipc-dispatch-line "(+ 2 3)")
+    (ok "form with no message shows its reply" *last-message* "5")
+
     ;; Dispatch: unknown command reports helpfully
     (ok "dispatch unknown command"
        (and (search "unknown command"
