@@ -101,6 +101,10 @@ Returns (values value found-p)."
                  ;; (StumpWM's floating group). The scroll ribbon
                  ;; is set live, through C-t l, or set-group-type
                  ;; from the rhizome-display module.
+                 :output-focus nil
+                 ;; (7 :niri): per-workspace overrides of
+                 ;; (:pointer :output-focus), read for the
+                 ;; workspace shown on the output under the pointer
                  :default-layout :master-stack
                  ;; the layout untouched workspaces use;
                  ;; switch-layout stores per-workspace
@@ -134,7 +138,11 @@ Returns (values value found-p)."
     ;; workspace switch (river_seat_v1.pointer_warp); set it nil if
     ;; pointer jumps bother you. xcursor theme/size default to the
     ;; XCURSOR_THEME/XCURSOR_SIZE the session exports.
-    :pointer (:warp-on-switch t)
+    ;; :output-focus selects how an output with an empty desktop
+    ;; becomes current: :stumpwm (MOD+Left on empty desktop) or
+    ;; :niri (that, and pointer motion onto empty desktop).
+    :pointer (:warp-on-switch t
+              :output-focus :stumpwm)
     ;; :name selects themes/NAME.theme; :roles and :elements adjust
     ;; it (see theme.lisp)
     :theme (:name "tokyo-night"

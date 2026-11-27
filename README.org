@@ -719,8 +719,46 @@ in your config. =C-t o= and =C-t O= are free in the default map:
                    "move window to next output")                      ; C-t O
 #+end_src
 
-River reports no event for a click on an empty desktop, so clicking
-an empty output does not select it; use =focus-next-output=.
+*** Focusing an output from an empty desktop
+
+River reports no event for a plain click on an empty desktop, so a
+plain click does not select an output. =MOD+Left= on an empty desktop
+does: it focuses the output under the pointer, as =focus-output=
+does, without warping the pointer. =MOD+Left= on a window still
+starts a move.
+
+=(:pointer :output-focus)= selects one of two modes:
+
+| Mode                 | Effect                                                                                    |
+|----------------------+-------------------------------------------------------------------------------------------|
+| =:stumpwm= (default) | pointer motion never changes the current output                                           |
+| =:niri=              | moving the pointer onto another output's empty desktop also makes that output current     |
+
+Under =:niri=, the pointer over a window changes nothing, so this is
+not focus-follows-mouse. Each crossing onto another output acts at
+most once, when the pointer first rests on empty desktop there, and
+does not act at all if keyboard focus or the current output changed
+after the crossing. An output made current this way behaves as after
+=focus-output=: its current frame's window, or on a floating or
+ribbon workspace its first visible window, takes keyboard focus; with
+none, keyboard focus is cleared.
+
+River sends the pointer position only inside a manage sequence, and
+pointer motion alone does not start one. Under =:niri=, a crossing
+therefore takes effect at the next manage sequence, up to about two
+seconds later, and an output you choose from the keyboard in that
+time can be taken back by the crossing. =:stumpwm= does not act on
+pointer motion and is unaffected.
+
+=(:workspaces :output-focus)= overrides the mode per workspace, keyed
+like =(:workspaces :types)=. The mode in force is the one for the
+workspace shown on the output under the pointer, falling back to the
+global value:
+
+#+begin_src lisp
+(rhizome:configure '(:pointer (:output-focus :stumpwm)
+                     :workspaces (:output-focus (7 :niri))))
+#+end_src
 
 ** Status bar
 

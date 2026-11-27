@@ -91,10 +91,12 @@ frame's window, or, on a workspace whose windows sit in no frame
         (and (notany #'window-frame wins)
              (first wins)))))
 
-(defun focus-output (output)
+(defun focus-output (output &key (warp t))
   "Make OUTPUT current. Focus its current frame's window; with none,
-clear keyboard focus so the next new window opens on OUTPUT.
-Returns OUTPUT, or NIL when it is not a registered output."
+clear keyboard focus so the next new window opens on OUTPUT. With
+WARP (the default) and (:pointer :warp-on-switch), warp the pointer
+to OUTPUT's centre. Returns OUTPUT, or NIL when it is not a
+registered output."
   (when (live-output-p output)
     (setf *selected-output* output)
     (let ((win (output-focus-target output)))
@@ -102,7 +104,7 @@ Returns OUTPUT, or NIL when it is not a registered output."
         (if win
             (focus-window win seat)
             (queue-clear-focus seat))))
-    (when (config-getf '(:pointer) :warp-on-switch :default t)
+    (when (and warp (config-getf '(:pointer) :warp-on-switch :default t))
       (push (list :warp
                   (+ (output-x output) (floor (output-width output) 2))
                   (+ (output-y output) (floor (output-height output) 2)))
@@ -138,6 +140,74 @@ stack it on that frame's window."
       (setf *pending-autofocus* nil)
       (request-manage-dirty)
       win)))
+
+;;; --- Focusing an output from its empty desktop ---
+;;;
+;;; :stumpwm  MOD+Left on empty desktop focuses the output under the
+;;;           pointer; pointer motion never changes the current output.
+;;; :niri     the same, and the pointer moving onto another output's
+;;;           empty desktop makes that output current.
+;;;
+;;; The mode is (:workspaces :output-focus) for the workspace the
+;;; target output shows, else (:pointer :output-focus), else :stumpwm.
+
+(defvar *pointer-last-output* (make-hash-table :test 'eq)
+  "Seat -> the output under its pointer at the last pointer event.")
+
+(defvar *pointer-entered-output* (make-hash-table :test 'eq)
+  "Seat -> (OUTPUT . GENERATION) for its pointer's latest crossing
+onto OUTPUT that has neither acted nor been dropped, or NIL.
+GENERATION is *focus-generation* at the crossing; an entry whose
+GENERATION differs from the current count never acts. Set on each
+crossing to another output and cleared when the crossing acts or is
+dropped, so one crossing focuses an output at most once.")
+
+(defun output-focus-mode (output)
+  "The empty-desktop focus mode for OUTPUT's current workspace:
+:STUMPWM or :NIRI. Any other configured value reads as :STUMPWM."
+  (let* ((overrides (config-getf '(:workspaces) :output-focus))
+         (mode (or (and output (listp overrides)
+                        (getf overrides (current-workspace output)))
+                   (config-getf '(:pointer) :output-focus))))
+    (if (eq mode :niri) :niri :stumpwm)))
+
+(defun focus-output-at-pointer (seat)
+  "Focus the output under SEAT's pointer without warping the pointer.
+Returns that output, or NIL when the pointer is on none."
+  (let ((output (output-at-point (seat-pointer-x seat)
+                                 (seat-pointer-y seat))))
+    (and output (focus-output output :warp nil))))
+
+(defun pointer-motion-output-focus (seat)
+  "Handle SEAT's pointer moving to its recorded position. A crossing
+onto another output stays pending until it acts or is dropped. Under
+:NIRI it acts once, when the pointer first rests on empty desktop on
+that output: it focuses the output without warping the pointer. It
+is dropped with no effect in any of these cases:
+  - the output is already current;
+  - the output's mode is :STUMPWM;
+  - keyboard focus or the current output changed after the crossing.
+Motion within one output never takes back an output chosen from the
+keyboard."
+  (let ((output (output-at-point (seat-pointer-x seat)
+                                 (seat-pointer-y seat))))
+    (unless (eq output (gethash seat *pointer-last-output*))
+      (setf (gethash seat *pointer-last-output*) output
+            (gethash seat *pointer-entered-output*)
+            (and output (cons output *focus-generation*))))
+    (let* ((entry (gethash seat *pointer-entered-output*))
+           (entered (car entry)))
+      (when entry
+        (cond ((or (/= (cdr entry) *focus-generation*)
+                   (not (eq (output-focus-mode entered) :niri))
+                   (eq entered (current-output)))
+               (setf (gethash seat *pointer-entered-output*) nil))
+              ((window-at-pointer seat)
+               ;; Over a window: wait for empty desktop on this output
+               nil)
+              (t
+               (setf (gethash seat *pointer-entered-output*) nil)
+               (focus-output entered :warp nil)))))))
 
 ;;; --- Command functions ---
 

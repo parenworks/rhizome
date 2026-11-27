@@ -411,6 +411,19 @@ focus. focus_window is a window-management-state request: river 0.5
 TERMINATES the client for sending it outside a manage sequence,
 and switch-workspace (a keybinding path) is always outside one.")
 
+(defvar *focus-generation* 0
+  "Count of keyboard focus changes. focus-window, queue-clear-focus,
+and clear-focus each add one; reassert-seat-focus resends unchanged
+focus and adds none. focus-output and move-window-to-output change
+the current output through focus-window or queue-clear-focus, so the
+count also moves when the current output does. Two equal readings
+mean no focus change in between.")
+
+(defun note-focus-change ()
+  "Count a keyboard focus change in *focus-generation*. Returns the
+new count."
+  (incf *focus-generation*))
+
 (defun queue-focus-request (win seat)
   "Queue a focus request for WIN on SEAT for the next manage sequence.
 One request per seat: the newest replaces any queued for SEAT. A NIL
@@ -436,6 +449,7 @@ borders/bars react at once. WIN becomes its workspace's entry in
       (unless (eq w win)
         (setf (window-focused-p w) nil)))
     (queue-focus-request win seat)
+    (note-focus-change)
     (setf (window-focused-p win) t
           (seat-focused-window seat) win
           (gethash (cons (window-output win) (window-workspace win))
@@ -451,6 +465,7 @@ next manage sequence; the internal slots update at once."
     (dolist (w (all-windows))
       (setf (window-focused-p w) nil))
     (queue-focus-request nil seat)
+    (note-focus-change)
     (setf (seat-focused-window seat) nil)))
 
 (defvar *pending-pointer-warps* nil

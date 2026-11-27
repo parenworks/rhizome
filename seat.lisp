@@ -177,7 +177,11 @@ the sequence that grants non-exclusive focus keeps it from the surface."
     (:pointer-position
      (destructuring-bind (x y) args
        (setf (seat-pointer-x seat) x
-             (seat-pointer-y seat) y)))
+             (seat-pointer-y seat) y)
+       (handler-case
+           (pointer-motion-output-focus seat)
+         (error (e)
+           (format t "~&; Rhizome: pointer output focus failed: ~A~%" e)))))
 
     (:pointer-enter
      (destructuring-bind (window-proxy) args
@@ -423,5 +427,6 @@ it stays on keys it does not change, so Shift+Return is \"S-Return\"."
 the request is queued for the next manage sequence, and one is
 requested."
   (queue-focus-request nil seat)
+  (note-focus-change)
   (setf (seat-focused-window seat) nil)
   (request-manage-dirty))
