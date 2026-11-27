@@ -149,11 +149,14 @@ one-shot layout templates keep working)."
 (defun scroll-manage-decisions (output workspace wins)
   "Manage-sequence decisions for the ribbon: prune columns whose
 windows died, minimized, floated or moved, and adopt frameless
-arrivals as new columns right after the focused one."
+arrivals as new columns right after the focused one. Focus moves to
+a column only when the pruned window held this ribbon's focus and
+focus did not follow it to another output."
   (let ((state (scroll-state output workspace)))
     (when state
       (let* ((columns (getf state :columns))
-             (focused-pos (position-if #'window-focused-p columns)))
+             (focused-pos (position-if #'window-focused-p columns))
+             (focused-win (and focused-pos (nth focused-pos columns))))
         (setf (getf state :columns)
               (remove-if (lambda (win)
                            (or (null (gethash (window-proxy win) *windows*))
@@ -184,13 +187,18 @@ arrivals as new columns right after the focused one."
             (mark-window-tiled win)
             (propose-window-dimensions win cw ch)))
         (let ((columns (getf state :columns)))
-          (when columns
-            ;; Focus recovery: when the focused column closed, its
-            ;; slot (or the last one) takes focus
-            (unless (find-if #'window-focused-p columns)
-              (let ((pos (min (or focused-pos 0) (1- (length columns)))))
-                (dolist (seat (all-seats))
-                  (focus-window (nth pos columns) seat))))))
+          (when (and columns
+                     focused-win
+                     (not (member focused-win columns :test #'eq))
+                     ;; A window moved to another output keeps focus
+                     (not (and (gethash (window-proxy focused-win) *windows*)
+                               (window-focused-p focused-win)
+                               (not (eq (window-output focused-win)
+                                        output)))))
+            ;; The focused column's slot (or the last one) takes focus
+            (let ((pos (min focused-pos (1- (length columns)))))
+              (dolist (seat (all-seats))
+                (focus-window (nth pos columns) seat)))))
         (scroll-ensure-focused-visible output workspace)))))
 
 (defun scroll-render-decisions (output workspace wins)
