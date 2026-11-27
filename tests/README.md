@@ -139,6 +139,12 @@ stubbed river requests. Run with:
   as its character (Latin-1, legacy, and Unicode keysyms), or as #N,
   in which-key text and the key-pressed log, while its binding still
   runs.
+- `multi-head.lisp` - two side-by-side outputs: which output is
+  current (focus, last selection, pointer), new windows opening on
+  it, focusing the next/previous/left/right output (an empty one
+  clears focus), moving a window across outputs (frame left behind
+  and pruned, adoption on the target, float offsets), and IPC
+  commands acting on the current output.
 - `ipc.lisp` — command dispatch and a real unix-socket round-trip
   (server thread + client thread + main-thread queue drain).
 - `display-brightness.lisp` - display menu brightness argv: signed

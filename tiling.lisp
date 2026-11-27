@@ -187,11 +187,13 @@ floats manage themselves."
                                 (not (eql (window-workspace win)
                                           workspace)))))
                      (all-windows)))
+         ;; Unplaced windows open on the arrival output only
          (unassigned (remove-if
                        (lambda (win)
                          (or (window-minimized-p win)
                              (window-floating-p win)
-                             (window-output win)))
+                             (window-output win)
+                             (not (window-arrives-on-p win output))))
                        (all-windows)))
          (wins (append assigned unassigned)))
     ;; Stamp windows onto this output and workspace (idempotent)

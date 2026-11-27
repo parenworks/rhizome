@@ -161,8 +161,18 @@ there is nothing to do but let them go."
   (loop for output being the hash-values of *outputs* collect output))
 
 (defun find-output-for-window (win)
-  "Find which output a window should be managed on.
-For now, uses the first output or the output the pointer is on."
-  (let ((outputs (all-outputs)))
-    (when outputs
-      (first outputs))))
+  "The output a new, unplaced WIN opens on: the manage pass's arrival
+output when one is bound, else the current output (heads.lisp)."
+  (declare (ignore win))
+  (or (and *arrival-output* (live-output-p *arrival-output*)
+           *arrival-output*)
+      (current-output)))
+
+(defun window-arrives-on-p (win output)
+  "True when the unplaced WIN opens on OUTPUT: OUTPUT is its arrival
+output, no output claims it, or OUTPUT is not registered, as in a
+pass run outside the manage loop, which then adopts WIN."
+  (let ((target (find-output-for-window win)))
+    (or (null target)
+        (eq target output)
+        (not (live-output-p output)))))

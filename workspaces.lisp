@@ -97,7 +97,7 @@ registration number (the newest)."
                          a))
                    wins)))))
 
-(defun switch-workspace (workspace &optional (output (first (all-outputs))))
+(defun switch-workspace (workspace &optional (output (current-output)))
   "Switch OUTPUT to WORKSPACE (1-based) and focus its window on every
 seat (see workspace-focus-target). When WORKSPACE has no unminimized
 window, each
@@ -323,12 +323,13 @@ matched rule, if any."
         (when workspace
           (assign-window-workspace win workspace)
           (setf (window-minimized-p win) nil))
+        ;; :layout and :follow act on the output the window opens on
         (when layout
           (apply-window-rule-layout win (find-layout-symbol layout)))
         (when (and follow workspace)
-          (let ((outs (all-outputs)))
-            (when outs
-              (switch-workspace workspace (first outs)))))
+          (let ((out (or (window-output win) (find-output-for-window win))))
+            (when out
+              (switch-workspace workspace out))))
         (request-manage-dirty)
         (format t "~&; Rhizome: window rule ~S applied to ~A~%"
                 rule (or (window-app-id win) (window-title win) win))

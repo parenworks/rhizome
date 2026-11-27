@@ -503,7 +503,11 @@ Commands run on the WM's main thread (the socket thread only moves
 bytes), so no Wayland request is ever made from a foreign thread.
 Available commands include everything in the command table
 (switch-workspace, current-workspace, toggle-bar, screenshot,
-list-windows, quit, focus-next/previous, switch-layout) plus arbitrary
+list-windows, quit, focus-next/previous, switch-layout, and the
+eight output commands under Multiple outputs: focus-next-output,
+focus-previous-output, focus-output-left, focus-output-right,
+move-window-next-output, move-window-previous-output,
+move-window-output-left, and move-window-output-right) plus arbitrary
 Lisp forms. The bar's workspace numbers use this socket to switch
 workspaces on click.
 
@@ -672,6 +676,51 @@ Each workspace has its own TYPE and its own LAYOUT:
 
 Rhizome's tiling is the dynamic (dwm-style) type by construction:
 new windows auto-insert into the frame tree without frame surgery.
+
+** Multiple outputs
+
+Each output keeps its own workspaces and frame trees, and one output
+is current at a time, as in StumpWM. The current output is the output
+of the focused window; failing that, the output you last selected
+with the commands below; failing that, the output under the pointer;
+failing that, the first output.
+
+New windows open on the current output, in its current frame. Prefix
+commands, =MOD+1..9=, =MOD+J/K=, =MOD+Space=, and every IPC command act
+on the current output too. IPC commands that report or change a
+workspace therefore follow the output you are working on.
+
+| Command                       | Effect                                                    |
+|-------------------------------+-----------------------------------------------------------|
+| =focus-next-output=           | focus the next output, wrapping (StumpWM's =snext=)       |
+| =focus-previous-output=       | focus the previous output, wrapping (=sprev=)             |
+| =focus-output-left=           | focus the output to the left; no wrap                     |
+| =focus-output-right=          | focus the output to the right; no wrap                    |
+| =move-window-next-output=     | move the focused window to the next output, wrapping      |
+| =move-window-previous-output= | move the focused window to the previous output, wrapping  |
+| =move-window-output-left=     | move the focused window to the output on its left         |
+| =move-window-output-right=    | move the focused window to the output on its right        |
+
+Focusing an output gives focus to the window in its current frame,
+or on a floating or ribbon workspace to its first visible window.
+When there is none, keyboard focus is cleared and the output becomes
+current, so the next window you open lands there. A moved
+window joins the target output's current workspace and current
+frame, and focus follows it; a floating window keeps its offset from
+the output's corner.
+
+StumpWM has no default keys for these, so rhizome binds none. Run
+them from the command palette (=C-t x=) or =rhizome-cmd=, or bind them
+in your config. =C-t o= and =C-t O= are free in the default map:
+
+#+begin_src lisp
+(define-prefix-key 111 (lambda () (focus-next-output)) "next output")  ; C-t o
+(define-prefix-key 79 (lambda () (move-window-next-output))
+                   "move window to next output")                      ; C-t O
+#+end_src
+
+River reports no event for a click on an empty desktop, so clicking
+an empty output does not select it; use =focus-next-output=.
 
 ** Status bar
 
@@ -1260,6 +1309,7 @@ rhizome/
   wm-protocol.lisp                    — Manage/render sequence loop, Wayland connection, registry
   window.lisp                         — Window management (dimensions, focus, borders, auto-focus)
   output.lisp                         — Output/monitor tracking
+  heads.lisp                          - Current output; focus and move windows across outputs
   seat.lisp                           — Input seat, wl_seat binding, wl_keyboard for launcher
   input.lisp                          — Input config via river-libinput-config-v1 (tap-to-click, tap-and-drag)
   workspaces.lisp                     — StumpWM-style workspaces (switch, move windows)

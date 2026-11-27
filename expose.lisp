@@ -140,7 +140,7 @@ PICKED (the pre-expose focus by default)."
 
 (defun enter-expose ()
   "C-t Return: the window overview (StumpWM's expose)."
-  (let* ((out (first (all-outputs)))
+  (let* ((out (current-output))
          (ws (current-workspace out)))
     (unless (and out (not *expose-active*))
       (return-from enter-expose))

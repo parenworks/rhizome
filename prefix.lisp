@@ -404,14 +404,14 @@ modes (most recently enabled first), if any."
 (defmacro with-frame-context (&body body)
   "Run BODY with OUT and WS bound to the output and workspace frame
 commands act on. Skips when no output exists."
-  `(let* ((out* (first (all-outputs))))
+  `(let* ((out* (current-output)))
      (when out*
        (let ((out out*) (ws (current-workspace out*)))
          ,@body))))
 
 (defun switch-workspace-relative (delta)
   "Switch to the workspace DELTA steps away (clamped to the range)."
-  (let ((out (first (all-outputs))))
+  (let ((out (current-output)))
     (when out
       (let ((target (+ (current-workspace out) delta)))
         (when (<= 1 target *workspace-count*)
@@ -680,7 +680,7 @@ by setup-default-prefix-bindings, which directs the writes to
   ;; C-t 1..9 — switch workspace directly (groups-map parity)
   (dolist (n '(1 2 3 4 5 6 7 8 9))
     (define-prefix-key (+ 48 n)
-                       (lambda () (switch-workspace n (first (all-outputs))))
+                       (lambda () (switch-workspace n (current-output)))
                        (format nil "workspace ~D" n)))
   ;; C-t ' — select window by number (StumpWM's select)
   (define-prefix-key 39 (lambda () (select-window-by-number-prompt))
@@ -780,7 +780,7 @@ by setup-default-prefix-bindings, which directs the writes to
                      "cycle group type (tile/scroll/floating)")  ; l
   ;; C-t v — toggle the niri-style scroll ribbon
   (define-prefix-key 118
-                     (lambda () (scroll-toggle (first (all-outputs))))
+                     (lambda () (scroll-toggle (current-output)))
                      "toggle scroll layout (niri ribbon)")     ; v
   ;; C-t , / C-t . — focus column left / right (viewport follows)
   (define-prefix-key 44 (lambda () (scroll-focus-left))

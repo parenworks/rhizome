@@ -598,7 +598,7 @@ With a single window this is a no-op."
            (focus-window win seat))
          (request-manage-dirty))))
 
-(defun pull-window-by-number (n &optional (output (first (all-outputs)))
+(defun pull-window-by-number (n &optional (output (current-output))
                                    (workspace (current-workspace output)))
   "Pull the window with number N into the current frame
 (StumpWM's pull N)."
@@ -1195,15 +1195,18 @@ propose each leaf's visible window its rectangle."
 visible window at its rectangle, show it if hidden, and stamp its
 position. Returns the list of rendered (visible) windows so the
 render pass can exclude them from its hide logic."
-  (let* ((root (frame-tree-for output workspace))
-         (leaves (frame-leaves root))
-         (rendered nil))
-    ;; Adopt frameless windows even in a bare render pass (e.g. the
-    ;; first pass after a hot reload, before any manage sequence)
+  (let ((root (frame-tree-for output workspace))
+        (rendered nil))
+    ;; A frameless window can reach a render pass before the manage
+    ;; pass that adopts it (after a hot reload, or an unfloat). Adopt
+    ;; it the same way, so an occupied frame splits instead of hiding
+    ;; its window, and request the manage pass that sizes the result.
     (dolist (win wins)
       (unless (window-frame win)
-        (frame-push-window win (current-frame-for output workspace))))
-    (dolist (leaf leaves)
+        (frame-adopt-window win output workspace)
+        (request-manage-dirty)))
+    ;; Leaves are read after adoption: a split replaces a leaf
+    (dolist (leaf (frame-leaves root))
       (let* ((win (frame-current-window leaf))
              (i (min (gaps-inner)
                      (floor (frame-width leaf) 2)
