@@ -28,7 +28,7 @@ SUITES    := animations decorations surface window-rules window-rules-reload flo
              module-sources output-rules-by-name output-hotplug border-colours \
              ipc-socket-path ipc-command-args example-config layout-rule-frames \
              compositor-loss launch-directory bar-launch-core \
-             multi-head
+             multi-head output-focus
 
 .PHONY: all build test install docs clean help
 
