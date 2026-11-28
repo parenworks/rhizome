@@ -35,7 +35,11 @@ Gates versioned requests (exit_session needs >= 4).")
   "river_layer_shell_v1 proxy - river's WM-side layer shell support.")
 
 (defparameter *wl-output-proxies* nil
-  "Bound wl_output proxies (v3, capped).")
+  "Bound wl_outputs as (proxy . registry-name) pairs - the registry
+name is the SAME number river reports as the output's
+wl-output-name, making the match exact.")
+(defparameter *wl-output-modes* (make-hash-table)
+  "wl_output proxy → (width . height) from the mode event.")
 (defparameter *wl-output-positions* (make-hash-table)
   "wl_output proxy → (x . y) global position, from the geometry
 event. For matching to river outputs by position.")
@@ -107,6 +111,11 @@ answered with another sequence — a self-sustaining churn."
                 :windows (hash-table-count *windows*)
                 :workspace (let ((outs (all-outputs)))
                              (when outs (current-workspace (first outs))))
+                :output-workspaces (mapcar (lambda (o)
+                                             (cons (or (output-wl-output-name o)
+                                                       (output-x o))
+                                                   (current-workspace o)))
+                                           (all-outputs))
                 :workspace-count *workspace-count*
                 :bar-hidden (not (config-getf '(:bar) :enabled :default t))
                 :occupied (let ((occ nil))
@@ -176,14 +185,19 @@ One of :idle, :managing, :waiting-render, :rendering.")
        (when iface-class
          (let ((proxy (wl:wl-registry.bind registry name iface-class
                                             (min version 3))))
-       (push proxy *wl-output-proxies*)
+       (push (cons proxy name) *wl-output-proxies*)
        (push (lambda (event-name &rest args)
-               (when (eq event-name :geometry)
-                 (let ((entry (find proxy *wl-output-proxies*)))
-                   (declare (ignore entry))
-                   ;; geometry carries the global position
-                   (setf (gethash proxy *wl-output-positions*)
-                         (cons (first args) (second args))))))
+               (case event-name
+                 (:geometry
+                  ;; global position
+                  (setf (gethash proxy *wl-output-positions*)
+                        (cons (first args) (second args))))
+                 (:mode
+                  (destructuring-bind (flags w h refresh) args
+                    (declare (ignore flags refresh))
+                    (when (and (plusp w) (plusp h))
+                      (setf (gethash proxy *wl-output-modes*)
+                            (cons w h)))))))
              (wl:wl-proxy-hooks proxy))
          (format t "~&; Rhizome: bound wl_output v~A global~%"
                  (min version 3))))))

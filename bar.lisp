@@ -888,6 +888,10 @@ after it."
     (wl:wl-surface.damage (gethash :surface state) 0 0 width height)
     (wl:wl-surface.commit (gethash :surface state))))
 
+(defparameter *bar-render-output* nil
+  "The river output this bar render targets: workspace modules read
+their display's workspace from the snapshot through it.")
+
 (defvar *bar-render-lock* (bt:make-lock "bar-render")
   "Serializes bar rendering. Two threads call bar-render: the main
 tick loop and the dbus-thread redraws (tray registrations).
@@ -901,7 +905,8 @@ font.lisp's *font-lock*).")
 in the ostate (dynamically collected — the draw code keeps pushing
 to *bar-hitboxes*)."
   (bt:with-lock-held (*bar-render-lock*)
-    (let ((*bar-hitboxes* nil))
+    (let ((*bar-hitboxes* nil)
+          (*bar-render-output* (gethash :output ostate)))
       (%bar-render ostate)
       (setf (gethash :hitboxes ostate) *bar-hitboxes*))))
 

@@ -1233,21 +1233,17 @@ surface, created BEFORE the launcher (stacks below it in the same
         (wl:wl-surface.commit surface)))))
 
 (defun launcher-target-output ()
-  "The wl_output for the display the focused window is on: match
-the river output's position to a bound wl_output's geometry
-position. NIL when nothing matches - the launcher lets the
-compositor choose (first output)."
+  "The wl_output for the display the focused window is on, matched
+by REGISTRY NAME: the river output's wl-output-name IS the
+registry number of its wl_output (issue #32's discovery). The
+wl_outputs are stored as (proxy . registry-name) pairs. Works at
+any resolution, any number of displays."
   (let* ((focused (find-if #'window-focused-p (all-windows)))
-         (river-out (or (and focused (window-output focused))
-                        (focused-output)
-                        (first (all-outputs)))))
-    (when (and river-out (output-x river-out))
-      (let ((rx (output-x river-out))
-            (ry (output-y river-out)))
-        (find-if (lambda (proxy)
-                   (let ((pos (gethash proxy *wl-output-positions*)))
-                     (and pos (= (car pos) rx) (= (cdr pos) ry))))
-                 *wl-output-proxies*)))))
+         (river-out (and focused (window-output focused)))
+         (reg-name (and river-out (output-wl-output-name river-out))))
+    (when reg-name
+      (car (find-if (lambda (pair) (= (cdr pair) reg-name))
+                    *wl-output-proxies*)))))
 
 (defun show-launcher ()
   "Show the native launcher popup."
@@ -1288,6 +1284,11 @@ compositor choose (first output)."
         *launcher-selection* 0
         *launcher-scroll-offset* 0
         *launcher-entries* (launcher-filter-entries))
+  ;; remember which display this launcher opened on: apps launched
+  ;; from it land here (the launcher has keyboard focus, not a
+  ;; river window, so focused-output is stale)
+  ;; launcher output is NOT sticky: find-output-for-window uses
+  ;; the focused window's output, which updates with keyboard focus
   (format t "~&; Rhizome: showing native launcher~%")
   (force-output)
   (unwind-protect
