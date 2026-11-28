@@ -25,7 +25,7 @@ SUITES    := animations decorations surface window-rules window-rules-reload flo
              server-side-decorations client-fullscreen repl-server-config repl-server-port \
              theme-roles \
              keymap-layers key-sequences key-grabs key-names shm-buffers modules bar-adoption network-menu bar-reserved-per-output \
-             module-sources output-rules-by-name output-hotplug border-colours \
+             module-sources output-rules-by-name output-hotplug find-output-pointer border-colours \
              ipc-socket-path ipc-command-args example-config layout-rule-frames \
              compositor-loss launch-directory bar-launch-core
 

@@ -178,8 +178,9 @@ prompts, and message window should open where the user is looking."
         (first outputs))))
 
 (defun find-output-for-window (win)
-  "Find which output a window should be managed on.
-For now, uses the first output or the output the pointer is on."
-  (let ((outputs (all-outputs)))
-    (when outputs
-      (first outputs))))
+  "Find which output a window should be managed on: the output the
+POINTER is on (new windows open where you are looking), falling
+back to the window's own output, then the first output."
+  (declare (ignore win))
+  (or (output-under-pointer)
+      (first (all-outputs))))
