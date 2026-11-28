@@ -104,6 +104,9 @@ window, each
 seat focused on a window of OUTPUT has its focus cleared."
   (unless (and (<= 1 workspace *workspace-count*) output)
     (return-from switch-workspace))
+  (format t "~&; Rhizome [debug]: switch-workspace ~A on output ~A (was ~A)~%"
+          workspace (or (output-wl-output-name output) "?")
+          (gethash output *output-workspace*))
   (let ((old-workspace (gethash output *output-workspace*)))
     (setf (gethash output *output-workspace*) workspace)
     ;; The target workspace's layout (or its scroll ribbon) is what

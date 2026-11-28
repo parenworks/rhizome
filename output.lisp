@@ -152,8 +152,8 @@ there is nothing to do but let them go."
       (let ((target (first survivors))
             (moved 0))
         (dolist (win (windows-on-output output))
-          (setf (window-output win) target
-                (window-frame win) nil)
+          (setf (window-output win) target)
+          (frame-remove-window win)
           (incf moved))
         (format t "~&; Rhizome: migrated ~A window~:P to ~A~%"
                 moved (or (output-wl-output-name target)

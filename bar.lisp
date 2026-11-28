@@ -207,7 +207,11 @@ use it."
 snapshot's :occupied list (workspace numbers with visible
 windows)."
   (let* ((snapshot (bar-snapshot))
-         (current (getf snapshot :workspace 1))
+         (current (or (and *bar-render-registry-name*
+                           (cdr (assoc *bar-render-registry-name*
+                                       (getf snapshot :output-workspaces)
+                                       :test #'eql)))
+                      (getf snapshot :workspace 1)))
          (count (getf snapshot :workspace-count 9))
          (occupied (getf snapshot :occupied))
          (accent (theme-color :bar-workspace-current))
@@ -888,6 +892,13 @@ after it."
     (wl:wl-surface.damage (gethash :surface state) 0 0 width height)
     (wl:wl-surface.commit (gethash :surface state))))
 
+(defparameter *bar-output-registry-names* (make-hash-table)
+  "wl_output proxy → its registry global number (the snapshot's
+output-workspaces are keyed by the same number).")
+(defparameter *bar-render-registry-name* nil
+  "This bar render's wl_output registry number - matches the
+snapshot's output-workspaces keys.")
+
 (defparameter *bar-render-output* nil
   "The river output this bar render targets: workspace modules read
 their display's workspace from the snapshot through it.")
@@ -906,7 +917,8 @@ in the ostate (dynamically collected — the draw code keeps pushing
 to *bar-hitboxes*)."
   (bt:with-lock-held (*bar-render-lock*)
     (let ((*bar-hitboxes* nil)
-          (*bar-render-output* (gethash :output ostate)))
+          (*bar-render-output* (gethash :output ostate))
+          (*bar-render-registry-name* (gethash :registry-name ostate)))
       (%bar-render ostate)
       (setf (gethash :hitboxes ostate) *bar-hitboxes*))))
 
@@ -1014,10 +1026,14 @@ Return T, or NIL when the shm file or mapping cannot be created."
                (wl:wl-registry.bind registry name iface-class version)))
         ((string= interface "wl_output")
          ;; per-output bars: bind EVERY output (hotplug arrivals
-         ;; come through here too — the registry hook keeps firing)
+         ;; come through here too — the registry hook keeps firing).
+         ;; Store (proxy . registry-name): the snapshot's
+         ;; output-workspaces are keyed by the SAME registry number
          (let ((output (wl:wl-registry.bind registry name iface-class
                                             version)))
-           (pushnew output (gethash :outputs state))))
+           (pushnew output (gethash :outputs state))
+           ;; track the registry name for per-output workspace lookup
+           (setf (gethash output *bar-output-registry-names*) name)))
         ((and (string= interface "wl_seat")
               (null (gethash :seat state)))
          (setf (gethash :seat state)
@@ -1250,6 +1266,8 @@ registered in *bar-output-states* / *bar-surface-states*."
          (margin (config-getf '(:bar) :margin :default 8))
          (height (config-getf '(:bar) :height :default 28)))
     (setf (gethash :output ostate) output
+          (gethash :registry-name ostate)
+          (gethash output *bar-output-registry-names*)
           (gethash :shm ostate) (gethash :shm state)
           (gethash :height ostate) height
           (gethash :surface ostate) surface
