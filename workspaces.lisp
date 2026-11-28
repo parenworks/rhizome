@@ -126,7 +126,8 @@ seat focused on a window of OUTPUT has its focus cleared."
         (dolist (win (windows-on-workspace output workspace))
           (unless (window-minimized-p win)
             (animation-start win :dx (- (* dir slide)) :duration 160)))))
-    (format t "~&; Rhizome: switched to workspace ~D~%" workspace)
+    (format t "~&; Rhizome: switched to workspace ~D at ~D~%"
+          workspace (get-internal-real-time))
     (message "workspace ~D" workspace)
     (run-hook :workspace-changed workspace output)
     ;; Focus the workspace's window; with none, no seat may keep a

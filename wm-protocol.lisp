@@ -136,6 +136,8 @@ answered with another sequence — a self-sustaining churn."
                                      (all-outputs))))))
     (unless (equal snapshot *wm-snapshot*)
       (setf *wm-snapshot* snapshot)
+      (format t "~&; Rhizome [lag]: snapshot write at ~D~%"
+              (get-internal-real-time))
       (bar-write-snapshot snapshot))))
 
 ;;; --- Sequence state machine --

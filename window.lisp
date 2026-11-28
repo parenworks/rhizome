@@ -438,6 +438,10 @@ borders/bars react at once. WIN becomes its workspace's entry in
     (queue-focus-request win seat)
     (setf (window-focused-p win) t
           (seat-focused-window seat) win
+          ;; multi-monitor: focus follows the clicked window's display
+          ;; (the preferred output for MOD+N, the launcher, and the
+          ;; bar's focused-display indicator)
+          *preferred-output* (window-output win)
           (gethash (cons (window-output win) (window-workspace win))
                    *workspace-last-focus*)
           win)

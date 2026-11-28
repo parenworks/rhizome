@@ -1087,7 +1087,16 @@ last commit. Re-renders are skipped when nothing changed."
   (let* ((modules (append (bar-segment-modules :left)
                            (bar-segment-modules :center)
                            (bar-segment-modules :right)))
+         (snapshot (bar-snapshot))
+         ;; workspace state in the signature EXPLICITLY: the parts-
+         ;; based signature alone can miss pill transitions; the
+         ;; snapshot's workspace fields are the authoritative state
+         (ws-sig (format nil "ws=~A focused-out=~A outs=~A~%"
+                        (getf snapshot :workspace)
+                        (getf snapshot :focused-output)
+                        (getf snapshot :output-workspaces)))
          (sig (with-output-to-string (s)
+                (princ ws-sig s)
                 (dolist (module modules)
                   (princ module s)
                   (princ " = " s)
@@ -1378,7 +1387,11 @@ tick opens or closes the bar's surface to follow the WM snapshot."
                                     (not (eq (bar-hover-module-now)
                                              *bar-hover-rendered*))))
                        (setf *tray-render-stamp* *tray-changed*)
-                       (bar-render-all))
+                       (let ((t0 (get-internal-real-time)))
+                         (bar-render-all)
+                         (format t "~&; Rhizome [bar-lag]: render took ~D ms~%"
+                                 (round (* (- (get-internal-real-time) t0)
+                                           1000 internal-time-units-per-second)))))
                      (loop while (and *bar-running*
                                       (wl:wl-display-listen display))
                            do (safe-dispatch display))
