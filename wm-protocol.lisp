@@ -172,8 +172,10 @@ One of :idle, :managing, :waiting-render, :rendering.")
      ;; event desyncs the entire event stream (the documented
      ;; WM-killer; the v4 attempt was the black-screen bug). v3 has
      ;; only geometry/mode/done/scale.
-     (let ((proxy (wl:wl-registry.bind registry name iface-class
-                                          (min version 3))))
+     (let ((iface-class (wl:find-interface-named interface)))
+       (when iface-class
+         (let ((proxy (wl:wl-registry.bind registry name iface-class
+                                            (min version 3))))
        (push proxy *wl-output-proxies*)
        (push (lambda (event-name &rest args)
                (when (eq event-name :geometry)
@@ -183,8 +185,8 @@ One of :idle, :managing, :waiting-render, :rendering.")
                    (setf (gethash proxy *wl-output-positions*)
                          (cons (first args) (second args))))))
              (wl:wl-proxy-hooks proxy))
-       (format t "~&; Rhizome: bound wl_output v~A global~%"
-               (min version 3))))
+         (format t "~&; Rhizome: bound wl_output v~A global~%"
+                 (min version 3))))))
     ((string= interface "wl_compositor")
      (let ((iface-class (wl:find-interface-named interface)))
        (when iface-class
