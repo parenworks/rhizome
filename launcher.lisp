@@ -1232,6 +1232,11 @@ surface, created BEFORE the launcher (stacks below it in the same
         (rwm:zwlr-layer-surface-v1.set-size *launcher-backdrop-layer-surface* 0 0)
         (wl:wl-surface.commit surface)))))
 
+(defvar *launcher-last-output* nil
+  "The river output the launcher opened on: find-output-for-window
+consults it first while the launcher is open (keyboard focus sits on
+the layer surface, so the focused window's output is stale).")
+
 (defun launcher-target-output ()
   "The wl_output for the display the focused window is on, matched
 by REGISTRY NAME: the river output's wl-output-name IS the
@@ -1289,6 +1294,12 @@ any resolution, any number of displays."
   ;; river window, so focused-output is stale)
   ;; launcher output is NOT sticky: find-output-for-window uses
   ;; the focused window's output, which updates with keyboard focus
+  ;; record which display this launcher opened on: apps launched
+  ;; from it land here (the launcher takes keyboard focus, so the
+  ;; focused window's output goes stale while it's open)
+  (setf *launcher-last-output*
+        (let ((focused (find-if #'window-focused-p (all-windows))))
+          (and focused (window-output focused))))
   (format t "~&; Rhizome: showing native launcher~%")
   (force-output)
   (unwind-protect
@@ -1334,6 +1345,7 @@ any resolution, any number of displays."
       (reassert-seat-focus))))
 
 (defun hide-launcher ()
+  (setf *launcher-last-output* nil)
   "Hide the native launcher popup."
   (unless *launcher-active*
     (return-from hide-launcher))

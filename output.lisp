@@ -180,10 +180,41 @@ prompts, and message window should open where the user is looking."
                        outputs))))
         (first outputs))))
 
+(defvar *preferred-output* nil
+  "The display commands target (MOD+N, launcher placement): updated
+by keyboard focus AND by focus-output cycling. River gives the WM
+no live pointer position (#1500), so this is the authoritative
+'display the user is working on'.")
+
+(defun focus-output (delta)
+  "Cycle keyboard focus between displays (DELTA 1 or -1): focus
+the target output's best window on its CURRENT workspace (so
+something is always clickable there), update *preferred-output*.
+Prints what happened - the confirmation the user sees."
+  (let* ((outputs (all-outputs))
+         (n (length outputs)))
+    (when (> n 1)
+      (let* ((current (position *preferred-output* outputs))
+             (idx (mod (+ (or current 0) delta) n))
+             (target (nth idx outputs)))
+        (setf *preferred-output* target)
+        (let ((win (workspace-focus-target target
+                                            (current-workspace target))))
+          (when win
+            (dolist (seat (all-seats))
+              (focus-window win seat)))
+          (request-manage-dirty)
+          (format t "~&; Rhizome: focused output ~A (workspace ~A, window ~A)~%"
+                  (or (output-wl-output-name target) "?")
+                  (current-workspace target)
+                  (and win (window-app-id win))))))))
+
 (defun focused-output ()
   "The output of the focused window, or NIL (no focus, or the
 focused window is a layer surface with no output)."
   (let ((focused (find-if #'window-focused-p (all-windows))))
+    (when focused
+      (setf *preferred-output* (window-output focused)))
     (and focused (window-output focused))))
 
 (defun find-output-for-window (win)
@@ -193,6 +224,7 @@ rule), then the pointer's output (river only reports position
 during pointer ops, so this is fresh during drags), then the
 first output."
   (declare (ignore win))
-  (or (focused-output)
+  (or (and (boundp '*launcher-last-output*) *launcher-last-output*)
+      (focused-output)
       (output-under-pointer)
       (first (all-outputs))))

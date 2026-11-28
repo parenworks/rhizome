@@ -212,9 +212,16 @@ windows)."
                                        (getf snapshot :output-workspaces)
                                        :test #'eql)))
                       (getf snapshot :workspace 1)))
+
          (count (getf snapshot :workspace-count 9))
          (occupied (getf snapshot :occupied))
-         (accent (theme-color :bar-workspace-current))
+         ;; focused-display indicator: the current pill lights up on
+         ;; the display commands target; other displays show it dim
+         (this-focused (eql *bar-render-registry-name*
+                            (getf snapshot :focused-output)))
+         (accent (if this-focused
+                    (theme-color :bar-workspace-current)
+                    (theme-color :bar-workspace-occupied)))
          (fg (theme-color :bar-workspace-occupied))
          (muted (theme-color :bar-workspace-empty))
          (gap (config-getf '(:bar :workspaces) :gap :default 8)))
@@ -1033,7 +1040,8 @@ Return T, or NIL when the shm file or mapping cannot be created."
                                             version)))
            (pushnew output (gethash :outputs state))
            ;; track the registry name for per-output workspace lookup
-           (setf (gethash output *bar-output-registry-names*) name)))
+           (setf (gethash output *bar-output-registry-names*) name)
+           ))
         ((and (string= interface "wl_seat")
               (null (gethash :seat state)))
          (setf (gethash :seat state)

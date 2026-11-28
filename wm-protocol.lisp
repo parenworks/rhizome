@@ -111,6 +111,8 @@ answered with another sequence — a self-sustaining churn."
                 :windows (hash-table-count *windows*)
                 :workspace (let ((outs (all-outputs)))
                              (when outs (current-workspace (first outs))))
+                :focused-output (and *preferred-output*
+                                    (output-wl-output-name *preferred-output*))
                 :output-workspaces (mapcar (lambda (o)
                                              (cons (or (output-wl-output-name o)
                                                        (output-x o))
@@ -423,6 +425,10 @@ window positions, borders, and z-ordering here."
              (declare (ignore output-proxy))
              ;; Render-sequence requests: presentation mode (VRR)
              (apply-presentation-mode output)
+             (format t "~&; Rhizome [debug]: render pass for output ~A ws~A wins~A~%"
+                     (or (output-wl-output-name output) "?")
+                     (current-workspace output)
+                     (length (windows-on-output output)))
              (render-layout-for-output output))
            *outputs*)
   ;; Pseudo-shadows on floating windows (river_decoration_v1).

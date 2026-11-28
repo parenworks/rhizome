@@ -72,6 +72,8 @@ with.")
   (defconstant +xkb-key-Tab+     65289)    ; #xff09
   (defconstant +xkb-key-Space+   32)       ; #x0020
   (defconstant +xkb-key-Q+       113)      ; #x0071
+  (defconstant +xkb-key-Left+    65361)    ; #xff51
+  (defconstant +xkb-key-Right+   65363)    ; #xff53
   (defconstant +xkb-key-J+       106)      ; #x006a
   (defconstant +xkb-key-K+       107)      ; #x006b
   (defconstant +xkb-key-B+        98)       ; #x0062
@@ -500,13 +502,25 @@ build-default-top-map, which directs the writes to *default-top-map*."
         do (let ((ws i))
              (define-key keysym *mod*
                (lambda ()
-                 ;; the FOCUSED output's workspace: per-display
+                 ;; the display the POINTER is on, focused fallback:
+                 ;; switch the workspace you're LOOKING at
                  (switch-workspace ws
-                   (or (focused-output)
+                   (or *preferred-output*
+                       (focused-output)
                        (first (all-outputs))))))
              (define-key keysym (append *mod* *mod-shift*)
                (lambda ()
                  (move-focused-window-to-workspace ws)))))
+
+  ;; MOD+Shift+Left/Right - cycle display focus (multi-monitor):
+  ;; river gives the WM no live pointer position, so keyboard
+  ;; focus cycling is THE way to direct commands at a display
+  (define-key +xkb-key-Left+ (append *mod* *mod-shift*)
+    (lambda ()
+      (focus-output -1)))
+  (define-key +xkb-key-Right+ (append *mod* *mod-shift*)
+    (lambda ()
+      (focus-output 1)))
 
   ;; MOD+E - launch emacs
   (define-key +xkb-key-E+ *mod*
