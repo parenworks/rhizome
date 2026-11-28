@@ -177,10 +177,19 @@ prompts, and message window should open where the user is looking."
                        outputs))))
         (first outputs))))
 
+(defun focused-output ()
+  "The output of the focused window, or NIL (no focus, or the
+focused window is a layer surface with no output)."
+  (let ((focused (find-if #'window-focused-p (all-windows))))
+    (and focused (window-output focused))))
+
 (defun find-output-for-window (win)
-  "Find which output a window should be managed on: the output the
-POINTER is on (new windows open where you are looking), falling
-back to the window's own output, then the first output."
+  "Find which output a window should be managed on: the FOCUSED
+window's output (where you are working - the standard tiling-WM
+rule), then the pointer's output (river only reports position
+during pointer ops, so this is fresh during drags), then the
+first output."
   (declare (ignore win))
-  (or (output-under-pointer)
+  (or (focused-output)
+      (output-under-pointer)
       (first (all-outputs))))
