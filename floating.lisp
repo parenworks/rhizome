@@ -202,7 +202,12 @@ displays (the drag-crossing fix): re-target before clamping."
   ;; multi-monitor: follow the center across outputs first
   (let ((target (float-output-at-center win)))
     (when (and target (not (eq target (window-output win))))
-      (setf (window-output win) target)))
+      (setf (window-output win) target)
+      ;; also join the new output's current workspace - without
+      ;; this, the window keeps its old workspace assignment and
+      ;; vanishes (the new output shows a different workspace)
+      (assign-window-workspace win
+        (current-workspace target))))
   (let* ((out (window-output win))
          (w (or (window-float-width win) (window-width win) 100))
          (h (or (window-float-height win) (window-height win) 100)))

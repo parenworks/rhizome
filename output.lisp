@@ -64,6 +64,9 @@ re-sends the presentation mode (apply-presentation-mode diffs it)."
   "Register a new river_output_v1 proxy and set up event handlers."
   (let ((output (make-instance 'rhizome-output :proxy proxy)))
     (setf (gethash proxy *outputs*) output)
+    ;; every output starts on workspace 1 - without this, windows
+    ;; dragged to a newly-registered output land on NIL and vanish
+    (setf (gethash output *output-workspace*) 1)
     (push (lambda (event-name &rest args)
             (apply #'handle-output-event output event-name args))
           (wl:wl-proxy-hooks proxy))
