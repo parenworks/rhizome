@@ -179,9 +179,30 @@ the WM is free to exceed but usually shouldn't."
 
 ;;; --- Geometry helpers ---
 
+(defun float-output-at-center (win)
+  "The output WIN's center is over (float coords are global): during
+a drag, the window FOLLOWS to whichever display its center crosses
+onto. NIL when the center is outside every output."
+  (let* ((w (or (window-float-width win) (window-width win) 100))
+         (h (or (window-float-height win) (window-height win) 100))
+         (cx (+ (window-float-x win) (floor w 2)))
+         (cy (+ (window-float-y win) (floor h 2))))
+    (find-if (lambda (o)
+               (and (>= cx (output-x o))
+                    (< cx (+ (output-x o) (output-width o)))
+                    (>= cy (output-y o))
+                    (< cy (+ (output-y o) (output-height o)))))
+             (all-outputs))))
+
 (defun float-clamp-position (win)
   "Keep WIN's float position reachable: at least a ~30px strip of the
-window stays on its output, so a float can never be lost off-screen."
+window stays on its output, so a float can never be lost off-screen.
+During a drag, the window's output follows its CENTER across
+displays (the drag-crossing fix): re-target before clamping."
+  ;; multi-monitor: follow the center across outputs first
+  (let ((target (float-output-at-center win)))
+    (when (and target (not (eq target (window-output win))))
+      (setf (window-output win) target)))
   (let* ((out (window-output win))
          (w (or (window-float-width win) (window-width win) 100))
          (h (or (window-float-height win) (window-height win) 100)))
