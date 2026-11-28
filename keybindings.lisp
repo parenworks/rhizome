@@ -500,7 +500,10 @@ build-default-top-map, which directs the writes to *default-top-map*."
         do (let ((ws i))
              (define-key keysym *mod*
                (lambda ()
-                 (switch-workspace ws)))
+                 ;; the FOCUSED output's workspace: per-display
+                 (switch-workspace ws
+                   (or (focused-output)
+                       (first (all-outputs))))))
              (define-key keysym (append *mod* *mod-shift*)
                (lambda ()
                  (move-focused-window-to-workspace ws)))))

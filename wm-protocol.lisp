@@ -34,6 +34,12 @@ Gates versioned requests (exit_session needs >= 4).")
 (defvar *river-layer-shell* nil
   "river_layer_shell_v1 proxy - river's WM-side layer shell support.")
 
+(defparameter *wl-output-proxies* nil
+  "Bound wl_output proxies (v3, capped).")
+(defparameter *wl-output-positions* (make-hash-table)
+  "wl_output proxy → (x . y) global position, from the geometry
+event. For matching to river outputs by position.")
+
 (defvar *windows* (make-hash-table)
   "Maps river_window_v1 proxy objects to rhizome-window instances.")
 
@@ -159,6 +165,26 @@ One of :idle, :managing, :waiting-render, :rendering.")
      (setup-libinput-config registry name interface version))
     ((string= interface "zwlr_output_manager_v1")
      (display-manager-init registry name version))
+    ((string= interface "wl_output")
+     ;; The layer shell needs a wl_output to target a surface at a
+     ;; display. CAPPED AT VERSION 3: v4 added name/description
+     ;; events our wayflan bindings cannot demarshal - one such
+     ;; event desyncs the entire event stream (the documented
+     ;; WM-killer; the v4 attempt was the black-screen bug). v3 has
+     ;; only geometry/mode/done/scale.
+     (let ((proxy (wl:wl-registry.bind registry name iface-class
+                                          (min version 3))))
+       (push proxy *wl-output-proxies*)
+       (push (lambda (event-name &rest args)
+               (when (eq event-name :geometry)
+                 (let ((entry (find proxy *wl-output-proxies*)))
+                   (declare (ignore entry))
+                   ;; geometry carries the global position
+                   (setf (gethash proxy *wl-output-positions*)
+                         (cons (first args) (second args))))))
+             (wl:wl-proxy-hooks proxy))
+       (format t "~&; Rhizome: bound wl_output v~A global~%"
+               (min version 3))))
     ((string= interface "wl_compositor")
      (let ((iface-class (wl:find-interface-named interface)))
        (when iface-class

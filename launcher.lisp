@@ -1179,7 +1179,7 @@ surface, created BEFORE the launcher (stacks below it in the same
         (setf *launcher-backdrop-surface* surface
               *launcher-backdrop-layer-surface*
               (rwm:zwlr-layer-shell-v1.get-layer-surface
-                *layer-shell* surface nil :top "rhizome-launcher-backdrop"))
+                *layer-shell* surface (launcher-target-output) :top "rhizome-launcher-backdrop"))
         (push (lambda (event-name &rest args)
                 (when (eq event-name :configure)
                   (destructuring-bind (serial width height) args
@@ -1231,6 +1231,23 @@ surface, created BEFORE the launcher (stacks below it in the same
           *launcher-backdrop-layer-surface* '(:top :bottom :left :right))
         (rwm:zwlr-layer-surface-v1.set-size *launcher-backdrop-layer-surface* 0 0)
         (wl:wl-surface.commit surface)))))
+
+(defun launcher-target-output ()
+  "The wl_output for the display the focused window is on: match
+the river output's position to a bound wl_output's geometry
+position. NIL when nothing matches - the launcher lets the
+compositor choose (first output)."
+  (let* ((focused (find-if #'window-focused-p (all-windows)))
+         (river-out (or (and focused (window-output focused))
+                        (focused-output)
+                        (first (all-outputs)))))
+    (when (and river-out (output-x river-out))
+      (let ((rx (output-x river-out))
+            (ry (output-y river-out)))
+        (find-if (lambda (proxy)
+                   (let ((pos (gethash proxy *wl-output-positions*)))
+                     (and pos (= (car pos) rx) (= (cdr pos) ry))))
+                 *wl-output-proxies*)))))
 
 (defun show-launcher ()
   "Show the native launcher popup."
@@ -1284,7 +1301,7 @@ surface, created BEFORE the launcher (stacks below it in the same
          (setf *launcher-layer-surface*
                (rwm:zwlr-layer-shell-v1.get-layer-surface
                  *layer-shell* *launcher-surface*
-                 nil :top "rhizome-launcher"))
+                 (launcher-target-output) :top "rhizome-launcher"))
          ;; Set up event handler for configure
          (push (lambda (event-name &rest args)
                  (case event-name
