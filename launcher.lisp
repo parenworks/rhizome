@@ -1179,7 +1179,7 @@ surface, created BEFORE the launcher (stacks below it in the same
         (setf *launcher-backdrop-surface* surface
               *launcher-backdrop-layer-surface*
               (rwm:zwlr-layer-shell-v1.get-layer-surface
-                *layer-shell* surface (output-under-pointer)
+                *layer-shell* surface (output-proxy (output-under-pointer))
                 :top "rhizome-launcher-backdrop"))
         (push (lambda (event-name &rest args)
                 (when (eq event-name :configure)
@@ -1285,7 +1285,7 @@ surface, created BEFORE the launcher (stacks below it in the same
          (setf *launcher-layer-surface*
                (rwm:zwlr-layer-shell-v1.get-layer-surface
                  *layer-shell* *launcher-surface*
-                 (output-under-pointer) :top "rhizome-launcher"))
+                 (output-proxy (output-under-pointer)) :top "rhizome-launcher"))
          ;; Set up event handler for configure
          (push (lambda (event-name &rest args)
                  (case event-name
