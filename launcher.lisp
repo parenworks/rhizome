@@ -1179,7 +1179,8 @@ surface, created BEFORE the launcher (stacks below it in the same
         (setf *launcher-backdrop-surface* surface
               *launcher-backdrop-layer-surface*
               (rwm:zwlr-layer-shell-v1.get-layer-surface
-                *layer-shell* surface nil :top "rhizome-launcher-backdrop"))
+                *layer-shell* surface (output-under-pointer)
+                :top "rhizome-launcher-backdrop"))
         (push (lambda (event-name &rest args)
                 (when (eq event-name :configure)
                   (destructuring-bind (serial width height) args
@@ -1283,7 +1284,8 @@ surface, created BEFORE the launcher (stacks below it in the same
          ;; Create layer surface (output=nil = let compositor choose, layer=2 = top)
          (setf *launcher-layer-surface*
                (rwm:zwlr-layer-shell-v1.get-layer-surface
-                 *layer-shell* *launcher-surface* nil :top "rhizome-launcher"))
+                 *layer-shell* *launcher-surface*
+                 (output-under-pointer) :top "rhizome-launcher"))
          ;; Set up event handler for configure
          (push (lambda (event-name &rest args)
                  (case event-name

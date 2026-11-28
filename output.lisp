@@ -160,6 +160,23 @@ there is nothing to do but let them go."
   "Return a list of all registered outputs."
   (loop for output being the hash-values of *outputs* collect output))
 
+(defun output-under-pointer ()
+  "The output the pointer is currently on, or the first output when
+the pointer position is unknown. Multi-monitor: the launcher,
+prompts, and message window should open where the user is looking."
+  (let ((outputs (all-outputs)))
+    (or (let ((seat (first (all-seats))))
+          (when (and seat (plusp (seat-pointer-x seat)))
+            (let ((px (seat-pointer-x seat))
+                  (py (seat-pointer-y seat)))
+              (find-if (lambda (out)
+                         (and (>= px (output-x out))
+                              (< px (+ (output-x out) (output-width out)))
+                              (>= py (output-y out))
+                              (< py (+ (output-y out) (output-height out)))))
+                       outputs))))
+        (first outputs))))
+
 (defun find-output-for-window (win)
   "Find which output a window should be managed on.
 For now, uses the first output or the output the pointer is on."
